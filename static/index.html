@@ -1246,6 +1246,39 @@
             flex: 1;
         }
 
+        /* Token刷新状态样式 */
+        .account-refresh-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.875rem;
+            color: #64748b;
+            margin-top: 8px;
+            padding: 4px 0;
+        }
+
+        .refresh-status {
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        .refresh-status.success {
+            color: #10b981;
+        }
+
+        .refresh-status.failed {
+            color: #ef4444;
+        }
+
+        .refresh-status.pending {
+            color: #f59e0b;
+        }
+
+        .refresh-time {
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
         /* 响应式设计 */
         @media (max-width: 768px) {
             .app-container {
@@ -1926,6 +1959,29 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                                 <span>🗑️</span>
                                 清除筛选
                             </button>
+                            <div class="filter-group">
+                                <label class="filter-label">每页显示:</label>
+                                <select class="filter-select" id="emailPageSize" onchange="changeEmailPageSize()">
+                                    <option value="10" selected>10条</option>
+                                    <option value="20">20条</option>
+                                    <option value="50">50条</option>
+                                    <option value="100">100条</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- 分页控件 -->
+                        <div class="pagination-controls" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 16px; padding: 12px; background: white; border-radius: 8px;">
+                            <button class="btn btn-secondary btn-sm" onclick="emailPrevPage()" id="emailPrevBtn">
+                                <span>◀</span> 上一页
+                            </button>
+                            <span style="font-size: 0.875rem; color: #64748b;">
+                                第 <strong id="emailCurrentPageDisplay">1</strong> 页 
+                                <span id="emailTotalInfo"></span>
+                            </span>
+                            <button class="btn btn-secondary btn-sm" onclick="emailNextPage()" id="emailNextBtn">
+                                下一页 <span>▶</span>
+                            </button>
                         </div>
 
                         <!-- 邮件列表 -->
@@ -2024,6 +2080,11 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
         let accountsTotalCount = 0;
         let currentEmailSearch = '';
         let currentTagSearch = '';
+
+        // 邮件列表分页相关变量
+        let emailCurrentPage = 1;
+        let emailPageSize = 10;
+        let emailTotalCount = 0;
 
         // 全局变量，用于存储当前编辑的账户信息
         let currentEditAccount = null;
@@ -2177,6 +2238,18 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
             showNotification(msg, 'info');
         }
 
+        // 格式化刷新时间
+        function formatRefreshTime(timeString) {
+            if (!timeString) return '未刷新';
+            try {
+                const date = new Date(timeString);
+                if (isNaN(date.getTime())) return '未刷新';
+                return date.toLocaleString('zh-CN');
+            } catch (error) {
+                return '未刷新';
+            }
+        }
+
         // API请求
         async function apiRequest(url, options = {}) {
             try {
@@ -2326,7 +2399,15 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                         ? `<div class="account-tags">${account.tags.map(tag => 
                             `<span class="account-tag">${tag}</span>`).join('')}</div>` 
                         : '';
-                        
+                    
+                    // 生成刷新状态图标和文本
+                    const refreshStatus = account.refresh_status || 'pending';
+                    const refreshStatusIcon = refreshStatus === 'success' ? '✅' : 
+                                            refreshStatus === 'failed' ? '❌' : '⏳';
+                    const refreshStatusText = refreshStatus === 'success' ? '成功' :
+                                            refreshStatus === 'failed' ? '失败' : '待刷新';
+                    const refreshTime = formatRefreshTime(account.last_refresh_time);
+                    
                     return `
                         <div class="account-item" onclick="viewAccountEmails('${account.email_id}')" oncontextmenu="showAccountContextMenu(event, '${account.email_id}')">
                             <div class="account-info">
@@ -2335,6 +2416,10 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                                     <h4>${account.email_id}</h4>
                                     <p>状态: ${account.status === 'active' ? '正常' : '异常'}</p>
                                     ${tagsHtml}
+                                    <div class="account-refresh-info">
+                                        <span class="refresh-status ${refreshStatus}">${refreshStatusIcon}</span>
+                                        <span class="refresh-time">Token刷新: ${refreshTime} (${refreshStatusText})</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="account-actions" onclick="event.stopPropagation()">
@@ -2345,6 +2430,10 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                                 <button class="btn btn-secondary btn-sm" onclick="editAccountTags('${account.email_id}', ${JSON.stringify(account.tags || [])})">
                                     <span>🏷️</span>
                                     管理标签
+                                </button>
+                                <button class="btn btn-secondary btn-sm" onclick="refreshAccountToken('${account.email_id}')">
+                                    <span>🔄</span>
+                                    刷新Token
                                 </button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteAccount('${account.email_id}')">
                                     <span>🗑️</span>
@@ -2849,17 +2938,21 @@ GET /emails/{email_id}/{message_id}
 
             try {
                 const refreshParam = forceRefresh ? '&refresh=true' : '';
-                const url = `/emails/${currentAccount}?folder=${currentEmailFolder}&page=${currentEmailPage}&page_size=100${refreshParam}`;
+                const url = `/emails/${currentAccount}?folder=${currentEmailFolder}&page=${emailCurrentPage}&page_size=${emailPageSize}${refreshParam}`;
                 const data = await apiRequest(url);
 
-                // 存储所有邮件数据
+                // 存储所有邮件数据和总数
                 allEmails = data.emails || [];
+                emailTotalCount = data.total_emails || 0;
 
                 // 更新统计信息
                 updateEmailStats(allEmails);
 
                 // 应用当前过滤器
                 applyFilters();
+
+                // 更新分页显示
+                updateEmailPagination();
 
                 // 更新最后更新时间
                 document.getElementById('lastUpdateTime').textContent = new Date().toLocaleString();
@@ -2876,6 +2969,38 @@ GET /emails/{email_id}/{message_id}
                 refreshBtn.disabled = false;
                 refreshBtn.innerHTML = '<span>🔄</span> 刷新';
             }
+        }
+
+        // 邮件分页函数
+        function changeEmailPageSize() {
+            emailPageSize = parseInt(document.getElementById('emailPageSize').value);
+            emailCurrentPage = 1;
+            loadEmails();
+        }
+
+        function emailNextPage() {
+            const totalPages = Math.ceil(emailTotalCount / emailPageSize);
+            if (emailCurrentPage < totalPages) {
+                emailCurrentPage++;
+                loadEmails();
+            }
+        }
+
+        function emailPrevPage() {
+            if (emailCurrentPage > 1) {
+                emailCurrentPage--;
+                loadEmails();
+            }
+        }
+
+        function updateEmailPagination() {
+            const totalPages = Math.ceil(emailTotalCount / emailPageSize);
+            document.getElementById('emailCurrentPageDisplay').textContent = emailCurrentPage;
+            document.getElementById('emailTotalInfo').textContent = `/ 共 ${totalPages} 页 (总计 ${emailTotalCount} 封)`;
+            
+            // 更新按钮状态
+            document.getElementById('emailPrevBtn').disabled = emailCurrentPage === 1;
+            document.getElementById('emailNextBtn').disabled = emailCurrentPage >= totalPages;
         }
 
         function updateEmailStats(emails) {
@@ -3363,6 +3488,28 @@ GET /emails/{email_id}/{message_id}
                 loadAccounts(accountsCurrentPage); // 保持当前页码
             } catch (error) {
                 showError('删除账户失败: ' + error.message);
+            }
+        }
+        
+        async function refreshAccountToken(emailId) {
+            if (!confirm(`确定要手动刷新账户 ${emailId} 的Token吗？`)) {
+                return;
+            }
+
+            try {
+                showNotification('正在刷新Token，请稍候...', 'info');
+                
+                const response = await apiRequest(`/accounts/${emailId}/refresh-token`, {
+                    method: 'POST'
+                });
+
+                showNotification('Token刷新成功！', 'success');
+                
+                // 重新加载账户列表以显示更新后的刷新时间
+                loadAccounts(accountsCurrentPage);
+
+            } catch (error) {
+                showNotification(`Token刷新失败: ${error.message}`, 'error');
             }
         }
         

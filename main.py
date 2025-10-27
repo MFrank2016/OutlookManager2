@@ -76,6 +76,10 @@ class AccountCredentials(BaseModel):
     refresh_token: str
     client_id: str
     tags: Optional[List[str]] = Field(default=[])
+    last_refresh_time: Optional[str] = None
+    next_refresh_time: Optional[str] = None
+    refresh_status: str = "pending"
+    refresh_error: Optional[str] = None
 
     class Config:
         schema_extra = {
@@ -83,7 +87,9 @@ class AccountCredentials(BaseModel):
                 "email": "user@outlook.com",
                 "refresh_token": "0.AXoA...",
                 "client_id": "your-client-id",
-                "tags": ["工作", "个人"]
+                "tags": ["工作", "个人"],
+                "last_refresh_time": "2024-01-01T12:00:00",
+                "refresh_status": "success"
             }
         }
 
@@ -156,6 +162,9 @@ class AccountInfo(BaseModel):
     client_id: str
     status: str = "active"
     tags: List[str] = []
+    last_refresh_time: Optional[str] = None
+    next_refresh_time: Optional[str] = None
+    refresh_status: str = "pending"
 
 
 class AccountListResponse(BaseModel):
@@ -578,7 +587,12 @@ async def get_account_credentials(email_id: str) -> AccountCredentials:
         return AccountCredentials(
             email=email_id,
             refresh_token=account_data['refresh_token'],
-            client_id=account_data['client_id']
+            client_id=account_data['client_id'],
+            tags=account_data.get('tags', []),
+            last_refresh_time=account_data.get('last_refresh_time'),
+            next_refresh_time=account_data.get('next_refresh_time'),
+            refresh_status=account_data.get('refresh_status', 'pending'),
+            refresh_error=account_data.get('refresh_error')
         )
 
     except HTTPException:
@@ -603,7 +617,11 @@ async def save_account_credentials(email_id: str, credentials: AccountCredential
         accounts[email_id] = {
             'refresh_token': credentials.refresh_token,
             'client_id': credentials.client_id,
-            'tags': credentials.tags if hasattr(credentials, 'tags') else []
+            'tags': credentials.tags if hasattr(credentials, 'tags') else [],
+            'last_refresh_time': credentials.last_refresh_time,
+            'next_refresh_time': credentials.next_refresh_time,
+            'refresh_status': credentials.refresh_status,
+            'refresh_error': credentials.refresh_error
         }
 
         with open(ACCOUNTS_FILE, 'w', encoding='utf-8') as f:
@@ -650,7 +668,10 @@ async def get_all_accounts(
                 email_id=email_id,
                 client_id=account_info.get('client_id', ''),
                 status=status,
-                tags=account_info.get('tags', [])
+                tags=account_info.get('tags', []),
+                last_refresh_time=account_info.get('last_refresh_time'),
+                next_refresh_time=account_info.get('next_refresh_time'),
+                refresh_status=account_info.get('refresh_status', 'pending')
             )
             all_accounts.append(account)
 
@@ -755,6 +776,81 @@ async def get_access_token(credentials: AccountCredentials) -> str:
     except Exception as e:
         logger.error(f"Unexpected error getting access token for {credentials.email}: {e}")
         raise HTTPException(status_code=500, detail="Token acquisition failed")
+
+
+async def refresh_account_token(credentials: AccountCredentials) -> dict:
+    """
+    刷新账户的refresh_token
+    
+    Args:
+        credentials: 账户凭证信息
+        
+    Returns:
+        dict: {
+            'success': bool,
+            'new_refresh_token': str (if success),
+            'new_access_token': str (if success),
+            'error': str (if failed)
+        }
+    """
+    # 构建OAuth2请求数据
+    token_request_data = {
+        'client_id': credentials.client_id,
+        'grant_type': 'refresh_token',
+        'refresh_token': credentials.refresh_token,
+        'scope': OAUTH_SCOPE
+    }
+
+    try:
+        # 发送令牌请求
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(TOKEN_URL, data=token_request_data)
+            response.raise_for_status()
+
+            # 解析响应
+            token_data = response.json()
+            new_access_token = token_data.get('access_token')
+            new_refresh_token = token_data.get('refresh_token')
+
+            if not new_access_token:
+                logger.error(f"No access token in refresh response for {credentials.email}")
+                return {
+                    'success': False,
+                    'error': 'No access token in response'
+                }
+            
+            if not new_refresh_token:
+                logger.warning(f"No new refresh token in response for {credentials.email}, using existing one")
+                new_refresh_token = credentials.refresh_token
+
+            logger.info(f"Successfully refreshed token for {credentials.email}")
+            return {
+                'success': True,
+                'new_refresh_token': new_refresh_token,
+                'new_access_token': new_access_token
+            }
+
+    except httpx.HTTPStatusError as e:
+        error_msg = f"HTTP {e.response.status_code} error refreshing token"
+        logger.error(f"{error_msg} for {credentials.email}: {e}")
+        return {
+            'success': False,
+            'error': error_msg
+        }
+    except httpx.RequestError as e:
+        error_msg = f"Network error refreshing token: {str(e)}"
+        logger.error(f"{error_msg} for {credentials.email}")
+        return {
+            'success': False,
+            'error': error_msg
+        }
+    except Exception as e:
+        error_msg = f"Unexpected error: {str(e)}"
+        logger.error(f"{error_msg} for {credentials.email}")
+        return {
+            'success': False,
+            'error': error_msg
+        }
 
 
 # ============================================================================
@@ -1015,6 +1111,87 @@ async def get_email_details(credentials: AccountCredentials, message_id: str) ->
 # FastAPI应用和API端点
 # ============================================================================
 
+async def token_refresh_background_task():
+    """后台定时任务：每3天刷新所有账户的token"""
+    logger.info("Token refresh background task started")
+    
+    while True:
+        try:
+            # 等待3天
+            await asyncio.sleep(3 * 24 * 60 * 60)  # 3天 = 259200秒
+            
+            logger.info("Starting scheduled token refresh for all accounts...")
+            
+            # 读取所有账户
+            accounts_path = Path(ACCOUNTS_FILE)
+            if not accounts_path.exists():
+                logger.warning("No accounts file found, skipping token refresh")
+                continue
+            
+            with open(accounts_path, 'r', encoding='utf-8') as f:
+                accounts_data = json.load(f)
+            
+            if not accounts_data:
+                logger.info("No accounts to refresh")
+                continue
+            
+            # 逐个刷新token
+            refresh_count = 0
+            failed_count = 0
+            
+            for email_id, account_info in accounts_data.items():
+                try:
+                    # 构建凭证对象
+                    credentials = AccountCredentials(
+                        email=email_id,
+                        refresh_token=account_info['refresh_token'],
+                        client_id=account_info['client_id'],
+                        tags=account_info.get('tags', []),
+                        last_refresh_time=account_info.get('last_refresh_time'),
+                        next_refresh_time=account_info.get('next_refresh_time'),
+                        refresh_status=account_info.get('refresh_status', 'pending'),
+                        refresh_error=account_info.get('refresh_error')
+                    )
+                    
+                    # 刷新token
+                    result = await refresh_account_token(credentials)
+                    
+                    # 更新账户信息
+                    current_time = datetime.now().isoformat()
+                    next_refresh = datetime.now()
+                    next_refresh = next_refresh.replace(day=next_refresh.day + 3)
+                    
+                    if result['success']:
+                        account_info['refresh_token'] = result['new_refresh_token']
+                        account_info['last_refresh_time'] = current_time
+                        account_info['next_refresh_time'] = next_refresh.isoformat()
+                        account_info['refresh_status'] = 'success'
+                        account_info['refresh_error'] = None
+                        refresh_count += 1
+                        logger.info(f"Successfully refreshed token for {email_id},new token:{result['new_refresh_token']}")
+                    else:
+                        account_info['refresh_status'] = 'failed'
+                        account_info['refresh_error'] = result.get('error', 'Unknown error')
+                        failed_count += 1
+                        logger.error(f"Failed to refresh token for {email_id}: {result.get('error')}")
+                    
+                except Exception as e:
+                    logger.error(f"Error refreshing token for {email_id}: {e}")
+                    account_info['refresh_status'] = 'failed'
+                    account_info['refresh_error'] = str(e)
+                    failed_count += 1
+            
+            # 保存更新后的账户数据
+            with open(accounts_path, 'w', encoding='utf-8') as f:
+                json.dump(accounts_data, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Token refresh completed: {refresh_count} succeeded, {failed_count} failed")
+            
+        except Exception as e:
+            logger.error(f"Error in token refresh background task: {e}")
+            # 继续运行，不中断任务
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """
@@ -1025,11 +1202,23 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # 应用启动
     logger.info("Starting Outlook Email Management System...")
     logger.info(f"IMAP connection pool initialized with max_connections={MAX_CONNECTIONS}")
+    
+    # 启动后台Token刷新任务
+    refresh_task = asyncio.create_task(token_refresh_background_task())
+    logger.info("Token refresh background task scheduled")
 
     yield
 
     # 应用关闭
     logger.info("Shutting down Outlook Email Management System...")
+    
+    # 取消后台任务
+    refresh_task.cancel()
+    try:
+        await refresh_task
+    except asyncio.CancelledError:
+        logger.info("Token refresh background task cancelled")
+    
     logger.info("Closing IMAP connection pool...")
     imap_pool.close_all_connections()
     logger.info("Application shutdown complete.")
@@ -1203,6 +1392,54 @@ async def clear_all_cache():
     clear_email_cache()
     return {"message": "All cache cleared"}
 
+@app.post("/accounts/{email_id}/refresh-token", response_model=AccountResponse)
+async def manual_refresh_token(email_id: str):
+    """手动刷新指定账户的token"""
+    try:
+        # 获取账户凭证
+        credentials = await get_account_credentials(email_id)
+        
+        # 调用刷新函数
+        result = await refresh_account_token(credentials)
+        
+        if result['success']:
+            # 更新凭证对象
+            current_time = datetime.now().isoformat()
+            next_refresh = datetime.now()
+            # 计算下次刷新时间（3天后）
+            from datetime import timedelta
+            next_refresh = datetime.now() + timedelta(days=3)
+            
+            credentials.refresh_token = result['new_refresh_token']
+            credentials.last_refresh_time = current_time
+            credentials.next_refresh_time = next_refresh.isoformat()
+            credentials.refresh_status = 'success'
+            credentials.refresh_error = None
+            
+            # 保存更新后的凭证
+            await save_account_credentials(email_id, credentials)
+            
+            return AccountResponse(
+                email_id=email_id,
+                message=f"Token refreshed successfully at {current_time}"
+            )
+        else:
+            # 更新失败状态
+            credentials.refresh_status = 'failed'
+            credentials.refresh_error = result.get('error', 'Unknown error')
+            await save_account_credentials(email_id, credentials)
+            
+            raise HTTPException(
+                status_code=500,
+                detail=f"Token refresh failed: {result.get('error', 'Unknown error')}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error manually refreshing token for {email_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to refresh token")
+
 @app.get("/api")
 async def api_status():
     """API状态检查"""
@@ -1215,6 +1452,7 @@ async def api_status():
             "get_emails": "GET /emails/{email_id}?refresh=true",
             "get_dual_view_emails": "GET /emails/{email_id}/dual-view",
             "get_email_detail": "GET /emails/{email_id}/{message_id}",
+            "refresh_token": "POST /accounts/{email_id}/refresh-token",
             "clear_cache": "DELETE /cache/{email_id}",
             "clear_all_cache": "DELETE /cache"
         }
