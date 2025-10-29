@@ -1,0 +1,107 @@
+{
+  "timestamp": "2025-10-29T18:21:55.131573",
+  "summary": {
+    "total": 16,
+    "passed": 11,
+    "failed": 5,
+    "success_rate": 68.75
+  },
+  "tests": [
+    {
+      "name": "GET /health",
+      "status": "PASS",
+      "message": "状态: healthy",
+      "timestamp": "2025-10-29T18:19:20.457777"
+    },
+    {
+      "name": "POST /api/v1/auth/login",
+      "status": "PASS",
+      "message": "Token获取成功 (长度: 235)",
+      "timestamp": "2025-10-29T18:19:31.877001"
+    },
+    {
+      "name": "POST /api/v1/auth/verify-token",
+      "status": "PASS",
+      "message": "",
+      "timestamp": "2025-10-29T18:19:41.313475"
+    },
+    {
+      "name": "POST /api/v1/auth/change-password",
+      "status": "SKIP",
+      "message": "跳过以避免修改测试账户密码",
+      "timestamp": "2025-10-29T18:19:41.313520"
+    },
+    {
+      "name": "POST /api/v1/accounts",
+      "status": "PASS",
+      "message": "账户创建成功 (ID: 2f0c5a06-6e02-4949-8764-3aef2a1e6a75)",
+      "timestamp": "2025-10-29T18:20:01.435800"
+    },
+    {
+      "name": "GET /api/v1/accounts",
+      "status": "PASS",
+      "message": "返回 1 个账户",
+      "timestamp": "2025-10-29T18:20:10.617313"
+    },
+    {
+      "name": "GET /api/v1/accounts/{id}",
+      "status": "PASS",
+      "message": "",
+      "timestamp": "2025-10-29T18:20:19.993720"
+    },
+    {
+      "name": "PUT /api/v1/accounts/{id}",
+      "status": "PASS",
+      "message": "",
+      "timestamp": "2025-10-29T18:20:30.660601"
+    },
+    {
+      "name": "POST /api/v1/accounts/{id}/refresh-token",
+      "status": "TESTED",
+      "message": "预期异常（测试数据）",
+      "timestamp": "2025-10-29T18:20:49.798126"
+    },
+    {
+      "name": "DELETE /api/v1/accounts/{id}",
+      "status": "PASS",
+      "message": "",
+      "timestamp": "2025-10-29T18:20:59.226185"
+    },
+    {
+      "name": "GET /api/v1/emails/{account_id}",
+      "status": "TESTED",
+      "message": "状态码: 422 (测试账户不存在)",
+      "timestamp": "2025-10-29T18:21:09.067440"
+    },
+    {
+      "name": "GET /api/v1/emails/{account_id}/{message_id}",
+      "status": "TESTED",
+      "message": "状态码: 404 (测试数据)",
+      "timestamp": "2025-10-29T18:21:18.148768"
+    },
+    {
+      "name": "POST /api/v1/emails/{account_id}/search",
+      "status": "TESTED",
+      "message": "状态码: 404 (测试数据)",
+      "timestamp": "2025-10-29T18:21:27.459913"
+    },
+    {
+      "name": "GET /api/v1/admin/profile",
+      "status": "PASS",
+      "message": "用户名: admin",
+      "timestamp": "2025-10-29T18:21:36.655182"
+    },
+    {
+      "name": "PUT /api/v1/admin/profile",
+      "status": "PASS",
+      "message": "",
+      "timestamp": "2025-10-29T18:21:45.957027"
+    },
+    {
+      "name": "GET /api/v1/admin/stats",
+      "status": "PASS",
+      "message": "账户数: 0",
+      "timestamp": "2025-10-29T18:21:55.131477"
+    }
+  ]
+}
