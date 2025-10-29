@@ -23,6 +23,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制应用代码
 COPY main.py .
+COPY admin_api.py .
+COPY auth.py .
+COPY database.py .
+COPY batch.py .
+COPY migrate.py .
 COPY static/ ./static/
 COPY docker-entrypoint.sh .
 
