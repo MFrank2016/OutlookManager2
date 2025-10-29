@@ -262,7 +262,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px;
+            padding: 10px 12px;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
             background: white;
@@ -278,12 +278,13 @@
         .account-info {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
+            flex: 1;
         }
 
         .account-avatar {
-            width: 40px;
-            height: 40px;
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
             background: #3b82f6;
             color: white;
@@ -291,11 +292,17 @@
             align-items: center;
             justify-content: center;
             font-weight: 600;
-            font-size: 1rem;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .account-details {
+            flex: 1;
+            min-width: 0;
         }
 
         .account-details h4 {
-            margin: 0;
+            margin: 0 0 4px 0;
             font-size: 0.875rem;
             font-weight: 500;
             color: #1e293b;
@@ -305,6 +312,32 @@
             margin: 0;
             font-size: 0.75rem;
             color: #64748b;
+        }
+
+        .account-status-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 4px;
+        }
+
+        .account-status {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.75rem;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #10b981;
+        }
+
+        .status-indicator.error {
+            background: #ef4444;
         }
 
         .account-actions {
@@ -392,6 +425,7 @@
             line-height: 1.4;
             display: -webkit-box;
             -webkit-line-clamp: 2;
+            line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
@@ -714,9 +748,9 @@
         .success {
             background: #f0fdf4;
             color: #16a34a;
-            padding: 12px 16px;
+            padding: 5px 5px;
             border-radius: 6px;
-            margin-bottom: 16px;
+            /* margin-bottom: 16px; */
             border: 1px solid #bbf7d0;
             font-size: 0.875rem;
             display: flex;
@@ -787,6 +821,440 @@
             background: white;
             border-color: #e2e8f0;
             color: #cbd5e1;
+        }
+
+        /* 管理面板样式 */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            border-bottom: 2px solid #e2e8f0;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            border: none;
+            background: none;
+            color: #64748b;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #3b82f6;
+        }
+
+        .tab.active {
+            color: #3b82f6;
+            border-bottom-color: #3b82f6;
+        }
+
+        .admin-panel {
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* 表列表样式 - 参考账户列表 */
+        /* 表列表容器 */
+        .tables-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .table-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+
+        .table-item:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .table-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .table-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .table-details h5 {
+            margin: 0 0 4px 0;
+            color: #1e293b;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+
+        .table-details p {
+            margin: 0;
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+
+        .table-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 4px;
+        }
+
+        .table-count {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.75rem;
+            color: #64748b;
+        }
+
+        .count-badge {
+            background: #e0e7ff;
+            color: #4f46e5;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.688rem;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        /* 配置项样式 - 参考账户列表 */
+        /* 配置列表容器 */
+        .configs-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .config-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            transition: all 0.2s;
+        }
+
+        .config-item:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .config-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .config-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+        .config-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .config-key {
+            margin: 0 0 4px 0;
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 0.875rem;
+        }
+
+        .config-value {
+            color: #64748b;
+            font-size: 0.75rem;
+            font-family: 'Courier New', monospace;
+            background: #f8fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .config-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .config-description {
+            color: #94a3b8;
+            font-size: 0.688rem;
+        }
+
+        .config-updated {
+            color: #cbd5e1;
+            font-size: 0.688rem;
+        }
+
+        .config-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        /* 表格响应式容器 */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+            -webkit-overflow-scrolling: touch;
+            margin: 16px 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .data-table {
+            width: 100%;
+            min-width: 600px; /* 最小宽度，确保表格不会太挤 */
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .data-table th {
+            background: #f8fafc;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #475569;
+            border-bottom: 2px solid #e2e8f0;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .data-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+            color: #64748b;
+            max-width: 300px; /* 限制单元格最大宽度 */
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .data-table tr:hover {
+            background: #f8fafc;
+        }
+
+        .data-table-actions {
+            display: flex;
+            gap: 8px;
+            white-space: nowrap;
+            justify-content: flex-start;
+        }
+
+        .data-table-actions .btn {
+            flex-shrink: 0;
+        }
+
+        /* API测试模态框样式 */
+        .api-test-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .api-test-modal.show {
+            display: flex;
+        }
+
+        .api-test-content {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .api-test-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .api-test-header h3 {
+            margin: 0;
+            font-size: 1.125rem;
+            color: #1e293b;
+        }
+
+        .api-test-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #64748b;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .api-test-close:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
+        .api-test-body {
+            padding: 24px;
+        }
+
+        .api-test-section {
+            margin-bottom: 20px;
+        }
+
+        .api-test-section h4 {
+            margin: 0 0 12px 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .api-test-param {
+            margin-bottom: 12px;
+        }
+
+        .api-test-param label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 0.875rem;
+            color: #64748b;
+        }
+
+        .api-test-param input,
+        .api-test-param textarea,
+        .api-test-param select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-family: 'Courier New', monospace;
+        }
+
+        .api-test-param textarea {
+            min-height: 120px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .api-test-result {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+
+        .api-test-result h4 {
+            margin: 0 0 12px 0;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #475569;
+        }
+
+        .api-test-result pre {
+            margin: 0;
+            padding: 12px;
+            background: #1e293b;
+            color: #10b981;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            overflow-x: auto;
+            max-height: 400px;
+        }
+
+        .api-test-result.success {
+            background: #f0fdf4;
+            border-color: #bbf7d0;
+        }
+
+        .api-test-result.success pre {
+            color: #15803d;
+            background: #dcfce7;
+        }
+
+        .api-test-result.error {
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
+
+        .api-test-result.error pre {
+            color: #dc2626;
+            background: #fee2e2;
+        }
+
+        .api-test-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
         }
 
         /* 右键菜单样式 */
@@ -1250,16 +1718,16 @@
         .account-refresh-info {
             display: flex;
             align-items: center;
-            gap: 8px;
-            font-size: 0.875rem;
-            color: #64748b;
-            margin-top: 8px;
-            padding: 4px 0;
+            gap: 4px;
+            font-size: 0.75rem;
+            color: #94a3b8;
         }
 
         .refresh-status {
-            font-size: 1rem;
+            font-size: 0.75rem;
             line-height: 1;
+            display: inline-flex;
+            align-items: center;
         }
 
         .refresh-status.success {
@@ -1275,11 +1743,14 @@
         }
 
         .refresh-time {
-            font-size: 0.875rem;
-            color: #64748b;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        /* 响应式设计 */
+        /* 响应式设计 - 平板和小屏幕 */
         @media (max-width: 768px) {
             .app-container {
                 flex-direction: column;
@@ -1292,10 +1763,24 @@
                 border-bottom: 1px solid #e2e8f0;
             }
 
+            .sidebar-header {
+                padding: 12px 16px;
+            }
+
+            .sidebar-header h1 {
+                font-size: 1.25rem;
+            }
+
             .sidebar-nav {
                 display: flex;
                 overflow-x: auto;
                 padding: 10px 0;
+                scrollbar-width: none; /* Firefox */
+                -ms-overflow-style: none; /* IE/Edge */
+            }
+
+            .sidebar-nav::-webkit-scrollbar {
+                display: none; /* Chrome/Safari */
             }
 
             .nav-item {
@@ -1303,10 +1788,23 @@
                 padding: 8px 16px;
                 margin: 0 4px;
                 border-radius: 6px;
+                font-size: 0.813rem;
+            }
+
+            .nav-item .icon {
+                font-size: 0.875rem;
             }
 
             .main-body {
-                padding: 16px;
+                padding: 12px;
+            }
+
+            .main-header {
+                padding: 12px 16px;
+            }
+
+            .main-header h2 {
+                font-size: 1.125rem;
             }
 
             .modal-content {
@@ -1318,16 +1816,60 @@
                 padding: 16px;
             }
 
+            /* 账户列表优化 */
+            .account-list {
+                gap: 10px;
+            }
+
             .account-item {
-                padding: 12px;
+                padding: 10px;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .account-info {
+                gap: 10px;
+                margin-bottom: 10px;
             }
 
             .account-avatar {
-                width: 32px;
-                height: 32px;
+                width: 36px;
+                height: 36px;
                 font-size: 0.875rem;
             }
 
+            .account-details {
+                flex: 1;
+            }
+
+            .account-details h4 {
+                font-size: 0.875rem;
+            }
+
+            .account-status-row {
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 8px;
+                font-size: 0.75rem;
+            }
+
+            .account-actions {
+                width: 100%;
+                justify-content: stretch;
+                gap: 6px;
+            }
+
+            .account-actions .btn {
+                flex: 1;
+                padding: 8px 10px;
+                font-size: 0.75rem;
+            }
+
+            .account-actions .btn span {
+                display: none;
+            }
+
+            /* 邮件列表优化 */
             .email-item {
                 padding: 12px;
             }
@@ -1336,6 +1878,331 @@
                 width: 32px;
                 height: 32px;
                 font-size: 0.875rem;
+            }
+
+            /* 卡片优化 */
+            .card {
+                padding: 16px;
+                margin-bottom: 16px;
+            }
+
+            /* 按钮优化 */
+            .btn {
+                padding: 10px 14px;
+                font-size: 0.875rem;
+            }
+
+            .btn-sm {
+                padding: 6px 10px;
+                font-size: 0.75rem;
+            }
+
+            /* 管理面板优化 */
+            .tables-list,
+            .configs-list {
+                gap: 10px;
+            }
+
+            .table-item,
+            .config-item {
+                padding: 10px;
+            }
+
+            /* 数据表格优化 */
+            .table-responsive {
+                margin: 12px 0;
+            }
+
+            .data-table {
+                font-size: 0.813rem;
+                min-width: 550px;
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 10px 8px;
+            }
+
+            .data-table td {
+                max-width: 250px;
+            }
+
+            .data-table-actions {
+                gap: 6px;
+            }
+
+            .data-table-actions .btn {
+                padding: 6px 8px;
+                font-size: 0.75rem;
+            }
+        }
+
+        /* 响应式设计 - 手机 */
+        @media (max-width: 480px) {
+            .sidebar-header {
+                padding: 10px 12px;
+            }
+
+            .sidebar-header h1 {
+                font-size: 1.125rem;
+            }
+
+            .sidebar-header p {
+                font-size: 0.75rem;
+            }
+
+            .nav-item {
+                padding: 6px 12px;
+                font-size: 0.75rem;
+            }
+
+            .main-body {
+                padding: 10px;
+            }
+
+            .main-header {
+                padding: 10px 12px;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .main-header h2 {
+                font-size: 1rem;
+            }
+
+            /* 账户列表手机适配 */
+            .account-list {
+                gap: 8px;
+            }
+
+            .account-item {
+                padding: 8px;
+                border-radius: 6px;
+            }
+
+            .account-info {
+                gap: 8px;
+                margin-bottom: 8px;
+            }
+
+            .account-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 0.75rem;
+            }
+
+            .account-details h4 {
+                font-size: 0.813rem;
+                word-break: break-all;
+            }
+
+            .account-tags {
+                gap: 3px;
+                margin-top: 3px;
+            }
+
+            .account-tag {
+                font-size: 0.688rem;
+                padding: 2px 6px;
+            }
+
+            .account-status-row {
+                flex-direction: column;
+                gap: 4px;
+                align-items: flex-start;
+                font-size: 0.688rem;
+            }
+
+            .status-indicator {
+                width: 5px;
+                height: 5px;
+            }
+
+            .account-actions {
+                gap: 4px;
+            }
+
+            .account-actions .btn {
+                padding: 6px 8px;
+                font-size: 0.688rem;
+                white-space: nowrap;
+                min-width: 0;
+            }
+
+            /* 隐藏部分按钮文字，只显示图标 */
+            .account-actions .btn-secondary {
+                padding: 6px;
+            }
+
+            /* 统计信息优化 */
+            .stats-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .stat-card {
+                padding: 12px;
+            }
+
+            /* 搜索栏优化 */
+            .search-bar {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .search-bar .form-control {
+                width: 100%;
+            }
+
+            /* 卡片优化 */
+            .card {
+                padding: 12px;
+                margin-bottom: 12px;
+            }
+
+            /* 表单优化 */
+            .form-group {
+                margin-bottom: 12px;
+            }
+
+            .form-label {
+                font-size: 0.813rem;
+            }
+
+            .form-control,
+            .form-input {
+                padding: 8px 10px;
+                font-size: 0.875rem;
+            }
+
+            /* 按钮优化 */
+            .btn {
+                padding: 8px 12px;
+                font-size: 0.813rem;
+            }
+
+            .btn-sm {
+                padding: 5px 8px;
+                font-size: 0.688rem;
+            }
+
+            /* API文档优化 */
+            .api-endpoint {
+                padding: 12px;
+            }
+
+            .api-method {
+                font-size: 0.688rem;
+                padding: 3px 6px;
+            }
+
+            .api-path {
+                font-size: 0.75rem;
+            }
+
+            /* 分页优化 */
+            .pagination {
+                gap: 4px;
+                flex-wrap: wrap;
+            }
+
+            .pagination .btn {
+                min-width: 32px;
+                padding: 6px;
+            }
+
+            .pagination .page-number {
+                min-width: 32px;
+                height: 28px;
+                font-size: 0.75rem;
+            }
+
+            /* 管理面板优化 */
+            .tables-list,
+            .configs-list {
+                gap: 8px;
+            }
+
+            .table-item,
+            .config-item {
+                padding: 8px;
+            }
+
+            .table-icon,
+            .config-icon {
+                width: 28px;
+                height: 28px;
+                font-size: 0.75rem;
+            }
+
+            .table-actions,
+            .config-actions {
+                width: 100%;
+                margin-top: 8px;
+            }
+
+            .table-actions .btn,
+            .config-actions .btn {
+                flex: 1;
+                padding: 6px 8px;
+                font-size: 0.688rem;
+            }
+
+            .count-badge {
+                font-size: 0.625rem;
+                padding: 1px 6px;
+            }
+
+            /* 数据表格优化 */
+            .table-responsive {
+                border-radius: 6px;
+                margin: 8px 0;
+            }
+
+            .data-table {
+                font-size: 0.75rem;
+                min-width: 500px; /* 移动端减小最小宽度 */
+            }
+
+            .data-table th,
+            .data-table td {
+                padding: 8px 6px;
+                font-size: 0.75rem;
+            }
+
+            .data-table td {
+                max-width: 200px; /* 移动端减小最大宽度 */
+            }
+
+            .data-table-actions {
+                gap: 4px;
+                flex-wrap: wrap;
+            }
+
+            .data-table-actions .btn {
+                padding: 5px 6px;
+                font-size: 0.688rem;
+                flex: 1 1 auto;
+                min-width: 50px;
+            }
+
+            /* 隐藏数据表操作按钮的图标后文字 */
+            .data-table-actions .btn-sm {
+                padding: 5px;
+            }
+
+            /* 表数据面板优化 */
+            #tableDataPanel .card {
+                padding: 10px;
+            }
+
+            #tableDataPanel .card-header {
+                padding: 10px;
+            }
+
+            #tableSearch {
+                font-size: 0.813rem;
             }
         }
     </style>
@@ -1360,6 +2227,10 @@
                 <button class="nav-item" onclick="showPage('batchAdd', this)">
                     <span class="icon">📦</span>
                     批量添加
+                </button>
+                <button class="nav-item" onclick="showPage('adminPanel', this)">
+                    <span class="icon">⚙️</span>
+                    管理面板
                 </button>
                 <button class="nav-item" onclick="showPage('apiDocs', this)">
                     <span class="icon">📖</span>
@@ -1611,6 +2482,63 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                     </div>
                 </div>
 
+                <!-- 管理面板页面 -->
+                <div id="adminPanelPage" class="page hidden">
+                    <div class="card">
+                        <h3 class="font-semibold mb-4">⚙️ 系统管理面板</h3>
+                        <p class="text-sm mb-6" style="color: #64748b;">管理数据库表和系统配置</p>
+                        
+                        <!-- 标签页 -->
+                        <div class="tabs mb-4">
+                            <button class="tab active" onclick="switchAdminTab('tables', this)">数据表管理</button>
+                            <button class="tab" onclick="switchAdminTab('config', this)">系统配置</button>
+                        </div>
+
+                        <!-- 数据表管理 -->
+                        <div id="tablesPanel" class="admin-panel">
+                            <div class="mb-4">
+                                <h4 class="font-semibold mb-2">数据库表列表</h4>
+                                <div id="tablesList" class="tables-list loading">正在加载表列表...</div>
+                            </div>
+                            
+                            <div id="tableDataPanel" class="hidden">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="font-semibold">表数据: <span id="currentTableName"></span></h4>
+                                    <div>
+                                        <button class="btn btn-primary btn-sm" onclick="openAddRecordModal()">
+                                            <span>➕</span> 添加记录
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" onclick="refreshTableData()">
+                                            <span>🔄</span> 刷新
+                                        </button>
+                                        <button class="btn btn-secondary btn-sm" onclick="backToTablesList()">
+                                            <span>←</span> 返回
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <input type="text" id="tableSearch" class="form-control" placeholder="搜索表数据..." 
+                                           oninput="searchTableData()" style="max-width: 300px;">
+                                </div>
+                                
+                                <div id="tableDataContent" class="loading">正在加载数据...</div>
+                                
+                                <div id="tablePagination" class="pagination hidden"></div>
+                            </div>
+                        </div>
+
+                        <!-- 系统配置管理 -->
+                        <div id="configPanel" class="admin-panel hidden">
+                            <div class="mb-4">
+                                <h4 class="font-semibold mb-2">系统配置项</h4>
+                                <p class="text-sm" style="color: #64748b;">配置IMAP服务器、连接池、缓存等系统参数</p>
+                            </div>
+                            <div id="configsList" class="configs-list loading">正在加载配置...</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- API文档页面 -->
                 <div id="apiDocsPage" class="page hidden">
                     <div class="card">
@@ -1646,11 +2574,132 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                                     </div>
                                     <div class="api-section">
                                         <h4>认证方式</h4>
-                                        <p class="api-description">当前版本无需认证，直接调用接口即可。</p>
+                                        <p class="api-description">✅ JWT Token认证 - 所有API都需要在请求头中携带JWT Token</p>
+                                        <div class="api-example">Authorization: Bearer &lt;your_jwt_token&gt;</div>
+                                        <p class="api-description" style="margin-top: 8px; font-size: 0.75rem;">
+                                            💡 通过 <code>POST /auth/login</code> 接口获取Token，Token有效期为24小时。
+                                        </p>
                                     </div>
                                     <div class="api-section">
                                         <h4>响应格式</h4>
                                         <p class="api-description">所有接口返回JSON格式数据，HTTP状态码表示请求结果。</p>
+                                        <ul style="margin: 8px 0; padding-left: 20px; font-size: 0.875rem; color: #64748b;">
+                                            <li>200: 成功</li>
+                                            <li>401: 未认证或Token过期</li>
+                                            <li>404: 资源不存在</li>
+                                            <li>400/422: 请求参数错误</li>
+                                            <li>500: 服务器内部错误</li>
+                                        </ul>
+                                    </div>
+                                    <div class="api-section">
+                                        <h4>版本信息</h4>
+                                        <p class="api-description">当前版本: <strong>v2.0.0</strong></p>
+                                        <p class="api-description" style="font-size: 0.75rem; margin-top: 4px;">
+                                            新增功能：JWT认证、日志系统、SQLite存储、管理面板
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 认证相关API -->
+                            <div class="api-endpoint">
+                                <div class="api-header">
+                                    <div>
+                                        <h3 style="margin: 0; color: #1f2937;">🔐 认证管理</h3>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 登录接口 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method post">POST</span>
+                        <span class="api-path">/auth/login</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('login')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">管理员登录，返回JWT Token。</p>
+
+                                    <div class="api-section">
+                                        <h4>请求体</h4>
+                                        <div class="api-example">{
+  "username": "admin",
+  "password": "admin123"
+}</div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer"
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 获取当前用户信息 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/auth/me</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('me')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">获取当前登录的管理员信息（需要JWT认证）。</p>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "id": 1,
+  "username": "admin",
+  "email": null,
+  "is_active": true,
+  "created_at": "2025-01-01 12:00:00",
+  "last_login": "2025-01-15 14:30:00"
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 修改密码 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method post">POST</span>
+                        <span class="api-path">/auth/change-password</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('changePassword')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">修改当前管理员密码（需要JWT认证）。</p>
+
+                                    <div class="api-section">
+                                        <h4>请求体</h4>
+                                        <div class="api-example">{
+  "old_password": "old_password",
+  "new_password": "new_password"
+}</div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "message": "密码修改成功"
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 账户管理API -->
+                            <div class="api-endpoint">
+                                <div class="api-header">
+                                    <div>
+                                        <h3 style="margin: 0; color: #1f2937;">👥 账户管理</h3>
                                     </div>
                                 </div>
                             </div>
@@ -1662,7 +2711,7 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                                         <span class="api-method get">GET</span>
                                         <span class="api-path">/accounts</span>
                                     </div>
-                                    <button class="api-try-button" onclick="tryApi('accounts')">🚀 试用接口</button>
+                                    <button class="api-try-button" onclick="openApiTest('accounts')">🚀 试用接口</button>
                                 </div>
                                 <div class="api-body">
                                     <p class="api-description">获取系统中所有已添加的邮箱账户列表，支持分页和模糊搜索。</p>
@@ -1725,7 +2774,7 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                                         <span class="api-method get">GET</span>
                                         <span class="api-path">/emails/{email_id}</span>
                                     </div>
-                                    <button class="api-try-button" onclick="tryApi('emails')">🚀 试用接口</button>
+                                    <button class="api-try-button" onclick="openApiTest('emails')">🚀 试用接口</button>
                                 </div>
                                 <div class="api-body">
                                     <p class="api-description">获取指定邮箱的邮件列表，支持分页和过滤。</p>
@@ -1809,7 +2858,7 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                                         <span class="api-method get">GET</span>
                                         <span class="api-path">/emails/{email_id}/{message_id}</span>
                                     </div>
-                                    <button class="api-try-button" onclick="tryApi('emailDetail')">🚀 试用接口</button>
+                                    <button class="api-try-button" onclick="openApiTest('emailDetail')">🚀 试用接口</button>
                                 </div>
                                 <div class="api-body">
                                     <p class="api-description">获取指定邮件的详细内容，包括邮件正文。</p>
@@ -1851,6 +2900,328 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                                     <div class="api-response" id="emailDetailResponse">
                                         <h4 style="margin-bottom: 8px; color: #15803d;">响应结果：</h4>
                                         <pre id="emailDetailResponseData"></pre>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 添加账户 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method post">POST</span>
+                        <span class="api-path">/accounts</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('addAccount')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">添加新的邮箱账户。</p>
+
+                                    <div class="api-section">
+                                        <h4>请求体</h4>
+                                        <div class="api-example">{
+  "email_id": "example@outlook.com",
+  "refresh_token": "your_refresh_token",
+  "client_id": "your_client_id",
+  "tags": ["工作", "个人"]
+}</div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "email_id": "example@outlook.com",
+  "client_id": "your_client_id",
+  "status": "pending",
+  "tags": ["工作", "个人"],
+  "message": "账户添加成功"
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 删除账户 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method delete">DELETE</span>
+                        <span class="api-path">/accounts/{email_id}</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('deleteAccount')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">删除指定的邮箱账户。</p>
+
+                                    <div class="api-section">
+                                        <h4>路径参数</h4>
+                                        <div class="api-params">
+                                            <div class="api-param">
+                                                <span class="api-param-name">email_id</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "email_id": "example@outlook.com",
+  "message": "账户删除成功"
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 刷新Token -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method post">POST</span>
+                        <span class="api-path">/accounts/{email_id}/refresh-token</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('refreshToken')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">手动刷新指定账户的访问Token。</p>
+
+                                    <div class="api-section">
+                                        <h4>路径参数</h4>
+                                        <div class="api-params">
+                                            <div class="api-param">
+                                                <span class="api-param-name">email_id</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "email_id": "example@outlook.com",
+  "status": "success",
+  "refresh_time": "2025-01-15 14:30:00",
+  "message": "Token刷新成功"
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 管理面板API -->
+                            <div class="api-endpoint">
+                                <div class="api-header">
+                                    <div>
+                                        <h3 style="margin: 0; color: #1f2937;">⚙️ 管理面板</h3>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 获取表记录数 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/admin/tables/{table_name}/count</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('tableCount')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">获取指定数据表的记录数。</p>
+
+                                    <div class="api-section">
+                                        <h4>路径参数</h4>
+                                        <div class="api-params">
+                                            <div class="api-param">
+                                                <span class="api-param-name">table_name</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">表名 (accounts, admins, system_config)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "count": 25
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 获取表数据 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/admin/tables/{table_name}</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('tableData')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">获取指定数据表的所有记录。</p>
+
+                                    <div class="api-section">
+                                        <h4>路径参数</h4>
+                                        <div class="api-params">
+                                            <div class="api-param">
+                                                <span class="api-param-name">table_name</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">表名 (accounts, admins, system_config)</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "table_name": "accounts",
+  "page": 1,
+  "page_size": 1000,
+  "total_records": 25,
+  "records": [
+    {
+      "id": 1,
+      "email": "example@outlook.com",
+      "client_id": "xxx",
+      "tags": "[\"工作\"]",
+      "created_at": "2025-01-01 12:00:00"
+    }
+  ]
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 删除表记录 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method delete">DELETE</span>
+                        <span class="api-path">/admin/tables/{table_name}/{record_id}</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('deleteTableRecord')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">删除指定表中的记录。</p>
+
+                                    <div class="api-section">
+                                        <h4>路径参数</h4>
+                                        <div class="api-params">
+                                            <div class="api-param">
+                                                <span class="api-param-name">table_name</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">表名</span>
+                                            </div>
+                                            <div class="api-param">
+                                                <span class="api-param-name">record_id</span>
+                                                <span class="api-param-type">integer</span>
+                                                <span class="api-param-desc">记录ID</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "message": "记录 1 删除成功"
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 获取系统配置 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/admin/config</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('getConfig')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">获取所有系统配置项。</p>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "configs": [
+    {
+      "id": 1,
+      "key": "imap_server",
+      "value": "outlook.office365.com",
+      "description": "IMAP服务器地址",
+      "updated_at": "2025-01-01 12:00:00"
+    }
+  ]
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 更新系统配置 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method post">POST</span>
+                        <span class="api-path">/admin/config</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('updateConfig')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">创建或更新系统配置项。</p>
+
+                                    <div class="api-section">
+                                        <h4>请求体</h4>
+                                        <div class="api-example">{
+  "key": "imap_server",
+  "value": "outlook.office365.com",
+  "description": "IMAP服务器地址"
+}</div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "message": "配置 imap_server 更新成功"
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 系统状态 -->
+                            <div class="api-endpoint">
+                                <div class="api-header">
+                                    <div>
+                                        <h3 style="margin: 0; color: #1f2937;">📊 系统信息</h3>
+                                    </div>
+                                </div>
+                            </div>
+
+            <!-- 获取系统状态 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/api</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('systemInfo')">🚀 试用接口</button>
+                </div>
+                                <div class="api-body">
+                                    <p class="api-description">获取系统版本和状态信息（无需认证）。</p>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "name": "Outlook Email Management System",
+  "version": "2.0.0",
+  "status": "running",
+  "features": [
+    "JWT认证系统",
+    "SQLite数据存储",
+    "滚动日志记录",
+    "管理面板"
+  ]
+}</div>
                                     </div>
                                 </div>
                             </div>
@@ -2044,6 +3415,85 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
         </div>
     </div>
 
+    <!-- 表记录编辑模态框 -->
+    <div id="recordModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="recordModalTitle">编辑记录</h3>
+                <button class="modal-close" onclick="closeRecordModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="recordFormContent"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeRecordModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveTableRecord()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API测试模态框 -->
+    <div id="apiTestModal" class="api-test-modal" onclick="closeApiTestModal(event)">
+        <div class="api-test-content" onclick="event.stopPropagation()">
+            <div class="api-test-header">
+                <h3 id="apiTestTitle">🚀 测试API接口</h3>
+                <button class="api-test-close" onclick="closeApiTestModal()">×</button>
+            </div>
+            <div class="api-test-body">
+                <div class="api-test-section">
+                    <h4>请求信息</h4>
+                    <div class="api-test-param">
+                        <label><strong>方法:</strong> <span id="apiTestMethod">GET</span></label>
+                    </div>
+                    <div class="api-test-param">
+                        <label><strong>端点:</strong> <span id="apiTestEndpoint">/api</span></label>
+                    </div>
+                </div>
+
+                <!-- 路径参数 -->
+                <div id="apiTestPathParams" class="api-test-section hidden">
+                    <h4>路径参数</h4>
+                    <div id="apiTestPathParamsList"></div>
+                </div>
+
+                <!-- 查询参数 -->
+                <div id="apiTestQueryParams" class="api-test-section hidden">
+                    <h4>查询参数</h4>
+                    <div id="apiTestQueryParamsList"></div>
+                </div>
+
+                <!-- 请求体 -->
+                <div id="apiTestBody" class="api-test-section hidden">
+                    <h4>请求体 (JSON)</h4>
+                    <div class="api-test-param">
+                        <textarea id="apiTestBodyContent" placeholder='{"key": "value"}'></textarea>
+                    </div>
+                </div>
+
+                <!-- 响应结果 -->
+                <div id="apiTestResultSection" class="hidden">
+                    <div id="apiTestResult" class="api-test-result">
+                        <h4>响应结果</h4>
+                        <pre id="apiTestResultContent"></pre>
+                    </div>
+                </div>
+
+                <!-- 操作按钮 -->
+                <div class="api-test-actions">
+                    <button class="btn btn-primary" onclick="executeApiTest()">
+                        <span>▶️</span> 发送请求
+                    </button>
+                    <button class="btn btn-secondary" onclick="resetApiTestForm()">
+                        <span>🔄</span> 重置
+                    </button>
+                    <button class="btn btn-secondary" onclick="closeApiTestModal()">
+                        <span>✖️</span> 关闭
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 右键菜单 -->
     <div id="contextMenu" class="context-menu">
         <div class="context-menu-item" onclick="openInNewTab()">
@@ -2114,11 +3564,17 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                 });
             }
 
+            // 特殊页面加载处理
+            if (pageName === 'adminPanel') {
+                loadTablesList();
+            }
+
             // 更新页面标题
             const titles = {
                 'accounts': '邮箱账户管理',
                 'addAccount': '添加邮箱账户',
                 'batchAdd': '批量添加账户',
+                'adminPanel': '系统管理面板',
                 'apiDocs': 'API接口文档',
                 'emails': '邮件列表'
             };
@@ -2250,19 +3706,43 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
             }
         }
 
-        // API请求
+        // API请求（支持JWT认证）
         async function apiRequest(url, options = {}) {
             try {
+                // 获取JWT token
+                const token = localStorage.getItem('auth_token');
+                
+                // 如果没有token，跳转到登录页面
+                if (!token && url !== '/auth/login' && url !== '/api') {
+                    showNotification('请先登录', 'warning');
+                    setTimeout(() => {
+                        window.location.href = '/static/login.html';
+                    }, 1000);
+                    return;
+                }
+                
                 const response = await fetch(API_BASE + url, {
                     headers: {
                         'Content-Type': 'application/json',
+                        ...(token && { 'Authorization': `Bearer ${token}` }),
                         ...options.headers
                     },
                     ...options
                 });
 
+                // 如果返回401，说明token无效或过期
+                if (response.status === 401) {
+                    showNotification('登录已过期，请重新登录', 'warning');
+                    localStorage.removeItem('auth_token');
+                    setTimeout(() => {
+                        window.location.href = '/static/login.html';
+                    }, 1000);
+                    return;
+                }
+
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+                    throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
                 }
 
                 return await response.json();
@@ -2402,11 +3882,14 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                     
                     // 生成刷新状态图标和文本
                     const refreshStatus = account.refresh_status || 'pending';
-                    const refreshStatusIcon = refreshStatus === 'success' ? '✅' : 
-                                            refreshStatus === 'failed' ? '❌' : '⏳';
+                    const refreshStatusIcon = refreshStatus === 'success' ? '✓' : 
+                                            refreshStatus === 'failed' ? '✗' : '◷';
                     const refreshStatusText = refreshStatus === 'success' ? '成功' :
                                             refreshStatus === 'failed' ? '失败' : '待刷新';
                     const refreshTime = formatRefreshTime(account.last_refresh_time);
+                    
+                    const statusIndicatorClass = account.status === 'active' ? '' : 'error';
+                    const statusText = account.status === 'active' ? '正常' : '异常';
                     
                     return `
                         <div class="account-item" onclick="viewAccountEmails('${account.email_id}')" oncontextmenu="showAccountContextMenu(event, '${account.email_id}')">
@@ -2414,11 +3897,16 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                                 <div class="account-avatar">${account.email_id.charAt(0).toUpperCase()}</div>
                                 <div class="account-details">
                                     <h4>${account.email_id}</h4>
-                                    <p>状态: ${account.status === 'active' ? '正常' : '异常'}</p>
                                     ${tagsHtml}
-                                    <div class="account-refresh-info">
-                                        <span class="refresh-status ${refreshStatus}">${refreshStatusIcon}</span>
-                                        <span class="refresh-time">Token刷新: ${refreshTime} (${refreshStatusText})</span>
+                                    <div class="account-status-row">
+                                        <div class="account-status">
+                                            <span class="status-indicator ${statusIndicatorClass}"></span>
+                                            <span>${statusText}</span>
+                                        </div>
+                                        <div class="account-refresh-info">
+                                            <span class="refresh-status ${refreshStatus}">${refreshStatusIcon}</span>
+                                            <span class="refresh-time">${refreshTime} (${refreshStatusText})</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -3702,9 +5190,796 @@ GET /emails/{email_id}/{message_id}
             handleUrlRouting();
         });
 
-    </script>
-</body>
-</html>
+        // ==================== 管理面板功能 ====================
+        
+        // 切换管理面板标签
+        function switchAdminTab(tabName, tabElement) {
+            // 切换标签激活状态
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            tabElement.classList.add('active');
+            
+            // 切换面板显示
+            if (tabName === 'tables') {
+                document.getElementById('tablesPanel').classList.remove('hidden');
+                document.getElementById('configPanel').classList.add('hidden');
+                loadTablesList();
+            } else if (tabName === 'config') {
+                document.getElementById('tablesPanel').classList.add('hidden');
+                document.getElementById('configPanel').classList.remove('hidden');
+                loadSystemConfigs();
+            }
+        }
+        
+        // 加载数据表列表
+        async function loadTablesList() {
+            const tablesList = document.getElementById('tablesList');
+            tablesList.innerHTML = '<div class="loading">正在加载表列表...</div>';
+            
+            try {
+                const tables = [
+                    { name: 'accounts', description: '邮箱账户信息表', count: '?' },
+                    { name: 'admins', description: '管理员账户表', count: '?' },
+                    { name: 'system_config', description: '系统配置表', count: '?' }
+                ];
+                
+                // 获取每个表的记录数
+                for (let table of tables) {
+                    try {
+                        const data = await apiRequest(`/admin/tables/${table.name}/count`);
+                        table.count = data.count || 0;
+                    } catch (error) {
+                        table.count = 'N/A';
+                    }
+                }
+                
+                tablesList.innerHTML = tables.map(table => {
+                    const iconMap = {
+                        'accounts': '👥',
+                        'admins': '🔐',
+                        'system_config': '⚙️'
+                    };
+                    const icon = iconMap[table.name] || '📊';
+                    
+                    return `
+                        <div class="table-item" onclick="loadTableData('${table.name}')">
+                            <div class="table-info">
+                                <div class="table-icon">${icon}</div>
+                                <div class="table-details">
+                                    <h5>${table.name}</h5>
+                                    <p>${table.description}</p>
+                                    <div class="table-meta">
+                                        <div class="table-count">
+                                            <span>记录数:</span>
+                                            <span class="count-badge">${table.count}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="table-actions" onclick="event.stopPropagation()">
+                                <button class="btn btn-primary btn-sm" onclick="loadTableData('${table.name}')">
+                                    <span>📋</span>
+                                    查看数据
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                tablesList.innerHTML = `<div class="alert alert-error">加载表列表失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 加载表数据
+        let currentTable = null;
+        let currentTableData = [];
+        
+        async function loadTableData(tableName) {
+            currentTable = tableName;
+            document.getElementById('currentTableName').textContent = tableName;
+            document.getElementById('tablesList').parentElement.style.display = 'none';
+            document.getElementById('tableDataPanel').classList.remove('hidden');
+            
+            const contentDiv = document.getElementById('tableDataContent');
+            contentDiv.innerHTML = '<div class="loading">正在加载数据...</div>';
+            
+            try {
+                const data = await apiRequest(`/admin/tables/${tableName}`);
+                currentTableData = data.records || [];
+                renderTableData();
+            } catch (error) {
+                contentDiv.innerHTML = `<div class="alert alert-error">加载数据失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 渲染表数据
+        function renderTableData() {
+            const contentDiv = document.getElementById('tableDataContent');
+            
+            if (currentTableData.length === 0) {
+                contentDiv.innerHTML = '<div class="alert alert-info">暂无数据</div>';
+                return;
+            }
+            
+            const columns = Object.keys(currentTableData[0]);
+            
+            let html = '<div class="table-responsive"><table class="data-table">';
+            html += '<thead><tr>';
+            columns.forEach(col => {
+                html += `<th>${col}</th>`;
+            });
+            html += '<th>操作</th></tr></thead><tbody>';
+            
+            currentTableData.forEach((row, index) => {
+                html += '<tr>';
+                columns.forEach(col => {
+                    let value = row[col];
+                    if (value === null || value === undefined) {
+                        value = '<span style="color: #cbd5e1;">NULL</span>';
+                    } else if (col.includes('password')) {
+                        value = '********';
+                    } else if (typeof value === 'string' && value.length > 50) {
+                        value = value.substring(0, 50) + '...';
+                    }
+                    html += `<td>${value}</td>`;
+                });
+                html += `<td class="data-table-actions">
+                    <button class="btn btn-sm btn-secondary" onclick="editTableRow(${index})">✏️ 编辑</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteTableRow(${index})">🗑️ 删除</button>
+                </td>`;
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table></div>';
+            contentDiv.innerHTML = html;
+        }
+        
+        // 返回表列表
+        function backToTablesList() {
+            document.getElementById('tableDataPanel').classList.add('hidden');
+            document.getElementById('tablesList').parentElement.style.display = 'block';
+            currentTable = null;
+            currentTableData = [];
+        }
+        
+        // 刷新表数据
+        function refreshTableData() {
+            if (currentTable) {
+                loadTableData(currentTable);
+            }
+        }
+        
+        // 搜索表数据
+        function searchTableData() {
+            const searchTerm = document.getElementById('tableSearch').value.toLowerCase();
+            
+            if (!searchTerm) {
+                renderTableData();
+                return;
+            }
+            
+            const filteredData = currentTableData.filter(row => {
+                return Object.values(row).some(value => {
+                    return value && value.toString().toLowerCase().includes(searchTerm);
+                });
+            });
+            
+            const backup = currentTableData;
+            currentTableData = filteredData;
+            renderTableData();
+            currentTableData = backup;
+        }
+        
+        // 存储当前编辑的记录信息
+        let currentEditRecord = null;
+        let currentTableColumns = [];
+        
+        // 打开添加记录模态框
+        async function openAddRecordModal() {
+            if (!currentTable) {
+                showNotification('请先选择一个表', 'error');
+                return;
+            }
+            
+            try {
+                // 获取表结构
+                const schema = await apiRequest(`/admin/tables/${currentTable}/schema`);
+                currentTableColumns = schema.columns;
+                
+                // 设置模态框标题
+                document.getElementById('recordModalTitle').textContent = `添加记录 - ${currentTable}`;
+                
+                // 生成空白表单
+                generateRecordForm(schema.columns, null);
+                
+                // 清空当前编辑记录
+                currentEditRecord = null;
+                
+                // 显示模态框
+                document.getElementById('recordModal').classList.remove('hidden');
+            } catch (error) {
+                showNotification(`获取表结构失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 编辑表行
+        async function editTableRow(index) {
+            const row = currentTableData[index];
+            
+            if (!row || !row.id) {
+                showNotification('无法编辑：找不到记录ID', 'error');
+                return;
+            }
+            
+            try {
+                // 获取表结构
+                const schema = await apiRequest(`/admin/tables/${currentTable}/schema`);
+                currentTableColumns = schema.columns;
+                
+                // 设置模态框标题
+                document.getElementById('recordModalTitle').textContent = `编辑记录 - ${currentTable} (ID: ${row.id})`;
+                
+                // 生成预填充的表单
+                generateRecordForm(schema.columns, row);
+                
+                // 保存当前编辑记录
+                currentEditRecord = row;
+                
+                // 显示模态框
+                document.getElementById('recordModal').classList.remove('hidden');
+            } catch (error) {
+                showNotification(`获取表结构失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 生成记录表单
+        function generateRecordForm(columns, data) {
+            const formContent = document.getElementById('recordFormContent');
+            let html = '';
+            
+            columns.forEach(col => {
+                const value = data ? (data[col.name] !== null ? data[col.name] : '') : '';
+                const isId = col.name === 'id';
+                const isPrimaryKey = col.pk === 1;
+                const isPassword = col.name.includes('password');
+                const isJson = col.name === 'tags' || col.type.toLowerCase().includes('json');
+                const isDateTime = col.name.includes('_at') || col.name.includes('date');
+                
+                // 如果是自增主键且在添加模式下，跳过
+                if (isPrimaryKey && !data) {
+                    return;
+                }
+                
+                html += '<div class="form-group">';
+                html += `<label for="field_${col.name}">${col.name}`;
+                if (col.notnull === 1 && !isPrimaryKey) {
+                    html += ' <span style="color: red;">*</span>';
+                }
+                html += `</label>`;
+                
+                // 显示字段类型信息
+                html += `<div style="font-size: 0.75rem; color: #64748b; margin-bottom: 4px;">类型: ${col.type}`;
+                if (col.dflt_value !== null) {
+                    html += ` | 默认值: ${col.dflt_value}`;
+                }
+                html += '</div>';
+                
+                // 根据字段类型生成不同的输入控件
+                if (isPrimaryKey && data) {
+                    // 主键只读
+                    html += `<input type="text" id="field_${col.name}" class="form-control" value="${value}" readonly style="background-color: #f1f5f9;">`;
+                } else if (isPassword) {
+                    // 密码字段
+                    html += `<input type="password" id="field_${col.name}" class="form-control" value="${value}" ${col.notnull === 1 ? 'required' : ''}>`;
+                    html += '<div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;">编辑时留空表示不修改密码</div>';
+                } else if (isJson) {
+                    // JSON字段
+                    const jsonValue = value ? (typeof value === 'string' ? value : JSON.stringify(value, null, 2)) : '[]';
+                    html += `<textarea id="field_${col.name}" class="form-control" rows="4" ${col.notnull === 1 ? 'required' : ''}>${jsonValue}</textarea>`;
+                    html += '<div style="font-size: 0.75rem; color: #64748b; margin-top: 4px;">请输入有效的JSON格式</div>';
+                } else if (col.type.toLowerCase().includes('text')) {
+                    // 文本区域
+                    html += `<textarea id="field_${col.name}" class="form-control" rows="3" ${col.notnull === 1 ? 'required' : ''}>${value}</textarea>`;
+                } else if (col.type.toLowerCase().includes('int')) {
+                    // 数字
+                    html += `<input type="number" id="field_${col.name}" class="form-control" value="${value}" ${col.notnull === 1 ? 'required' : ''}>`;
+                } else {
+                    // 默认文本输入
+                    html += `<input type="text" id="field_${col.name}" class="form-control" value="${value}" ${col.notnull === 1 ? 'required' : ''}>`;
+                }
+                
+                html += '</div>';
+            });
+            
+            formContent.innerHTML = html;
+        }
+        
+        // 保存表记录
+        async function saveTableRecord() {
+            if (!currentTable) {
+                showNotification('未知错误：没有选择表', 'error');
+                return;
+            }
+            
+            // 收集表单数据
+            const formData = {};
+            let hasError = false;
+            
+            currentTableColumns.forEach(col => {
+                const fieldElement = document.getElementById(`field_${col.name}`);
+                if (!fieldElement) return;
+                
+                // 跳过只读的主键字段（编辑模式）
+                if (col.pk === 1 && currentEditRecord) {
+                    return;
+                }
+                
+                let value = fieldElement.value.trim();
+                
+                // 检查必填字段
+                if (col.notnull === 1 && !value && col.pk !== 1) {
+                    showNotification(`字段 ${col.name} 是必填的`, 'error');
+                    hasError = true;
+                    return;
+                }
+                
+                // 处理空值
+                if (value === '' && col.notnull === 0) {
+                    formData[col.name] = null;
+                    return;
+                }
+                
+                // 跳过密码字段（如果为空且在编辑模式）
+                if (col.name.includes('password') && !value && currentEditRecord) {
+                    return;
+                }
+                
+                // 处理JSON字段
+                if (col.name === 'tags' || col.type.toLowerCase().includes('json')) {
+                    try {
+                        formData[col.name] = value ? JSON.parse(value) : null;
+                    } catch (e) {
+                        showNotification(`字段 ${col.name} 的JSON格式无效`, 'error');
+                        hasError = true;
+                        return;
+                    }
+                }
+                // 处理数字字段
+                else if (col.type.toLowerCase().includes('int')) {
+                    formData[col.name] = value ? parseInt(value) : null;
+                }
+                // 处理其他字段
+                else {
+                    formData[col.name] = value;
+                }
+            });
+            
+            if (hasError) {
+                return;
+            }
+            
+            try {
+                if (currentEditRecord) {
+                    // 更新记录
+                    await apiRequest(`/admin/tables/${currentTable}/${currentEditRecord.id}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ data: formData })
+                    });
+                    showNotification('记录更新成功', 'success');
+                } else {
+                    // 创建记录
+                    await apiRequest(`/admin/tables/${currentTable}`, {
+                        method: 'POST',
+                        body: JSON.stringify({ data: formData })
+                    });
+                    showNotification('记录创建成功', 'success');
+                }
+                
+                // 关闭模态框
+                closeRecordModal();
+                
+                // 刷新表数据
+                refreshTableData();
+            } catch (error) {
+                showNotification(`保存失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 关闭记录模态框
+        function closeRecordModal() {
+            document.getElementById('recordModal').classList.add('hidden');
+            document.getElementById('recordFormContent').innerHTML = '';
+            currentEditRecord = null;
+            currentTableColumns = [];
+        }
+        
+        // 删除表行
+        async function deleteTableRow(index) {
+            const row = currentTableData[index];
+            const id = row.id;
+            
+            if (!id) {
+                showNotification('无法删除：找不到记录ID', 'error');
+                return;
+            }
+            
+            if (!confirm(`确定要删除这条记录吗？ (ID: ${id})`)) {
+                return;
+            }
+            
+            try {
+                await apiRequest(`/admin/tables/${currentTable}/${id}`, { method: 'DELETE' });
+                showNotification('删除成功', 'success');
+                refreshTableData();
+            } catch (error) {
+                showNotification(`删除失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 加载系统配置
+        async function loadSystemConfigs() {
+            const configsList = document.getElementById('configsList');
+            configsList.innerHTML = '<div class="loading">正在加载配置...</div>';
+            
+            try {
+                const data = await apiRequest('/admin/config');
+                const configs = data.configs || [];
+                
+                if (configs.length === 0) {
+                    configsList.innerHTML = '<div class="alert alert-info">暂无配置项</div>';
+                    return;
+                }
+                
+                configsList.innerHTML = configs.map(config => {
+                    const iconMap = {
+                        'imap_server': '🌐',
+                        'imap_port': '🔌',
+                        'imap_use_ssl': '🔒',
+                        'max_connections': '🔗',
+                        'cache_timeout': '⏱️',
+                        'token_refresh_interval': '🔄'
+                    };
+                    const icon = iconMap[config.key] || '⚙️';
+                    
+                    // 格式化更新时间
+                    const updateTime = config.updated_at ? formatRefreshTime(config.updated_at) : 'N/A';
+                    
+                    return `
+                        <div class="config-item">
+                            <div class="config-info">
+                                <div class="config-icon">${icon}</div>
+                                <div class="config-details">
+                                    <h5 class="config-key">${config.key}</h5>
+                                    <div class="config-value">${config.value}</div>
+                                    <div class="config-meta">
+                                        ${config.description ? `<span class="config-description">${config.description}</span>` : ''}
+                                        <span class="config-updated">更新: ${updateTime}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="config-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="editConfig('${config.key}', '${config.value}')">
+                                    <span>✏️</span>
+                                    编辑
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                configsList.innerHTML = `<div class="alert alert-error">加载配置失败: ${error.message}</div>`;
+            }
+        }
+        
+        // 编辑配置
+        async function editConfig(key, currentValue) {
+            const newValue = prompt(`修改配置项: ${key}\n当前值: ${currentValue}\n\n请输入新值:`, currentValue);
+            
+            if (newValue === null || newValue === currentValue) {
+                return;
+            }
+            
+            try {
+                await apiRequest('/admin/config', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        key: key,
+                        value: newValue
+                    })
+                });
+                showNotification('配置更新成功', 'success');
+                loadSystemConfigs();
+            } catch (error) {
+                showNotification(`更新配置失败: ${error.message}`, 'error');
+            }
+        }
+
+        // ==================== API测试功能 ====================
+        
+        // API配置定义
+        const API_CONFIGS = {
+            'login': {
+                method: 'POST',
+                endpoint: '/auth/login',
+                body: { username: 'admin', password: 'admin123' },
+                requiresAuth: false
+            },
+            'me': {
+                method: 'GET',
+                endpoint: '/auth/me',
+                requiresAuth: true
+            },
+            'changePassword': {
+                method: 'POST',
+                endpoint: '/auth/change-password',
+                body: { old_password: '', new_password: '' },
+                requiresAuth: true
+            },
+            'accounts': {
+                method: 'GET',
+                endpoint: '/accounts',
+                query: { page: 1, page_size: 10, email_search: '', tag_search: '' },
+                requiresAuth: true
+            },
+            'addAccount': {
+                method: 'POST',
+                endpoint: '/accounts',
+                body: { email_id: 'example@outlook.com', refresh_token: '', client_id: '', tags: [] },
+                requiresAuth: true
+            },
+            'deleteAccount': {
+                method: 'DELETE',
+                endpoint: '/accounts/{email_id}',
+                path: { email_id: 'example@outlook.com' },
+                requiresAuth: true
+            },
+            'refreshToken': {
+                method: 'POST',
+                endpoint: '/accounts/{email_id}/refresh-token',
+                path: { email_id: 'example@outlook.com' },
+                requiresAuth: true
+            },
+            'emails': {
+                method: 'GET',
+                endpoint: '/emails/{email_id}',
+                path: { email_id: 'example@outlook.com' },
+                query: { folder: 'inbox', page: 1, page_size: 20, refresh: false },
+                requiresAuth: true
+            },
+            'emailDetail': {
+                method: 'GET',
+                endpoint: '/emails/{email_id}/{message_id}',
+                path: { email_id: 'example@outlook.com', message_id: 'INBOX-1' },
+                requiresAuth: true
+            },
+            'tableCount': {
+                method: 'GET',
+                endpoint: '/admin/tables/{table_name}/count',
+                path: { table_name: 'accounts' },
+                requiresAuth: true
+            },
+            'tableData': {
+                method: 'GET',
+                endpoint: '/admin/tables/{table_name}',
+                path: { table_name: 'accounts' },
+                requiresAuth: true
+            },
+            'deleteTableRecord': {
+                method: 'DELETE',
+                endpoint: '/admin/tables/{table_name}/{record_id}',
+                path: { table_name: 'accounts', record_id: 1 },
+                requiresAuth: true
+            },
+            'getConfig': {
+                method: 'GET',
+                endpoint: '/admin/config',
+                requiresAuth: true
+            },
+            'updateConfig': {
+                method: 'POST',
+                endpoint: '/admin/config',
+                body: { key: 'imap_server', value: 'outlook.office365.com', description: 'IMAP服务器地址' },
+                requiresAuth: true
+            },
+            'systemInfo': {
+                method: 'GET',
+                endpoint: '/api',
+                requiresAuth: false
+            }
+        };
+
+        // 打开API测试模态框
+        function openApiTest(apiKey) {
+            const config = API_CONFIGS[apiKey];
+            if (!config) {
+                showNotification('API配置不存在', 'error');
+                return;
+            }
+
+            // 设置标题和基本信息
+            document.getElementById('apiTestTitle').textContent = `🚀 测试API: ${config.endpoint}`;
+            document.getElementById('apiTestMethod').textContent = config.method;
+            document.getElementById('apiTestEndpoint').textContent = config.endpoint;
+
+            // 隐藏所有参数区域
+            document.getElementById('apiTestPathParams').classList.add('hidden');
+            document.getElementById('apiTestQueryParams').classList.add('hidden');
+            document.getElementById('apiTestBody').classList.add('hidden');
+            document.getElementById('apiTestResultSection').classList.add('hidden');
+
+            // 路径参数
+            if (config.path) {
+                const pathParamsList = document.getElementById('apiTestPathParamsList');
+                pathParamsList.innerHTML = '';
+                Object.entries(config.path).forEach(([key, value]) => {
+                    pathParamsList.innerHTML += `
+                        <div class="api-test-param">
+                            <label>${key}</label>
+                            <input type="text" id="path_${key}" value="${value}" placeholder="${key}">
+                        </div>
+                    `;
+                });
+                document.getElementById('apiTestPathParams').classList.remove('hidden');
+            }
+
+            // 查询参数
+            if (config.query) {
+                const queryParamsList = document.getElementById('apiTestQueryParamsList');
+                queryParamsList.innerHTML = '';
+                Object.entries(config.query).forEach(([key, value]) => {
+                    const inputType = typeof value === 'boolean' ? 'checkbox' : 
+                                     typeof value === 'number' ? 'number' : 'text';
+                    if (inputType === 'checkbox') {
+                        queryParamsList.innerHTML += `
+                            <div class="api-test-param">
+                                <label>
+                                    <input type="checkbox" id="query_${key}" ${value ? 'checked' : ''}>
+                                    ${key}
+                                </label>
+                            </div>
+                        `;
+                    } else {
+                        queryParamsList.innerHTML += `
+                            <div class="api-test-param">
+                                <label>${key}</label>
+                                <input type="${inputType}" id="query_${key}" value="${value}" placeholder="${key}">
+                            </div>
+                        `;
+                    }
+                });
+                document.getElementById('apiTestQueryParams').classList.remove('hidden');
+            }
+
+            // 请求体
+            if (config.body) {
+                document.getElementById('apiTestBodyContent').value = JSON.stringify(config.body, null, 2);
+                document.getElementById('apiTestBody').classList.remove('hidden');
+            }
+
+            // 存储当前API配置
+            window.currentApiConfig = config;
+            window.currentApiKey = apiKey;
+
+            // 显示模态框
+            document.getElementById('apiTestModal').classList.add('show');
+        }
+
+        // 关闭API测试模态框
+        function closeApiTestModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('apiTestModal').classList.remove('show');
+        }
+
+        // 重置表单
+        function resetApiTestForm() {
+            if (window.currentApiKey) {
+                openApiTest(window.currentApiKey);
+            }
+        }
+
+        // 执行API测试
+        async function executeApiTest() {
+            const config = window.currentApiConfig;
+            if (!config) return;
+
+            try {
+                // 构建URL
+                let url = config.endpoint;
+
+                // 替换路径参数
+                if (config.path) {
+                    Object.keys(config.path).forEach(key => {
+                        const value = document.getElementById(`path_${key}`).value;
+                        url = url.replace(`{${key}}`, encodeURIComponent(value));
+                    });
+                }
+
+                // 添加查询参数
+                if (config.query) {
+                    const queryParams = new URLSearchParams();
+                    Object.keys(config.query).forEach(key => {
+                        const element = document.getElementById(`query_${key}`);
+                        let value;
+                        if (element.type === 'checkbox') {
+                            value = element.checked;
+                        } else {
+                            value = element.value;
+                        }
+                        if (value !== '' && value !== null && value !== undefined) {
+                            queryParams.append(key, value);
+                        }
+                    });
+                    const queryString = queryParams.toString();
+                    if (queryString) {
+                        url += '?' + queryString;
+                    }
+                }
+
+                // 构建请求选项
+                const options = {
+                    method: config.method
+                };
+
+                // 添加请求体
+                if (config.body) {
+                    try {
+                        const bodyText = document.getElementById('apiTestBodyContent').value;
+                        const bodyJson = JSON.parse(bodyText);
+                        options.body = JSON.stringify(bodyJson);
+                    } catch (e) {
+                        showNotification('请求体JSON格式错误', 'error');
+                        return;
+                    }
+                }
+
+                // 发送请求
+                showNotification('正在发送请求...', 'info');
+                
+                let response;
+                if (config.requiresAuth) {
+                    response = await apiRequest(url, options);
+                } else {
+                    // 不需要认证的接口直接fetch
+                    const fetchOptions = {
+                        method: options.method,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    };
+                    if (options.body) {
+                        fetchOptions.body = options.body;
+                    }
+                    const res = await fetch(API_BASE + url, fetchOptions);
+                    if (!res.ok) {
+                        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                    }
+                    response = await res.json();
+                }
+
+                // 显示响应
+                const resultSection = document.getElementById('apiTestResultSection');
+                const resultDiv = document.getElementById('apiTestResult');
+                const resultContent = document.getElementById('apiTestResultContent');
+
+                resultSection.classList.remove('hidden');
+                resultDiv.className = 'api-test-result success';
+                resultContent.textContent = JSON.stringify(response, null, 2);
+
+                showNotification('请求成功！', 'success');
+
+            } catch (error) {
+                // 显示错误
+                const resultSection = document.getElementById('apiTestResultSection');
+                const resultDiv = document.getElementById('apiTestResult');
+                const resultContent = document.getElementById('apiTestResultContent');
+
+                resultSection.classList.remove('hidden');
+                resultDiv.className = 'api-test-result error';
+                resultContent.textContent = `错误: ${error.message}`;
+
+                showNotification(`请求失败: ${error.message}`, 'error');
+            }
+        }
+
     </script>
 </body>
 </html>

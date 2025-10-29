@@ -29,8 +29,8 @@ COPY docker-entrypoint.sh .
 # 设置启动脚本权限
 RUN chmod +x docker-entrypoint.sh
 
-# 创建数据目录用于持久化存储
-RUN mkdir -p /app/data && chown 777 /app/data
+# 创建数据目录和日志目录用于持久化存储
+RUN mkdir -p /app/data /app/logs && chmod 777 /app/data /app/logs
 
 # 暴露端口
 EXPOSE 8000

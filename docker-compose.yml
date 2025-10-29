@@ -7,9 +7,11 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # 数据持久化 - 保存用户账户信息
-      - ./data:/app/data
-      # 可选：如果需要自定义配置文件
+      # 数据持久化 - SQLite数据库文件
+      - ./data.db:/app/data.db
+      # 日志持久化 - 保留30天日志
+      - ./logs:/app/logs
+      # 可选：旧版JSON文件（用于迁移）
       - ./accounts.json:/app/accounts.json
     environment:
       # 可以通过环境变量覆盖默认配置
