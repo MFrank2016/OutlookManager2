@@ -1581,3 +1581,12 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2025-10-29 20:34:12,289 - src.infrastructure.database.session - [INFO] - session.py:93 - Database initialized successfully
 2025-10-29 20:34:12,291 - src.main - [INFO] - main.py:47 - Database initialized
 2025-10-29 20:34:12,292 - src.main - [INFO] - main.py:52 - Application started successfully
+2025-10-30 15:33:11,891 - src.infrastructure.logging.logger - [INFO] - logger.py:45 - Logging configured: level=INFO, file=outlook_manager.log
+2025-10-30 15:33:12,027 - src.presentation.api.middleware.rate_limit - [INFO] - rate_limit.py:42 - Rate limit initialized: 100 requests per minute
+2025-10-30 15:33:12,028 - src.main - [INFO] - main.py:40 - Application starting...
+2025-10-30 15:33:12,029 - src.main - [INFO] - main.py:41 - Environment: development
+2025-10-30 15:33:12,029 - src.main - [INFO] - main.py:42 - Debug mode: False
+2025-10-30 15:33:12,353 - src.infrastructure.database.session - [INFO] - session.py:53 - Database engine created: sqlite+aiosqlite:///./data.db
+2025-10-30 15:33:12,381 - src.infrastructure.database.session - [INFO] - session.py:93 - Database initialized successfully
+2025-10-30 15:33:12,384 - src.main - [INFO] - main.py:47 - Database initialized
+2025-10-30 15:33:12,384 - src.main - [INFO] - main.py:52 - Application started successfully
