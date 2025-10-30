@@ -1,0 +1,99 @@
+2025-10-29 12:43:37,209 - __main__ - [INFO] - main.py:102 - Logging system initialized
+2025-10-29 12:43:37,274 - __main__ - [INFO] - main.py:241 - Initialized IMAP connection pool with max_connections=5
+2025-10-29 12:43:37,929 - __main__ - [INFO] - main.py:1591 - Starting Outlook Email Management System on 0.0.0.0:8000
+2025-10-29 12:43:37,932 - __main__ - [INFO] - main.py:1592 - Access the web interface at: http://localhost:8000
+2025-10-29 12:43:37,933 - __main__ - [INFO] - main.py:1593 - Access the API documentation at: http://localhost:8000/docs
+2025-10-29 12:43:38,407 - __main__ - [INFO] - main.py:1211 - Starting Outlook Email Management System v2.0...
+2025-10-29 12:43:38,409 - __main__ - [INFO] - main.py:1214 - Initializing database...
+2025-10-29 12:43:38,422 - __main__ - [INFO] - main.py:1216 - Database initialized successfully
+2025-10-29 12:43:38,433 - __main__ - [INFO] - main.py:1221 - IMAP connection pool initialized with max_connections=5
+2025-10-29 12:43:38,434 - __main__ - [INFO] - main.py:1225 - Token refresh background task scheduled
+2025-10-29 12:43:38,435 - __main__ - [INFO] - main.py:1125 - Token refresh background task started
+2025-10-29 12:44:15,034 - __main__ - [INFO] - main.py:1291 - Admin admin logged in successfully
+2025-10-29 12:44:40,599 - __main__ - [INFO] - main.py:773 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-29 12:44:43,251 - __main__ - [INFO] - main.py:271 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-10-29 12:47:29,206 - __main__ - [INFO] - main.py:1230 - Shutting down Outlook Email Management System...
+2025-10-29 12:47:29,207 - __main__ - [INFO] - main.py:1237 - Token refresh background task cancelled
+2025-10-29 12:47:29,208 - __main__ - [INFO] - main.py:1239 - Closing IMAP connection pool...
+2025-10-29 12:49:07,374 - __main__ - [INFO] - main.py:102 - Logging system initialized
+2025-10-29 12:49:07,503 - __main__ - [INFO] - main.py:254 - Initialized IMAP connection pool with max_connections=5
+2025-10-29 12:49:08,040 - __main__ - [INFO] - main.py:1670 - Starting Outlook Email Management System on 0.0.0.0:8000
+2025-10-29 12:49:08,041 - __main__ - [INFO] - main.py:1671 - Access the web interface at: http://localhost:8000
+2025-10-29 12:49:08,041 - __main__ - [INFO] - main.py:1672 - Access the API documentation at: http://localhost:8000/docs
+2025-10-29 12:49:08,331 - __main__ - [INFO] - main.py:1284 - Starting Outlook Email Management System v2.0...
+2025-10-29 12:49:08,333 - __main__ - [INFO] - main.py:1287 - Initializing database...
+2025-10-29 12:49:08,345 - __main__ - [INFO] - main.py:1289 - Database initialized successfully
+2025-10-29 12:49:08,357 - __main__ - [INFO] - main.py:1294 - IMAP connection pool initialized with max_connections=5
+2025-10-29 12:49:08,358 - __main__ - [INFO] - main.py:1300 - Token refresh background task scheduled
+2025-10-29 12:49:08,359 - __main__ - [INFO] - main.py:1198 - Token refresh background task started
+2025-10-29 12:49:08,360 - __main__ - [INFO] - main.py:1202 - Starting scheduled token refresh for all accounts...
+2025-10-29 12:49:20,480 - __main__ - [INFO] - main.py:1364 - Admin admin logged in successfully
+2025-10-29 12:49:20,936 - __main__ - [INFO] - main.py:890 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-10-29 12:49:20,971 - __main__ - [INFO] - main.py:1247 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-10-29 12:49:32,226 - __main__ - [INFO] - main.py:890 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-10-29 12:49:32,263 - __main__ - [INFO] - main.py:1247 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-10-29 12:49:32,264 - __main__ - [INFO] - main.py:1266 - Token refresh completed: 2 succeeded, 0 failed
+2025-10-29 12:50:02,157 - __main__ - [INFO] - main.py:890 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-10-29 12:50:02,214 - __main__ - [INFO] - main.py:712 - Account credentials saved for hprjiocj465@outlook.com
+2025-10-29 12:50:02,216 - __main__ - [INFO] - main.py:1616 - Token refreshed for hprjiocj465@outlook.com by admin
+2025-10-29 12:50:22,869 - __main__ - [INFO] - main.py:819 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-29 12:50:25,498 - __main__ - [INFO] - main.py:288 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-10-29 12:50:46,694 - __main__ - [INFO] - main.py:819 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-29 12:54:08,950 - __main__ - [INFO] - main.py:819 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-29 12:54:27,021 - __main__ - [INFO] - main.py:819 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-29 12:56:02,300 - __main__ - [INFO] - main.py:1305 - Shutting down Outlook Email Management System...
+2025-10-29 12:56:02,301 - __main__ - [INFO] - main.py:1312 - Token refresh background task cancelled
+2025-10-29 12:56:02,301 - __main__ - [INFO] - main.py:1314 - Closing IMAP connection pool...
+2025-10-29 12:56:33,501 - __main__ - [INFO] - main.py:102 - Logging system initialized
+2025-10-29 12:56:33,564 - __main__ - [INFO] - main.py:254 - Initialized IMAP connection pool with max_connections=5
+2025-10-29 12:56:34,026 - __main__ - [INFO] - main.py:1670 - Starting Outlook Email Management System on 0.0.0.0:8000
+2025-10-29 12:56:34,030 - __main__ - [INFO] - main.py:1671 - Access the web interface at: http://localhost:8000
+2025-10-29 12:56:34,030 - __main__ - [INFO] - main.py:1672 - Access the API documentation at: http://localhost:8000/docs
+2025-10-29 12:56:34,371 - __main__ - [INFO] - main.py:1284 - Starting Outlook Email Management System v2.0...
+2025-10-29 12:56:34,374 - __main__ - [INFO] - main.py:1287 - Initializing database...
+2025-10-29 12:56:34,392 - __main__ - [INFO] - main.py:1289 - Database initialized successfully
+2025-10-29 12:56:34,403 - __main__ - [INFO] - main.py:1294 - IMAP connection pool initialized with max_connections=5
+2025-10-29 12:56:34,405 - __main__ - [INFO] - main.py:1300 - Token refresh background task scheduled
+2025-10-29 12:56:34,406 - __main__ - [INFO] - main.py:1198 - Token refresh background task started
+2025-10-29 12:56:34,408 - __main__ - [INFO] - main.py:1202 - Starting scheduled token refresh for all accounts...
+2025-10-29 12:56:47,263 - __main__ - [INFO] - main.py:890 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-10-29 12:56:47,349 - __main__ - [INFO] - main.py:1247 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-10-29 12:57:03,591 - __main__ - [INFO] - main.py:1364 - Admin admin logged in successfully
+2025-10-29 12:57:04,788 - __main__ - [INFO] - main.py:890 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-10-29 12:57:05,062 - __main__ - [INFO] - main.py:1247 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-10-29 12:57:05,066 - __main__ - [INFO] - main.py:1266 - Token refresh completed: 2 succeeded, 0 failed
+2025-10-29 13:04:22,620 - __main__ - [INFO] - main.py:819 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-29 13:04:25,215 - __main__ - [INFO] - main.py:288 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-10-29 13:11:47,323 - __main__ - [INFO] - main.py:819 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-29 13:11:47,394 - __main__ - [INFO] - main.py:819 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-29 13:11:50,176 - __main__ - [INFO] - main.py:288 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-10-29 13:12:21,273 - __main__ - [INFO] - main.py:1364 - Admin admin logged in successfully
+2025-10-29 13:28:16,286 - __main__ - [INFO] - main.py:819 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-29 13:35:22,970 - __main__ - [INFO] - main.py:819 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-29 14:02:26,688 - __main__ - [INFO] - main.py:1305 - Shutting down Outlook Email Management System...
+2025-10-29 14:02:26,691 - __main__ - [INFO] - main.py:1312 - Token refresh background task cancelled
+2025-10-29 14:02:26,692 - __main__ - [INFO] - main.py:1314 - Closing IMAP connection pool...
+2025-10-29 14:04:45,424 - __main__ - [INFO] - main.py:102 - Logging system initialized
+2025-10-29 14:04:45,495 - __main__ - [INFO] - main.py:254 - Initialized IMAP connection pool with max_connections=5
+2025-10-29 14:04:46,230 - __main__ - [INFO] - main.py:1670 - Starting Outlook Email Management System on 0.0.0.0:8000
+2025-10-29 14:04:46,231 - __main__ - [INFO] - main.py:1671 - Access the web interface at: http://localhost:8000
+2025-10-29 14:04:46,232 - __main__ - [INFO] - main.py:1672 - Access the API documentation at: http://localhost:8000/docs
+2025-10-29 14:04:46,750 - __main__ - [INFO] - main.py:1284 - Starting Outlook Email Management System v2.0...
+2025-10-29 14:04:46,752 - __main__ - [INFO] - main.py:1287 - Initializing database...
+2025-10-29 14:04:46,765 - __main__ - [INFO] - main.py:1289 - Database initialized successfully
+2025-10-29 14:04:46,773 - __main__ - [INFO] - main.py:1294 - IMAP connection pool initialized with max_connections=5
+2025-10-29 14:04:46,774 - __main__ - [INFO] - main.py:1300 - Token refresh background task scheduled
+2025-10-29 14:04:46,775 - __main__ - [INFO] - main.py:1198 - Token refresh background task started
+2025-10-29 14:04:46,776 - __main__ - [INFO] - main.py:1202 - Starting scheduled token refresh for all accounts...
+2025-10-29 14:04:56,398 - __main__ - [INFO] - main.py:890 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-10-29 14:04:56,432 - __main__ - [INFO] - main.py:1247 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-10-29 14:05:07,906 - __main__ - [INFO] - main.py:890 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-10-29 14:05:07,943 - __main__ - [INFO] - main.py:1247 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-10-29 14:05:07,945 - __main__ - [INFO] - main.py:1266 - Token refresh completed: 2 succeeded, 0 failed
+2025-10-29 14:05:26,606 - __main__ - [INFO] - main.py:1364 - Admin admin logged in successfully
+2025-10-29 14:06:01,151 - __main__ - [INFO] - main.py:1364 - Admin admin123 logged in successfully
+2025-10-29 14:07:31,550 - __main__ - [INFO] - main.py:1305 - Shutting down Outlook Email Management System...
+2025-10-29 14:07:31,551 - __main__ - [INFO] - main.py:1312 - Token refresh background task cancelled
+2025-10-29 14:07:31,551 - __main__ - [INFO] - main.py:1314 - Closing IMAP connection pool...
+2025-10-29 14:07:31,552 - __main__ - [INFO] - main.py:409 - Closed total 0 connections for all accounts
+2025-10-29 14:07:31,553 - __main__ - [INFO] - main.py:1316 - Application shutdown complete.

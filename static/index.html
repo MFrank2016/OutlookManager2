@@ -2272,6 +2272,10 @@
                                     <span>🔄</span>
                                     刷新列表
                                 </button>
+                                <button class="btn btn-primary btn-sm" onclick="showBatchRefreshDialog()">
+                                    <span>🔄</span>
+                                    批量刷新Token
+                                </button>
                             </div>
                         </div>
                         
@@ -2284,6 +2288,15 @@
                                 <div class="flex-1">
                                     <input type="text" id="tagSearch" class="form-control" placeholder="按标签搜索..." onkeypress="handleSearchKeyPress(event)">
                                 </div>
+                                <div class="flex-1">
+                                    <select id="refreshStatusFilter" class="form-control" onchange="handleRefreshStatusChange()">
+                                        <option value="all">全部状态</option>
+                                        <option value="never_refreshed">从未刷新</option>
+                                        <option value="failed">刷新失败</option>
+                                        <option value="success">刷新成功</option>
+                                        <option value="custom">指定刷新条件</option>
+                                    </select>
+                                </div>
                                 <button class="btn btn-primary" onclick="searchAccounts()">
                                     <span>🔍</span>
                                     搜索
@@ -2292,6 +2305,24 @@
                                     <span>🗑️</span>
                                     清除
                                 </button>
+                            </div>
+                            
+                            <!-- 自定义日期范围选择 -->
+                            <div id="customDateRangeContainer" class="flex gap-3 mb-4" style="display: none;">
+                                <div class="flex-1">
+                                    <label class="text-sm text-gray-600 mb-1" style="display: block;">刷新起始时间</label>
+                                    <input type="datetime-local" id="refreshStartDate" class="form-control">
+                                </div>
+                                <div class="flex-1">
+                                    <label class="text-sm text-gray-600 mb-1" style="display: block;">刷新截止时间</label>
+                                    <input type="datetime-local" id="refreshEndDate" class="form-control">
+                                </div>
+                                <div style="display: flex; align-items: flex-end;">
+                                    <button class="btn btn-info" onclick="applyCustomDateFilter()">
+                                        <span>✓</span>
+                                        应用筛选
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         
@@ -2739,6 +2770,21 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                                                 <span class="api-param-type">string</span>
                                                 <span class="api-param-desc">标签模糊搜索，可选</span>
                                             </div>
+                                            <div class="api-param">
+                                                <span class="api-param-name">refresh_status</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">刷新状态筛选 (all, never_refreshed, success, failed, pending)，可选</span>
+                                            </div>
+                                            <div class="api-param">
+                                                <span class="api-param-name">time_filter</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">时间过滤器 (today, week, month, custom)，可选</span>
+                                            </div>
+                                            <div class="api-param">
+                                                <span class="api-param-name">after_date</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">自定义日期（ISO格式），与time_filter=custom配合使用，可选</span>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -2763,6 +2809,117 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                                     <div class="api-response" id="accountsResponse">
                                         <h4 style="margin-bottom: 8px; color: #15803d;">响应结果：</h4>
                                         <pre id="accountsResponseData"></pre>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 单个账户刷新Token接口 -->
+                            <div class="api-endpoint">
+                                <div class="api-header">
+                                    <div style="display: flex; align-items: center;">
+                                        <span class="api-method post">POST</span>
+                                        <span class="api-path">/accounts/{email_id}/refresh-token</span>
+                                    </div>
+                                    <button class="api-try-button" onclick="openApiTest('singleRefreshToken')">🚀 试用接口</button>
+                                </div>
+                                <div class="api-body">
+                                    <p class="api-description">手动刷新指定账户的OAuth2 Token，用于验证账户凭证或更新过期的Token。</p>
+
+                                    <div class="api-section">
+                                        <h4>路径参数</h4>
+                                        <div class="api-params">
+                                            <div class="api-param">
+                                                <span class="api-param-name">email_id</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>请求示例</h4>
+                                        <div class="api-example">POST /accounts/example%40outlook.com/refresh-token</div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "email_id": "example@outlook.com",
+  "message": "Token refreshed successfully at 2024-01-01T12:00:00"
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 批量刷新Token接口 -->
+                            <div class="api-endpoint">
+                                <div class="api-header">
+                                    <div style="display: flex; align-items: center;">
+                                        <span class="api-method post">POST</span>
+                                        <span class="api-path">/accounts/batch-refresh-tokens</span>
+                                    </div>
+                                    <button class="api-try-button" onclick="openApiTest('batchRefreshTokens')">🚀 试用接口</button>
+                                </div>
+                                <div class="api-body">
+                                    <p class="api-description">批量刷新符合筛选条件的账户Token，支持多维度筛选（邮箱、标签、刷新状态、时间范围）。</p>
+
+                                    <div class="api-section">
+                                        <h4>查询参数</h4>
+                                        <div class="api-params">
+                                            <div class="api-param">
+                                                <span class="api-param-name">email_search</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">邮箱账号模糊搜索，可选</span>
+                                            </div>
+                                            <div class="api-param">
+                                                <span class="api-param-name">tag_search</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">标签模糊搜索，可选</span>
+                                            </div>
+                                            <div class="api-param">
+                                                <span class="api-param-name">refresh_status</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">刷新状态筛选 (all, never_refreshed, success, failed, pending)，可选</span>
+                                            </div>
+                                            <div class="api-param">
+                                                <span class="api-param-name">time_filter</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">时间过滤器 (today, week, month, custom)，可选</span>
+                                            </div>
+                                            <div class="api-param">
+                                                <span class="api-param-name">after_date</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">自定义日期（ISO格式），与time_filter=custom配合使用，可选</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>请求示例</h4>
+                                        <div class="api-example">POST /accounts/batch-refresh-tokens?refresh_status=failed</div>
+                                        <div class="api-example">POST /accounts/batch-refresh-tokens?tag_search=工作&refresh_status=never_refreshed</div>
+                                        <div class="api-example">POST /accounts/batch-refresh-tokens?time_filter=week</div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "total_processed": 10,
+  "success_count": 8,
+  "failed_count": 2,
+  "details": [
+    {
+      "email": "user1@outlook.com",
+      "status": "success",
+      "message": "Token refreshed successfully"
+    },
+    {
+      "email": "user2@outlook.com",
+      "status": "failed",
+      "message": "HTTP 400 error refreshing token"
+    }
+  ]
+}</div>
                                     </div>
                                 </div>
                             </div>
@@ -2904,6 +3061,63 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                                 </div>
                             </div>
 
+                            <!-- 获取双栏视图邮件 -->
+                            <div class="api-endpoint">
+                                <div class="api-header">
+                                    <div style="display: flex; align-items: center;">
+                                        <span class="api-method get">GET</span>
+                                        <span class="api-path">/emails/{email_id}/dual-view</span>
+                                    </div>
+                                    <button class="api-try-button" onclick="openApiTest('dualView')">🚀 试用接口</button>
+                                </div>
+                                <div class="api-body">
+                                    <p class="api-description">获取双栏视图邮件（同时返回收件箱和垃圾箱邮件）。</p>
+
+                                    <div class="api-section">
+                                        <h4>路径参数</h4>
+                                        <div class="api-params">
+                                            <div class="api-param">
+                                                <span class="api-param-name">email_id</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>查询参数</h4>
+                                        <div class="api-params">
+                                            <div class="api-param">
+                                                <span class="api-param-name">inbox_page</span>
+                                                <span class="api-param-type">integer</span>
+                                                <span class="api-param-desc">收件箱页码，默认: 1</span>
+                                            </div>
+                                            <div class="api-param">
+                                                <span class="api-param-name">junk_page</span>
+                                                <span class="api-param-type">integer</span>
+                                                <span class="api-param-desc">垃圾箱页码，默认: 1</span>
+                                            </div>
+                                            <div class="api-param">
+                                                <span class="api-param-name">page_size</span>
+                                                <span class="api-param-type">integer</span>
+                                                <span class="api-param-desc">每页数量，默认: 20</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "email_id": "example@outlook.com",
+  "inbox_emails": [...],
+  "junk_emails": [...],
+  "inbox_total": 100,
+  "junk_total": 20
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
             <!-- 添加账户 -->
             <div class="api-endpoint">
                 <div class="api-header">
@@ -2971,6 +3185,51 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                                     </div>
                                 </div>
                             </div>
+
+            <!-- 更新账户标签 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method put">PUT</span>
+                        <span class="api-path">/accounts/{email_id}/tags</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('updateTags')">🚀 试用接口</button>
+                </div>
+                <div class="api-body">
+                    <p class="api-description">更新指定账户的标签列表。</p>
+
+                    <div class="api-section">
+                        <h4>路径参数</h4>
+                        <div class="api-params">
+                            <div class="api-param">
+                                <span class="api-param-name">email_id</span>
+                                <span class="api-param-type">string</span>
+                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="api-section">
+                        <h4>请求体</h4>
+                        <div class="api-example">{
+  "tags": ["工作", "个人", "重要"]
+}</div>
+                    </div>
+
+                    <div class="api-section">
+                        <h4>请求示例</h4>
+                        <div class="api-example">PUT /accounts/example%40outlook.com/tags</div>
+                    </div>
+
+                    <div class="api-section">
+                        <h4>响应示例</h4>
+                        <div class="api-example">{
+  "email_id": "example@outlook.com",
+  "message": "Account tags updated successfully."
+}</div>
+                    </div>
+                </div>
+            </div>
 
             <!-- 刷新Token -->
             <div class="api-endpoint">
@@ -3221,6 +3480,68 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
     "滚动日志记录",
     "管理面板"
   ]
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 缓存管理 -->
+                            <div class="api-endpoint">
+                                <div class="api-header">
+                                    <div>
+                                        <h3 style="margin: 0; color: #1f2937;">🗑️ 缓存管理</h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 清除指定邮箱缓存 -->
+                            <div class="api-endpoint">
+                                <div class="api-header">
+                                    <div style="display: flex; align-items: center;">
+                                        <span class="api-method delete">DELETE</span>
+                                        <span class="api-path">/cache/{email_id}</span>
+                                    </div>
+                                    <button class="api-try-button" onclick="openApiTest('clearCache')">🚀 试用接口</button>
+                                </div>
+                                <div class="api-body">
+                                    <p class="api-description">清除指定邮箱的邮件列表缓存。</p>
+
+                                    <div class="api-section">
+                                        <h4>路径参数</h4>
+                                        <div class="api-params">
+                                            <div class="api-param">
+                                                <span class="api-param-name">email_id</span>
+                                                <span class="api-param-type">string</span>
+                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "message": "Cache cleared for example@outlook.com"
+}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 清除所有缓存 -->
+                            <div class="api-endpoint">
+                                <div class="api-header">
+                                    <div style="display: flex; align-items: center;">
+                                        <span class="api-method delete">DELETE</span>
+                                        <span class="api-path">/cache</span>
+                                    </div>
+                                    <button class="api-try-button" onclick="openApiTest('clearAllCache')">🚀 试用接口</button>
+                                </div>
+                                <div class="api-body">
+                                    <p class="api-description">清除所有邮箱的邮件列表缓存。</p>
+
+                                    <div class="api-section">
+                                        <h4>响应示例</h4>
+                                        <div class="api-example">{
+  "message": "All cache cleared"
 }</div>
                                     </div>
                                 </div>
@@ -3530,6 +3851,9 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
         let accountsTotalCount = 0;
         let currentEmailSearch = '';
         let currentTagSearch = '';
+        let currentRefreshStatusFilter = 'all';
+        let currentRefreshStartDate = '';
+        let currentRefreshEndDate = '';
 
         // 邮件列表分页相关变量
         let emailCurrentPage = 1;
@@ -3829,8 +4153,10 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                 // 重置搜索条件
                 currentEmailSearch = '';
                 currentTagSearch = '';
+                currentRefreshStatusFilter = 'all';
                 document.getElementById('emailSearch').value = '';
                 document.getElementById('tagSearch').value = '';
+                document.getElementById('refreshStatusFilter').value = 'all';
                 page = 1;
             }
             
@@ -3858,6 +4184,25 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                 if (currentTagSearch) {
                     params.append('tag_search', currentTagSearch);
                 }
+                
+                if (currentRefreshStatusFilter && currentRefreshStatusFilter !== 'all' && currentRefreshStatusFilter !== 'custom') {
+                    params.append('refresh_status', currentRefreshStatusFilter);
+                }
+                
+                // 添加自定义日期范围参数
+                if (currentRefreshStatusFilter === 'custom' && currentRefreshStartDate && currentRefreshEndDate) {
+                    params.append('refresh_start_date', currentRefreshStartDate);
+                    params.append('refresh_end_date', currentRefreshEndDate);
+                    console.log('[筛选] 添加日期范围参数:');
+                    console.log('  refresh_start_date:', currentRefreshStartDate);
+                    console.log('  refresh_end_date:', currentRefreshEndDate);
+                } else if (currentRefreshStatusFilter === 'custom') {
+                    console.warn('[筛选] 警告: 自定义模式但日期参数为空!');
+                    console.log('  currentRefreshStartDate:', currentRefreshStartDate);
+                    console.log('  currentRefreshEndDate:', currentRefreshEndDate);
+                }
+                
+                console.log('[筛选] 完整请求参数:', params.toString());
                 
                 const data = await apiRequest(`/accounts?${params.toString()}`);
                 
@@ -4946,17 +5291,164 @@ GET /emails/{email_id}/{message_id}
         }
         
         function searchAccounts() {
+            console.log('[搜索] 开始搜索...');
+            
             currentEmailSearch = document.getElementById('emailSearch').value.trim();
             currentTagSearch = document.getElementById('tagSearch').value.trim();
+            currentRefreshStatusFilter = document.getElementById('refreshStatusFilter').value;
+            
+            console.log('[搜索] 当前筛选条件:');
+            console.log('  邮箱搜索:', currentEmailSearch);
+            console.log('  标签搜索:', currentTagSearch);
+            console.log('  状态筛选:', currentRefreshStatusFilter);
+            
+            // 如果是自定义筛选，从输入框读取最新的日期值
+            if (currentRefreshStatusFilter === 'custom') {
+                const startDateInput = document.getElementById('refreshStartDate').value;
+                const endDateInput = document.getElementById('refreshEndDate').value;
+                
+                console.log('[搜索] 自定义模式 - 输入框值:');
+                console.log('  起始时间输入:', startDateInput);
+                console.log('  截止时间输入:', endDateInput);
+                
+                if (startDateInput && endDateInput) {
+                    const startDate = new Date(startDateInput);
+                    const endDate = new Date(endDateInput);
+                    
+                    if (startDate <= endDate) {
+                        currentRefreshStartDate = startDate.toISOString();
+                        currentRefreshEndDate = endDate.toISOString();
+                        console.log('[搜索] 转换为ISO格式:');
+                        console.log('  起始时间:', currentRefreshStartDate);
+                        console.log('  截止时间:', currentRefreshEndDate);
+                    } else {
+                        console.error('[搜索] 错误: 起始时间晚于截止时间');
+                        alert('起始时间不能晚于截止时间');
+                        return;
+                    }
+                } else {
+                    console.error('[搜索] 错误: 日期未选择');
+                    alert('请选择起始时间和截止时间');
+                    return;
+                }
+            } else {
+                // 如果不是自定义筛选，清除日期范围
+                currentRefreshStartDate = '';
+                currentRefreshEndDate = '';
+                console.log('[搜索] 非自定义模式，清除日期范围');
+            }
+            
             loadAccounts(1); // 搜索时重置到第一页
         }
         
         function clearSearch() {
             document.getElementById('emailSearch').value = '';
             document.getElementById('tagSearch').value = '';
+            document.getElementById('refreshStatusFilter').value = 'all';
+            document.getElementById('refreshStartDate').value = '';
+            document.getElementById('refreshEndDate').value = '';
+            document.getElementById('customDateRangeContainer').style.display = 'none';
             currentEmailSearch = '';
             currentTagSearch = '';
+            currentRefreshStatusFilter = 'all';
+            currentRefreshStartDate = '';
+            currentRefreshEndDate = '';
             loadAccounts(1);
+        }
+        
+        // 处理刷新状态筛选器变化
+        function handleRefreshStatusChange() {
+            const refreshStatus = document.getElementById('refreshStatusFilter').value;
+            const customDateContainer = document.getElementById('customDateRangeContainer');
+            
+            console.log('[筛选] 状态变化:', refreshStatus);
+            
+            if (refreshStatus === 'custom') {
+                // 显示自定义日期范围选择器
+                customDateContainer.style.display = 'flex';
+                
+                // 设置默认日期：起始日期为30天前，截止日期为当前时间
+                const now = new Date();
+                const startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                
+                document.getElementById('refreshStartDate').value = formatDateTimeLocal(startDate);
+                document.getElementById('refreshEndDate').value = formatDateTimeLocal(now);
+                
+                // 同时设置全局变量为默认值（转换为ISO格式）
+                currentRefreshStartDate = startDate.toISOString();
+                currentRefreshEndDate = now.toISOString();
+                
+                console.log('[筛选] 设置默认日期范围:');
+                console.log('  起始时间:', currentRefreshStartDate);
+                console.log('  截止时间:', currentRefreshEndDate);
+                
+                // 立即应用默认的日期范围筛选
+                loadAccounts(1);
+            } else {
+                // 隐藏自定义日期范围选择器
+                customDateContainer.style.display = 'none';
+                currentRefreshStartDate = '';
+                currentRefreshEndDate = '';
+                
+                console.log('[筛选] 清除日期范围');
+                
+                // 如果不是自定义筛选，立即执行搜索
+                searchAccounts();
+            }
+        }
+        
+        // 应用自定义日期筛选
+        function applyCustomDateFilter() {
+            console.log('[应用筛选] 开始应用自定义日期筛选...');
+            
+            const startDateInput = document.getElementById('refreshStartDate').value;
+            const endDateInput = document.getElementById('refreshEndDate').value;
+            
+            console.log('[应用筛选] 输入框值:');
+            console.log('  起始时间:', startDateInput);
+            console.log('  截止时间:', endDateInput);
+            
+            if (!startDateInput || !endDateInput) {
+                console.error('[应用筛选] 错误: 日期未选择');
+                alert('请选择起始时间和截止时间');
+                return;
+            }
+            
+            const startDate = new Date(startDateInput);
+            const endDate = new Date(endDateInput);
+            
+            if (startDate > endDate) {
+                console.error('[应用筛选] 错误: 起始时间晚于截止时间');
+                alert('起始时间不能晚于截止时间');
+                return;
+            }
+            
+            // 转换为ISO格式
+            currentRefreshStartDate = startDate.toISOString();
+            currentRefreshEndDate = endDate.toISOString();
+            
+            // 设置筛选状态为custom
+            currentRefreshStatusFilter = 'custom';
+            
+            // 同步更新下拉框的值
+            document.getElementById('refreshStatusFilter').value = 'custom';
+            
+            console.log('[应用筛选] 转换为ISO格式:');
+            console.log('  起始时间:', currentRefreshStartDate);
+            console.log('  截止时间:', currentRefreshEndDate);
+            console.log('  筛选状态:', currentRefreshStatusFilter);
+            
+            loadAccounts(1); // 应用筛选时重置到第一页
+        }
+        
+        // 格式化日期时间为datetime-local格式
+        function formatDateTimeLocal(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
         }
         
         function handleSearchKeyPress(event) {
@@ -4998,6 +5490,131 @@ GET /emails/{email_id}/{message_id}
 
             } catch (error) {
                 showNotification(`Token刷新失败: ${error.message}`, 'error');
+            }
+        }
+        
+        // 批量刷新Token功能
+        async function showBatchRefreshDialog() {
+            try {
+                // 获取当前筛选条件下的账户数量
+                const params = new URLSearchParams({
+                    page: 1,
+                    page_size: 1
+                });
+                
+                if (currentEmailSearch) {
+                    params.append('email_search', currentEmailSearch);
+                }
+                
+                if (currentTagSearch) {
+                    params.append('tag_search', currentTagSearch);
+                }
+                
+                if (currentRefreshStatusFilter && currentRefreshStatusFilter !== 'all' && currentRefreshStatusFilter !== 'custom') {
+                    params.append('refresh_status', currentRefreshStatusFilter);
+                }
+                
+                // 添加自定义日期范围参数
+                if (currentRefreshStatusFilter === 'custom' && currentRefreshStartDate && currentRefreshEndDate) {
+                    params.append('refresh_start_date', currentRefreshStartDate);
+                    params.append('refresh_end_date', currentRefreshEndDate);
+                }
+                
+                const data = await apiRequest(`/accounts?${params.toString()}`);
+                const totalAccounts = data.total_accounts || 0;
+                
+                if (totalAccounts === 0) {
+                    showNotification('当前筛选条件下没有账户需要刷新', 'warning');
+                    return;
+                }
+                
+                // 构建筛选条件说明
+                let filterDesc = [];
+                if (currentEmailSearch) {
+                    filterDesc.push(`邮箱包含"${currentEmailSearch}"`);
+                }
+                if (currentTagSearch) {
+                    filterDesc.push(`标签包含"${currentTagSearch}"`);
+                }
+                if (currentRefreshStatusFilter && currentRefreshStatusFilter !== 'all') {
+                    if (currentRefreshStatusFilter === 'custom') {
+                        const startDate = new Date(currentRefreshStartDate);
+                        const endDate = new Date(currentRefreshEndDate);
+                        filterDesc.push(`刷新时间在 ${startDate.toLocaleString('zh-CN')} 至 ${endDate.toLocaleString('zh-CN')} 之间`);
+                    } else {
+                        const statusMap = {
+                            'never_refreshed': '从未刷新',
+                            'success': '刷新成功',
+                            'failed': '刷新失败',
+                            'pending': '待刷新'
+                        };
+                        filterDesc.push(`状态为"${statusMap[currentRefreshStatusFilter]}"`);
+                    }
+                }
+                
+                const filterText = filterDesc.length > 0 
+                    ? `当前筛选条件：${filterDesc.join('、')}\n` 
+                    : '当前筛选条件：全部账户\n';
+                
+                if (!confirm(`${filterText}将刷新 ${totalAccounts} 个账户的Token，确定继续吗？\n\n此操作可能需要较长时间，请耐心等待。`)) {
+                    return;
+                }
+                
+                await batchRefreshTokens();
+                
+            } catch (error) {
+                showNotification(`获取账户信息失败: ${error.message}`, 'error');
+            }
+        }
+        
+        async function batchRefreshTokens() {
+            try {
+                // 构建请求参数
+                const params = new URLSearchParams();
+                
+                if (currentEmailSearch) {
+                    params.append('email_search', currentEmailSearch);
+                }
+                
+                if (currentTagSearch) {
+                    params.append('tag_search', currentTagSearch);
+                }
+                
+                if (currentRefreshStatusFilter && currentRefreshStatusFilter !== 'all' && currentRefreshStatusFilter !== 'custom') {
+                    params.append('refresh_status', currentRefreshStatusFilter);
+                }
+                
+                // 添加自定义日期范围参数
+                if (currentRefreshStatusFilter === 'custom' && currentRefreshStartDate && currentRefreshEndDate) {
+                    params.append('refresh_start_date', currentRefreshStartDate);
+                    params.append('refresh_end_date', currentRefreshEndDate);
+                }
+                
+                showNotification('正在批量刷新Token，请稍候...', 'info');
+                
+                const result = await apiRequest(`/accounts/batch-refresh-tokens?${params.toString()}`, {
+                    method: 'POST'
+                });
+                
+                // 显示结果
+                const successMsg = `批量刷新完成！\n总计: ${result.total_processed} 个账户\n成功: ${result.success_count} 个\n失败: ${result.failed_count} 个`;
+                
+                if (result.failed_count === 0) {
+                    showNotification(successMsg, 'success');
+                } else {
+                    // 如果有失败的，显示详细信息
+                    let detailMsg = successMsg + '\n\n失败账户：\n';
+                    result.details.filter(d => d.status === 'failed').forEach(detail => {
+                        detailMsg += `- ${detail.email}: ${detail.message}\n`;
+                    });
+                    showNotification(detailMsg, 'warning');
+                }
+                
+                // 刷新账户列表
+                loadAccounts(accountsCurrentPage);
+                
+            } catch (error) {
+                showNotification(`批量刷新失败: ${error.message}`, 'error');
             }
         }
         
@@ -5717,7 +6334,15 @@ GET /emails/{email_id}/{message_id}
             'accounts': {
                 method: 'GET',
                 endpoint: '/accounts',
-                query: { page: 1, page_size: 10, email_search: '', tag_search: '' },
+                query: { 
+                    page: 1, 
+                    page_size: 10, 
+                    email_search: '', 
+                    tag_search: '',
+                    refresh_status: '',
+                    time_filter: '',
+                    after_date: ''
+                },
                 requiresAuth: true
             },
             'addAccount': {
@@ -5732,10 +6357,35 @@ GET /emails/{email_id}/{message_id}
                 path: { email_id: 'example@outlook.com' },
                 requiresAuth: true
             },
+            'updateTags': {
+                method: 'PUT',
+                endpoint: '/accounts/{email_id}/tags',
+                path: { email_id: 'example@outlook.com' },
+                body: { tags: ['工作', '个人'] },
+                requiresAuth: true
+            },
             'refreshToken': {
                 method: 'POST',
                 endpoint: '/accounts/{email_id}/refresh-token',
                 path: { email_id: 'example@outlook.com' },
+                requiresAuth: true
+            },
+            'singleRefreshToken': {
+                method: 'POST',
+                endpoint: '/accounts/{email_id}/refresh-token',
+                path: { email_id: 'example@outlook.com' },
+                requiresAuth: true
+            },
+            'batchRefreshTokens': {
+                method: 'POST',
+                endpoint: '/accounts/batch-refresh-tokens',
+                query: {
+                    email_search: '',
+                    tag_search: '',
+                    refresh_status: '',
+                    time_filter: '',
+                    after_date: ''
+                },
                 requiresAuth: true
             },
             'emails': {
@@ -5749,6 +6399,24 @@ GET /emails/{email_id}/{message_id}
                 method: 'GET',
                 endpoint: '/emails/{email_id}/{message_id}',
                 path: { email_id: 'example@outlook.com', message_id: 'INBOX-1' },
+                requiresAuth: true
+            },
+            'dualView': {
+                method: 'GET',
+                endpoint: '/emails/{email_id}/dual-view',
+                path: { email_id: 'example@outlook.com' },
+                query: { inbox_page: 1, junk_page: 1, page_size: 20 },
+                requiresAuth: true
+            },
+            'clearCache': {
+                method: 'DELETE',
+                endpoint: '/cache/{email_id}',
+                path: { email_id: 'example@outlook.com' },
+                requiresAuth: true
+            },
+            'clearAllCache': {
+                method: 'DELETE',
+                endpoint: '/cache',
                 requiresAuth: true
             },
             'tableCount': {

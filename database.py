@@ -7,8 +7,7 @@ SQLite数据库管理模块
 import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime
-from pathlib import Path
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 
@@ -178,6 +177,124 @@ def get_all_accounts_db(
         return accounts, total
 
 
+def get_accounts_by_filters(
+    page: int = 1,
+    page_size: int = 10,
+    email_search: Optional[str] = None,
+    tag_search: Optional[str] = None,
+    refresh_status: Optional[str] = None,
+    time_filter: Optional[str] = None,
+    after_date: Optional[str] = None,
+    refresh_start_date: Optional[str] = None,
+    refresh_end_date: Optional[str] = None
+) -> Tuple[List[Dict[str, Any]], int]:
+    """
+    获取符合筛选条件的账户列表（支持分页和多维度筛选）
+    
+    Args:
+        page: 页码（从1开始）
+        page_size: 每页数量
+        email_search: 邮箱模糊搜索
+        tag_search: 标签模糊搜索
+        refresh_status: 刷新状态筛选 (never_refreshed, failed, success, pending, all)
+        time_filter: 时间过滤器 (today, week, month, custom)
+        after_date: 自定义日期（用于custom时间过滤，ISO格式）
+        refresh_start_date: 刷新起始日期（ISO格式）
+        refresh_end_date: 刷新截止日期（ISO格式）
+        
+    Returns:
+        (账户列表, 总数)
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # 构建查询条件
+        conditions = []
+        params = []
+        
+        # 邮箱搜索
+        if email_search:
+            conditions.append("email LIKE ?")
+            params.append(f"%{email_search}%")
+        
+        # 标签搜索
+        if tag_search:
+            conditions.append("tags LIKE ?")
+            params.append(f"%{tag_search}%")
+        
+        # 刷新状态筛选
+        if refresh_status and refresh_status != 'all':
+            if refresh_status == 'never_refreshed':
+                conditions.append("last_refresh_time IS NULL")
+            elif refresh_status == 'failed':
+                conditions.append("refresh_status = 'failed'")
+            elif refresh_status == 'success':
+                conditions.append("refresh_status = 'success'")
+            elif refresh_status == 'pending':
+                conditions.append("refresh_status = 'pending'")
+        
+        # 时间范围筛选
+        if time_filter:
+            current_time = datetime.now()
+            
+            if time_filter == 'today':
+                # 今日未更新
+                today_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
+                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
+                params.append(today_start.isoformat())
+            
+            elif time_filter == 'week':
+                # 一周内未更新
+                week_ago = current_time - timedelta(days=7)
+                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
+                params.append(week_ago.isoformat())
+            
+            elif time_filter == 'month':
+                # 一月内未更新
+                month_ago = current_time - timedelta(days=30)
+                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
+                params.append(month_ago.isoformat())
+            
+            elif time_filter == 'custom' and after_date:
+                # 指定日期后未更新
+                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
+                params.append(after_date)
+        
+        # 自定义日期范围筛选（指定刷新条件）
+        if refresh_start_date and refresh_end_date:
+            conditions.append("(last_refresh_time >= ? AND last_refresh_time <= ?)")
+            params.append(refresh_start_date)
+            params.append(refresh_end_date)
+            logger.info(f"[筛选] 添加日期范围筛选: {refresh_start_date} 至 {refresh_end_date}")
+        
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        
+        logger.info(f"[筛选] SQL WHERE子句: {where_clause}")
+        logger.info(f"[筛选] SQL参数: {params}")
+        
+        # 获取总数
+        cursor.execute(f"SELECT COUNT(*) FROM accounts WHERE {where_clause}", params)
+        total = cursor.fetchone()[0]
+        
+        logger.info(f"[筛选] 符合条件的总数: {total}")
+        
+        # 获取分页数据
+        offset = (page - 1) * page_size
+        cursor.execute(
+            f"SELECT * FROM accounts WHERE {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            params + [page_size, offset]
+        )
+        rows = cursor.fetchall()
+        
+        accounts = []
+        for row in rows:
+            account = dict(row)
+            account['tags'] = json.loads(account['tags']) if account['tags'] else []
+            accounts.append(account)
+        
+        return accounts, total
+
+
 def create_account(
     email: str,
     refresh_token: str,
@@ -206,7 +323,6 @@ def create_account(
             VALUES (?, ?, ?, ?)
         """, (email, refresh_token, client_id, tags_json))
         
-        account_id = cursor.lastrowid
         conn.commit()
         
         logger.info(f"Created account: {email}")

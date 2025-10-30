@@ -1,28 +1,31 @@
 #!/bin/sh
+# Docker启动脚本 - Outlook邮件管理系统
 
-# 设置默认值
-HOST=${HOST:-"0.0.0.0"}
-PORT=${PORT:-8000}
-WORKERS=${WORKERS:-1}
+set -e
 
-# 创建必要的目录
-mkdir -p /app/data
+echo "=========================================="
+echo "Outlook邮件管理系统启动中..."
+echo "=========================================="
 
-# 如果accounts.json不存在，创建空的
-if [ ! -f "/app/accounts.json" ]; then
-    echo "{}" > /app/accounts.json
+# 检查数据库文件
+if [ ! -f "/app/data.db" ]; then
+    echo "数据库文件不存在，将在首次启动时自动创建"
 fi
 
-# 确保文件权限正确
-chown appuser:appuser /app/accounts.json 2>/dev/null || true
-chown appuser:appuser /app/data 2>/dev/null || true
+# 运行数据库迁移（如果需要）
+if [ -f "/app/migrate.py" ]; then
+    echo "运行数据库迁移..."
+    python migrate.py || true
+fi
 
-echo "🚀 启动Outlook邮件API服务..."
-echo "📋 配置信息:"
-echo "   - 主机地址: $HOST"
-echo "   - 端口: $PORT"
-echo "   - 工作进程: $WORKERS"
-echo "   - 数据目录: /app/data"
+# 设置主机和端口（可通过环境变量覆盖）
+HOST=${HOST:-0.0.0.0}
+PORT=${PORT:-8000}
+
+echo "启动FastAPI应用..."
+echo "监听地址: ${HOST}:${PORT}"
+echo "=========================================="
 
 # 启动应用
-exec python main.py 
+exec uvicorn main:app --host "${HOST}" --port "${PORT}" --log-level info
+
