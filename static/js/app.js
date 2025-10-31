@@ -1482,29 +1482,29 @@ GET /emails/{email_id}/{message_id}
             
             // 验证码按钮（如果检测到验证码）
             const verificationCodeBtn = verificationCode ? 
-                `<button class="btn-verification-code" onclick="event.stopPropagation(); copyVerificationCode('${verificationCode}')" title="复制验证码: ${verificationCode}">
+                `<button class="btn-verification-code" onclick="copyVerificationCode('${verificationCode}')" title="复制验证码: ${verificationCode}">
                     🔑 复制
                 </button>` : '';
             
             return `
-                <tr class="${unreadClass}" onclick="showEmailDetail('${email.message_id}')">
-                    <td>
+                <tr class="${unreadClass}">
+                    <td onclick="showEmailDetail('${email.message_id}')" style="cursor: pointer;">
                         <div class="email-sender">
                             <div class="email-sender-initial">${email.sender_initial}</div>
                             <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${email.from_email}</span>
                         </div>
                     </td>
-                    <td>
+                    <td onclick="showEmailDetail('${email.message_id}')" style="cursor: pointer;">
                         <div class="email-subject" title="${email.subject || '(无主题)'}">
                             ${email.subject || '(无主题)'} ${attachmentIcon}
                             ${verificationCode ? '<span style="color: #10b981; font-weight: bold; margin-left: 8px;" title="包含验证码: ' + verificationCode + '">🔑</span>' : ''}
                         </div>
                     </td>
-                    <td>
+                    <td onclick="showEmailDetail('${email.message_id}')" style="cursor: pointer;">
                         <div class="email-date">${formatEmailDate(email.date)}</div>
                     </td>
                     <td style="text-align: center;">
-                        <button class="btn btn-sm" onclick="event.stopPropagation(); showEmailDetail('${email.message_id}')" style="padding: 4px 8px; font-size: 0.75rem;">
+                        <button class="btn btn-sm" onclick="showEmailDetail('${email.message_id}')" style="padding: 4px 8px; font-size: 0.75rem;">
                             查看
                         </button>
                         ${verificationCodeBtn}

@@ -20,13 +20,24 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 # 导入配置和日志
-from config import APP_DESCRIPTION, APP_TITLE, APP_VERSION, HOST, PORT
+from config import (
+    APP_DESCRIPTION,
+    APP_TITLE,
+    APP_VERSION,
+    AUTO_SYNC_EMAILS_ENABLED,
+    EMAIL_SYNC_INTERVAL,
+    EMAIL_SYNC_PAGE_SIZE,
+    HOST,
+    PORT,
+)
 from logger_config import setup_logger
 
 # 导入自定义模块
 import admin_api
 import auth
 import database as db
+from account_service import get_account_credentials
+from email_service import list_emails
 from imap_pool import imap_pool
 from models import AccountCredentials
 from oauth_service import refresh_account_token
@@ -122,6 +133,89 @@ async def token_refresh_background_task():
             await asyncio.sleep(60 * 60)  # 出错后等待1小时再重试
 
 
+async def email_sync_background_task():
+    """
+    后台邮件同步任务
+
+    定期自动获取所有邮箱的邮件数据并存入SQLite缓存
+    默认每5分钟运行一次
+    """
+    logger.info("Email sync background task started")
+    logger.info(f"Sync interval: {EMAIL_SYNC_INTERVAL} seconds ({EMAIL_SYNC_INTERVAL // 60} minutes)")
+    
+    # 首次启动延迟30秒，等待服务完全启动
+    await asyncio.sleep(30)
+
+    while True:
+        try:
+            logger.info("=== Running scheduled email sync ===")
+
+            # 获取所有账户
+            accounts, total = db.get_all_accounts_db(page=1, page_size=1000)
+            
+            if total == 0:
+                logger.info("No accounts found, skipping sync")
+                await asyncio.sleep(EMAIL_SYNC_INTERVAL)
+                continue
+
+            logger.info(f"Found {total} accounts to sync")
+
+            sync_count = 0
+            error_count = 0
+
+            for account in accounts:
+                email = account.get("email")
+                try:
+                    logger.info(f"[{email}] Starting email sync...")
+
+                    # 获取账户凭证
+                    credentials = await get_account_credentials(email)
+
+                    # 获取邮件列表（包含收件箱和垃圾邮件）
+                    result = await list_emails(
+                        credentials=credentials,
+                        folder="all",  # 获取所有文件夹
+                        page=1,
+                        page_size=EMAIL_SYNC_PAGE_SIZE,
+                        force_refresh=True,  # 强制从服务器获取最新数据
+                        sender_search=None,
+                        subject_search=None,
+                        sort_by="date",
+                        sort_order="desc",
+                    )
+
+                    sync_count += 1
+                    logger.info(
+                        f"[{email}] Successfully synced {len(result.emails)} emails "
+                        f"(total: {result.total_emails})"
+                    )
+
+                except Exception as e:
+                    error_count += 1
+                    logger.error(f"[{email}] Failed to sync emails: {e}")
+                    # 继续处理下一个账户，不中断整个流程
+
+                # 每个账户之间间隔2秒，避免过于频繁
+                await asyncio.sleep(2)
+
+            logger.info(
+                f"=== Email sync completed. Success: {sync_count}/{total}, "
+                f"Errors: {error_count} ==="
+            )
+
+            # 等待下一次同步
+            await asyncio.sleep(EMAIL_SYNC_INTERVAL)
+
+        except asyncio.CancelledError:
+            logger.info("Email sync task cancelled")
+            raise
+
+        except Exception as e:
+            logger.error(f"Error in email sync background task: {e}")
+            # 出错后等待一段时间再重试
+            await asyncio.sleep(60)
+
+
 # ============================================================================
 # FastAPI应用生命周期管理
 # ============================================================================
@@ -154,6 +248,15 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # 启动后台Token刷新任务
     refresh_task = asyncio.create_task(token_refresh_background_task())
     logger.info("Token refresh background task scheduled")
+    
+    # 启动后台邮件同步任务
+    email_sync_task = None
+    if AUTO_SYNC_EMAILS_ENABLED:
+        email_sync_task = asyncio.create_task(email_sync_background_task())
+        logger.info("Email sync background task scheduled")
+        logger.info(f"Auto sync interval: {EMAIL_SYNC_INTERVAL} seconds ({EMAIL_SYNC_INTERVAL // 60} minutes)")
+    else:
+        logger.info("Email auto sync is disabled")
 
     yield
 
@@ -161,15 +264,20 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Shutting down {APP_TITLE}...")
 
     # 取消后台任务（带超时）
-    refresh_task.cancel()
+    tasks_to_cancel = [refresh_task]
+    if email_sync_task:
+        tasks_to_cancel.append(email_sync_task)
+    
+    for task in tasks_to_cancel:
+        task.cancel()
+    
     try:
-        await asyncio.wait_for(refresh_task, timeout=3.0)
-    except asyncio.CancelledError:
-        logger.info("Token refresh background task cancelled")
+        await asyncio.wait_for(asyncio.gather(*tasks_to_cancel, return_exceptions=True), timeout=3.0)
+        logger.info("All background tasks cancelled")
     except asyncio.TimeoutError:
-        logger.warning("Token refresh task cancellation timeout, forcing shutdown")
+        logger.warning("Background tasks cancellation timeout, forcing shutdown")
     except Exception as e:
-        logger.error(f"Error cancelling refresh task: {e}")
+        logger.error(f"Error cancelling background tasks: {e}")
 
     # 关闭IMAP连接池（使用线程，防止阻塞）
     logger.info("Closing IMAP connection pool...")
