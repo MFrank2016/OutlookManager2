@@ -85,10 +85,48 @@ def init_database() -> None:
             )
         """)
         
+        # 创建邮件列表缓存表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS emails_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email_account TEXT NOT NULL,
+                message_id TEXT NOT NULL,
+                folder TEXT NOT NULL,
+                subject TEXT,
+                from_email TEXT,
+                date TEXT,
+                is_read INTEGER DEFAULT 0,
+                has_attachments INTEGER DEFAULT 0,
+                sender_initial TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(email_account, message_id)
+            )
+        """)
+        
+        # 创建邮件详情缓存表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS email_details_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email_account TEXT NOT NULL,
+                message_id TEXT NOT NULL,
+                subject TEXT,
+                from_email TEXT,
+                to_email TEXT,
+                date TEXT,
+                body_plain TEXT,
+                body_html TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(email_account, message_id)
+            )
+        """)
+        
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_config_key ON system_config(key)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_account ON emails_cache(email_account)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_date ON emails_cache(date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_email_details_cache_account ON email_details_cache(email_account)")
         
         conn.commit()
         logger.info("Database initialized successfully")
@@ -884,4 +922,273 @@ def delete_table_record(table_name: str, record_id: int) -> bool:
         cursor.execute(f"DELETE FROM {table_name} WHERE id = ?", (record_id,))
         conn.commit()
         return cursor.rowcount > 0
+
+
+# ============================================================================
+# 邮件缓存操作
+# ============================================================================
+
+def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
+    """
+    批量缓存邮件列表
+    
+    Args:
+        email_account: 邮箱账号
+        emails: 邮件列表数据
+        
+    Returns:
+        是否缓存成功
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            for email in emails:
+                cursor.execute("""
+                    INSERT OR REPLACE INTO emails_cache 
+                    (email_account, message_id, folder, subject, from_email, date, 
+                     is_read, has_attachments, sender_initial, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (
+                    email_account,
+                    email.get('message_id'),
+                    email.get('folder'),
+                    email.get('subject'),
+                    email.get('from_email'),
+                    email.get('date'),
+                    1 if email.get('is_read') else 0,
+                    1 if email.get('has_attachments') else 0,
+                    email.get('sender_initial', '?')
+                ))
+            
+            conn.commit()
+            logger.info(f"Cached {len(emails)} emails for account {email_account}")
+            return True
+    except Exception as e:
+        logger.error(f"Error caching emails: {e}")
+        return False
+
+
+def get_cached_emails(
+    email_account: str,
+    page: int = 1,
+    page_size: int = 100,
+    folder: Optional[str] = None,
+    sender_search: Optional[str] = None,
+    subject_search: Optional[str] = None,
+    sort_by: str = 'date',
+    sort_order: str = 'desc'
+) -> Tuple[List[Dict[str, Any]], int]:
+    """
+    从缓存获取邮件列表（支持搜索、排序、分页）
+    
+    Args:
+        email_account: 邮箱账号
+        page: 页码（从1开始）
+        page_size: 每页数量
+        folder: 文件夹过滤
+        sender_search: 发件人模糊搜索
+        subject_search: 主题模糊搜索
+        sort_by: 排序字段（默认date）
+        sort_order: 排序方向（asc或desc）
+        
+    Returns:
+        (邮件列表, 总数)
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # 构建查询条件
+        conditions = ["email_account = ?"]
+        params = [email_account]
+        
+        if folder and folder != 'all':
+            conditions.append("folder = ?")
+            params.append(folder)
+        
+        if sender_search:
+            conditions.append("from_email LIKE ?")
+            params.append(f"%{sender_search}%")
+        
+        if subject_search:
+            conditions.append("subject LIKE ?")
+            params.append(f"%{subject_search}%")
+        
+        where_clause = " AND ".join(conditions)
+        
+        # 验证排序字段
+        allowed_sort_fields = ['date', 'subject', 'from_email']
+        if sort_by not in allowed_sort_fields:
+            sort_by = 'date'
+        
+        # 验证排序方向
+        if sort_order.lower() not in ['asc', 'desc']:
+            sort_order = 'desc'
+        
+        # 获取总数
+        cursor.execute(
+            f"SELECT COUNT(*) FROM emails_cache WHERE {where_clause}",
+            params
+        )
+        total = cursor.fetchone()[0]
+        
+        # 获取分页数据
+        offset = (page - 1) * page_size
+        cursor.execute(f"""
+            SELECT message_id, folder, subject, from_email, date, 
+                   is_read, has_attachments, sender_initial
+            FROM emails_cache 
+            WHERE {where_clause}
+            ORDER BY {sort_by} {sort_order.upper()}
+            LIMIT ? OFFSET ?
+        """, params + [page_size, offset])
+        
+        rows = cursor.fetchall()
+        
+        emails = []
+        for row in rows:
+            emails.append({
+                'message_id': row[0],
+                'folder': row[1],
+                'subject': row[2],
+                'from_email': row[3],
+                'date': row[4],
+                'is_read': bool(row[5]),
+                'has_attachments': bool(row[6]),
+                'sender_initial': row[7]
+            })
+        
+        return emails, total
+
+
+def cache_email_detail(email_account: str, email_detail: Dict[str, Any]) -> bool:
+    """
+    缓存单封邮件详情
+    
+    Args:
+        email_account: 邮箱账号
+        email_detail: 邮件详情数据
+        
+    Returns:
+        是否缓存成功
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                INSERT OR REPLACE INTO email_details_cache 
+                (email_account, message_id, subject, from_email, to_email, 
+                 date, body_plain, body_html, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, (
+                email_account,
+                email_detail.get('message_id'),
+                email_detail.get('subject'),
+                email_detail.get('from_email'),
+                email_detail.get('to_email'),
+                email_detail.get('date'),
+                email_detail.get('body_plain'),
+                email_detail.get('body_html')
+            ))
+            
+            conn.commit()
+            logger.info(f"Cached email detail for {email_account}: {email_detail.get('message_id')}")
+            return True
+    except Exception as e:
+        logger.error(f"Error caching email detail: {e}")
+        return False
+
+
+def get_cached_email_detail(email_account: str, message_id: str) -> Optional[Dict[str, Any]]:
+    """
+    获取缓存的邮件详情
+    
+    Args:
+        email_account: 邮箱账号
+        message_id: 邮件ID
+        
+    Returns:
+        邮件详情字典或None
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT message_id, subject, from_email, to_email, date, 
+                   body_plain, body_html
+            FROM email_details_cache 
+            WHERE email_account = ? AND message_id = ?
+        """, (email_account, message_id))
+        
+        row = cursor.fetchone()
+        
+        if row:
+            return {
+                'message_id': row[0],
+                'subject': row[1],
+                'from_email': row[2],
+                'to_email': row[3],
+                'date': row[4],
+                'body_plain': row[5],
+                'body_html': row[6]
+            }
+        return None
+
+
+def clear_email_cache_db(email_account: str) -> bool:
+    """
+    清除指定账户的邮件缓存
+    
+    Args:
+        email_account: 邮箱账号
+        
+    Returns:
+        是否清除成功
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 清除邮件列表缓存
+            cursor.execute("DELETE FROM emails_cache WHERE email_account = ?", (email_account,))
+            list_count = cursor.rowcount
+            
+            # 清除邮件详情缓存
+            cursor.execute("DELETE FROM email_details_cache WHERE email_account = ?", (email_account,))
+            detail_count = cursor.rowcount
+            
+            conn.commit()
+            logger.info(f"Cleared cache for {email_account}: {list_count} emails, {detail_count} details")
+            return True
+    except Exception as e:
+        logger.error(f"Error clearing email cache: {e}")
+        return False
+
+
+def get_email_count_by_account(email_account: str, folder: Optional[str] = None) -> int:
+    """
+    获取账户的邮件总数（用于检测新邮件）
+    
+    Args:
+        email_account: 邮箱账号
+        folder: 文件夹（可选）
+        
+    Returns:
+        邮件总数
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        if folder and folder != 'all':
+            cursor.execute("""
+                SELECT COUNT(*) FROM emails_cache 
+                WHERE email_account = ? AND folder = ?
+            """, (email_account, folder))
+        else:
+            cursor.execute("""
+                SELECT COUNT(*) FROM emails_cache 
+                WHERE email_account = ?
+            """, (email_account,))
+        
+        return cursor.fetchone()[0]
 

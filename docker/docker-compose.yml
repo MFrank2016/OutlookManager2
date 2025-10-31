@@ -2,17 +2,19 @@ version: '3.8'
 
 services:
   outlook-email-client:
-    build: .
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: outlook-email-api
     ports:
       - "8000:8000"
     volumes:
       # 数据持久化 - SQLite数据库文件
-      - ./data.db:/app/data.db
+      - ../data.db:/app/data.db
       # 日志持久化 - 保留30天日志
-      - ./logs:/app/logs
+      - ../logs:/app/logs
       # 可选：旧版JSON文件（用于迁移）
-      - ./accounts.json:/app/accounts.json
+      - ../accounts.json:/app/accounts.json
     environment:
       # 可以通过环境变量覆盖默认配置
       - PYTHONUNBUFFERED=1

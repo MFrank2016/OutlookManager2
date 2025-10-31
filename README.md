@@ -152,7 +152,7 @@ pip install -r requirements.txt
 ```bash
 # 数据库会在首次启动时自动创建
 # 如需手动初始化：
-python migrate.py
+python scripts/migrate.py
 ```
 
 #### 4. 启动服务
@@ -199,6 +199,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ```bash
 # 使用Docker Compose（推荐）
+cd docker
 docker-compose up -d
 
 # 查看日志
@@ -212,14 +213,15 @@ docker-compose down
 
 ```bash
 # 构建镜像
+cd docker
 docker build -t outlook-manager .
 
 # 运行容器
 docker run -d \
   --name outlook-email-api \
   -p 8000:8000 \
-  -v $(pwd)/data.db:/app/data.db \
-  -v $(pwd)/logs:/app/logs \
+  -v $(pwd)/../data.db:/app/data.db \
+  -v $(pwd)/../logs:/app/logs \
   outlook-manager
 
 # 查看日志
@@ -484,28 +486,71 @@ ACCESS_TOKEN_EXPIRE_HOURS=24
 
 ```
 OutlookManager2/
-├── main.py                 # FastAPI主应用
-├── auth.py                 # JWT认证模块
+├── main.py                 # FastAPI主应用（入口）
+├── config.py               # 系统配置
+├── models.py               # 数据模型
+├── logger_config.py        # 日志配置
 ├── database.py             # SQLite数据库模块
-├── admin_api.py           # 管理面板API
-├── batch.py               # 批量处理工具
-├── migrate.py             # 数据库迁移
-├── static/
-│   ├── index.html         # 主前端页面
-│   └── login.html         # 登录页面
+├── auth.py                 # JWT认证模块
+├── admin_api.py            # 管理面板API
+├── account_service.py      # 账户服务
+├── oauth_service.py        # OAuth服务
+├── email_service.py        # 邮件服务
+├── email_utils.py          # 邮件工具
+├── imap_pool.py            # IMAP连接池
+├── cache_service.py        # 缓存服务
+│
+├── routes/                 # 路由模块
+│   ├── __init__.py
+│   ├── auth_routes.py      # 认证路由
+│   ├── account_routes.py   # 账户路由
+│   ├── email_routes.py     # 邮件路由
+│   └── cache_routes.py     # 缓存路由
+│
+├── static/                 # 前端资源
+│   ├── index.html          # 主前端页面
+│   ├── login.html          # 登录页面
+│   ├── css/
+│   │   └── style.css       # 样式文件
+│   └── js/
+│       └── app.js          # JavaScript逻辑
+│
 ├── docs/                   # 文档目录
+│   ├── ARCHITECTURE.md     # 架构文档
+│   ├── MODULE_INDEX.md     # 模块索引
+│   ├── REFACTORING_SUMMARY.md  # 重构总结
 │   ├── 批量Token刷新功能说明.md
 │   ├── Docker部署说明.md
 │   ├── API试用接口功能说明.md
-│   └── images/            # 截图和图片
+│   └── images/             # 截图和图片
+│
+├── docker/                 # Docker相关文件
+│   ├── Dockerfile          # Docker镜像配置
+│   ├── docker-compose.yml  # Docker编排配置
+│   ├── docker-entrypoint.sh # 启动脚本
+│   └── docker.env.example  # 环境变量示例
+│
+├── scripts/                # 工具脚本
+│   ├── migrate.py          # 数据库迁移
+│   ├── batch.py            # 批量处理工具
+│   └── check_imports.py    # 导入检查
+│
+├── tests/                  # 测试文件
+│   ├── test_admin_panel_apis.py
+│   ├── test_new_features.py
+│   └── test_token_refresh.py
+│
+├── backups/                # 备份文件
+│   ├── main.py.backup
+│   └── index.html.backup
+│
 ├── logs/                   # 日志目录
 │   └── outlook_manager.log
+│
 ├── data.db                 # SQLite数据库
+├── accounts.json           # 账户数据（备用）
 ├── requirements.txt        # Python依赖
-├── Dockerfile             # Docker镜像配置
-├── docker-compose.yml     # Docker编排配置
-├── .dockerignore          # Docker构建忽略
-└── README.md              # 项目说明（本文件）
+└── README.md               # 项目说明（本文件）
 ```
 
 ### 数据库结构

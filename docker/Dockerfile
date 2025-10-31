@@ -21,15 +21,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制应用代码
+# 复制应用代码（build context设置为父目录，所以直接使用相对路径）
 COPY main.py .
-COPY admin_api.py .
-COPY auth.py .
+COPY config.py .
+COPY models.py .
+COPY logger_config.py .
 COPY database.py .
-COPY batch.py .
-COPY migrate.py .
+COPY auth.py .
+COPY admin_api.py .
+COPY account_service.py .
+COPY oauth_service.py .
+COPY email_service.py .
+COPY email_utils.py .
+COPY imap_pool.py .
+COPY cache_service.py .
+COPY routes/ ./routes/
 COPY static/ ./static/
-COPY docker-entrypoint.sh .
+COPY docker/docker-entrypoint.sh .
 
 # 设置启动脚本权限
 RUN chmod +x docker-entrypoint.sh
