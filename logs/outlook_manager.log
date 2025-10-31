@@ -2018,3 +2018,35 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2025-10-31 18:03:31,293 - database - [INFO] - database.py:329 - [筛选] SQL参数: []
 2025-10-31 18:03:31,295 - database - [INFO] - database.py:335 - [筛选] 符合条件的总数: 2
 2025-10-31 18:03:31,301 - routes.account_routes - [INFO] - account_routes.py:129 - [API] 查询结果: 总数=2, 返回=2条
+2025-10-31 18:06:51,001 - root - [INFO] - main.py:151 - === Running scheduled email sync ===
+2025-10-31 18:06:51,013 - root - [INFO] - main.py:161 - Found 2 accounts to sync
+2025-10-31 18:06:51,014 - root - [INFO] - main.py:169 - [hprjiocj465@outlook.com] Starting email sync...
+2025-10-31 18:07:11,141 - httpx - [INFO] - _client.py:1740 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-10-31 18:07:11,171 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-31 18:07:15,255 - database - [INFO] - database.py:984 - Cached 6 emails for account hprjiocj465@outlook.com
+2025-10-31 18:07:15,264 - email_service - [INFO] - email_service.py:238 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-10-31 18:07:15,271 - root - [INFO] - main.py:188 - [hprjiocj465@outlook.com] Successfully synced 6 emails (total: 6)
+2025-10-31 18:07:17,333 - root - [INFO] - main.py:169 - [hnybirs6215@outlook.com] Starting email sync...
+2025-10-31 18:07:34,115 - httpx - [INFO] - _client.py:1740 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-10-31 18:07:34,142 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hnybirs6215@outlook.com
+2025-10-31 18:07:36,843 - database - [INFO] - database.py:984 - Cached 2 emails for account hnybirs6215@outlook.com
+2025-10-31 18:07:36,852 - email_service - [INFO] - email_service.py:238 - Cached 2 emails to SQLite for hnybirs6215@outlook.com
+2025-10-31 18:07:36,854 - root - [INFO] - main.py:188 - [hnybirs6215@outlook.com] Successfully synced 2 emails (total: 2)
+2025-10-31 18:07:38,866 - root - [INFO] - main.py:201 - === Email sync completed. Success: 2/2, Errors: 0 ===
+2025-10-31 18:08:55,637 - routes.account_routes - [INFO] - account_routes.py:108 - [API] GET /accounts 收到请求:
+2025-10-31 18:08:55,652 - routes.account_routes - [INFO] - account_routes.py:109 -   page=1, page_size=10
+2025-10-31 18:08:55,668 - routes.account_routes - [INFO] - account_routes.py:110 -   email_search=None, tag_search=None
+2025-10-31 18:08:55,704 - routes.account_routes - [INFO] - account_routes.py:111 -   refresh_status=None, time_filter=None
+2025-10-31 18:08:55,717 - routes.account_routes - [INFO] - account_routes.py:112 -   after_date=None
+2025-10-31 18:08:55,732 - routes.account_routes - [INFO] - account_routes.py:113 -   refresh_start_date=None
+2025-10-31 18:08:55,735 - routes.account_routes - [INFO] - account_routes.py:114 -   refresh_end_date=None
+2025-10-31 18:08:55,747 - database - [INFO] - database.py:328 - [筛选] SQL WHERE子句: 1=1
+2025-10-31 18:08:55,749 - database - [INFO] - database.py:329 - [筛选] SQL参数: []
+2025-10-31 18:08:55,754 - database - [INFO] - database.py:335 - [筛选] 符合条件的总数: 2
+2025-10-31 18:08:55,784 - routes.account_routes - [INFO] - account_routes.py:129 - [API] 查询结果: 总数=2, 返回=2条
+2025-10-31 18:08:57,290 - email_service - [INFO] - email_service.py:58 - Returning 6 cached emails from SQLite for hprjiocj465@outlook.com
+2025-10-31 18:09:21,605 - httpx - [INFO] - _client.py:1740 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-10-31 18:09:21,607 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-10-31 18:09:24,253 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-10-31 18:09:27,128 - database - [INFO] - database.py:984 - Cached 6 emails for account hprjiocj465@outlook.com
+2025-10-31 18:09:27,135 - email_service - [INFO] - email_service.py:238 - Cached 6 emails to SQLite for hprjiocj465@outlook.com

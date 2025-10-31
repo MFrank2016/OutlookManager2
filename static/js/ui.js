@@ -100,7 +100,11 @@ function showPage(pageName, targetElement = null) {
         'apiDocs': 'API接口文档',
         'emails': '邮件列表'
     };
-    document.getElementById('pageTitle').textContent = titles[pageName] || '';
+    // 顶部栏已移除，不再需要设置标题
+    // const pageTitleElement = document.getElementById('pageTitle');
+    // if (pageTitleElement) {
+    //     pageTitleElement.textContent = titles[pageName] || '';
+    // }
 
     // 页面特定逻辑
     if (pageName === 'accounts') {
