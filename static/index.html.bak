@@ -4,57 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Outlook邮件管理系统</title>
-    <!-- CSS 模块 -->
-    <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="/static/css/layout.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/search-filter.css">
-    <link rel="stylesheet" href="/static/css/tags.css">
-    <link rel="stylesheet" href="/static/css/forms.css">
-    <link rel="stylesheet" href="/static/css/accounts.css">
-    <link rel="stylesheet" href="/static/css/emails.css">
-    <link rel="stylesheet" href="/static/css/admin.css">
-    <link rel="stylesheet" href="/static/css/apidocs.css">
-    <link rel="stylesheet" href="/static/css/context-menu.css">
-    <link rel="stylesheet" href="/static/css/responsive.css">
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
     <div class="app-container">
         <!-- 左侧菜单 -->
-        <div class="sidebar" id="sidebar">
+        <div class="sidebar">
             <div class="sidebar-header">
-                <div>
-                    <h1>📧 邮件管理</h1>
-                    <p>Outlook邮件管理系统</p>
-                </div>
-                <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠/展开侧边栏">
-                    ◀
-                </button>
+                <h1>📧 邮件管理</h1>
+                <p>Outlook邮件管理系统</p>
             </div>
             <nav class="sidebar-nav">
-                <button class="nav-item active" onclick="showPage('accounts', this)" data-tooltip="邮箱账户">
+                <button class="nav-item active" onclick="showPage('accounts', this)">
                     <span class="icon">👥</span>
-                    <span class="nav-text">邮箱账户</span>
+                    邮箱账户
                 </button>
-                <button class="nav-item" onclick="showPage('addAccount', this)" data-tooltip="添加账户">
+                <button class="nav-item" onclick="showPage('addAccount', this)">
                     <span class="icon">➕</span>
-                    <span class="nav-text">添加账户</span>
+                    添加账户
                 </button>
-                <button class="nav-item" onclick="showPage('batchAdd', this)" data-tooltip="批量添加">
+                <button class="nav-item" onclick="showPage('batchAdd', this)">
                     <span class="icon">📦</span>
-                    <span class="nav-text">批量添加</span>
+                    批量添加
                 </button>
-                <button class="nav-item" onclick="showPage('adminPanel', this)" data-tooltip="管理面板">
+                <button class="nav-item" onclick="showPage('adminPanel', this)">
                     <span class="icon">⚙️</span>
-                    <span class="nav-text">管理面板</span>
+                    管理面板
                 </button>
-                <button class="nav-item" onclick="showPage('apiDocs', this)" data-tooltip="API管理">
+                <button class="nav-item" onclick="showPage('apiDocs', this)">
                     <span class="icon">📖</span>
-                    <span class="nav-text">API管理</span>
+                    API管理
                 </button>
-                <button class="nav-item" onclick="showPage('emails', this)" oncontextmenu="showEmailsContextMenu(event)" id="emailsNav" style="display: none;" data-tooltip="邮件列表">
+                <button class="nav-item" onclick="showPage('emails', this)" oncontextmenu="showEmailsContextMenu(event)" id="emailsNav" style="display: none;">
                     <span class="icon">📧</span>
-                    <span class="nav-text">邮件列表</span>
+                    邮件列表
                 </button>
             </nav>
         </div>
@@ -151,7 +134,7 @@
                             </div>
                         </div>
 
-                        <div id="accountsList">
+                        <div id="accountsList" class="account-list">
                             <div class="loading">
                                 <div class="loading-spinner"></div>
                                 正在加载账户列表...
@@ -1505,36 +1488,57 @@ Content-Type: application/json
                 <div id="emailsPage" class="page hidden">
                     <div class="card">
                         <!-- 账户信息和操作按钮 -->
-                        <div class="email-compact-header">
-                            <div class="email-header-left">
-                                <span class="email-current-account">
-                                    <span id="currentAccountEmail" onclick="copyEmailAddress(this.textContent)" title="点击复制">-</span>
-                                </span>
-                                <span class="email-stats-compact">
-                                    <span id="totalEmailCount">0</span>封 · 
-                                    <span id="unreadEmailCount">0</span>未读 · 
-                                    <span id="todayEmailCount">0</span>今日
-                                </span>
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="font-semibold">当前账户：
+                                    <span id="currentAccountEmail"
+                                          class="text-sm font-medium email-copyable"
+                                          style="color: #3b82f6; cursor: pointer; position: relative;"
+                                          onclick="copyEmailAddress(this.textContent)"
+                                          title="点击复制邮箱地址">
+                                    </span>
+                                    <span class="copy-icon" style="margin-left: 6px; opacity: 0.6; font-size: 0.8em;">📋</span>
+                                </h3>
+                                <p class="text-sm" style="color: #64748b;">最后更新：<span id="lastUpdateTime">-</span></p>
                             </div>
-                            <div class="email-header-right">
-                                <button class="btn btn-primary btn-sm" onclick="refreshEmails()" id="refreshBtn" title="刷新邮件列表">
+                            <div class="flex gap-2">
+                                <button class="btn btn-secondary btn-sm" onclick="refreshEmails()" id="refreshBtn">
                                     <span>🔄</span>
+                                    刷新
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="clearCache()" title="清除缓存">
+                                <button class="btn btn-secondary btn-sm" onclick="clearCache()">
                                     <span>🗑️</span>
+                                    清除缓存
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="exportEmails()" title="导出邮件">
+                                <button class="btn btn-secondary btn-sm" onclick="exportEmails()">
                                     <span>📤</span>
+                                    导出
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="backToAccounts()" title="返回账户列表">
+                                <button class="btn btn-secondary btn-sm" onclick="backToAccounts()">
                                     <span>←</span>
+                                    返回账户
                                 </button>
                             </div>
                         </div>
-                        <!-- 隐藏的统计元素（保持兼容性） -->
-                        <div style="display: none;">
-                            <span id="attachmentEmailCount">0</span>
-                            <span id="lastUpdateTime">-</span>
+
+                        <!-- 统计信息 -->
+                        <div class="stats-container">
+                            <div class="stat-item">
+                                <div class="stat-value" id="totalEmailCount">0</div>
+                                <div class="stat-label">总邮件数</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="unreadEmailCount">0</div>
+                                <div class="stat-label">未读邮件</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="todayEmailCount">0</div>
+                                <div class="stat-label">今日邮件</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value" id="attachmentEmailCount">0</div>
+                                <div class="stat-label">带附件</div>
+                            </div>
                         </div>
 
                         <!-- 搜索和过滤 -->
@@ -1598,14 +1602,14 @@ Content-Type: application/json
                         </div>
 
                         <!-- 邮件列表表格 -->
-                        <div class="emails-table-container">
-                            <table class="emails-table">
+                        <div style="overflow-x: auto; background: white; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <table class="email-table" style="width: 100%; border-collapse: collapse;">
                                 <thead>
-                                    <tr>
-                                        <th style="width: 35%;">发件人</th>
-                                        <th style="width: 40%;">主题</th>
-                                        <th style="width: 15%;">日期</th>
-                                        <th style="width: 10%;">操作</th>
+                                    <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+                                        <th style="padding: 8px 16px; text-align: left; font-weight: 600; color: #475569; width: 28%;">发件人</th>
+                                        <th style="padding: 8px 16px; text-align: left; font-weight: 600; color: #475569; width: 38%;">主题</th>
+                                        <th style="padding: 8px 16px; text-align: left; font-weight: 600; color: #475569; width: 18%;">日期</th>
+                                        <th style="padding: 8px 16px; text-align: center; font-weight: 600; color: #475569; width: 16%;">操作</th>
                                     </tr>
                                 </thead>
                                 <tbody id="emailsList">
@@ -1699,34 +1703,30 @@ Content-Type: application/json
             </div>
             <div class="api-test-body">
                 <div class="api-test-section">
-                    <h4>📋 请求信息</h4>
-                    <div class="api-test-info-grid">
-                        <div class="api-test-info-item">
-                            <label>方法</label>
-                            <span id="apiTestMethod" class="api-method-badge">GET</span>
-                        </div>
-                        <div class="api-test-info-item">
-                            <label>端点</label>
-                            <span id="apiTestEndpoint" class="api-endpoint-path">/api</span>
-                        </div>
+                    <h4>请求信息</h4>
+                    <div class="api-test-param">
+                        <label><strong>方法:</strong> <span id="apiTestMethod">GET</span></label>
+                    </div>
+                    <div class="api-test-param">
+                        <label><strong>端点:</strong> <span id="apiTestEndpoint">/api</span></label>
                     </div>
                 </div>
 
                 <!-- 路径参数 -->
                 <div id="apiTestPathParams" class="api-test-section hidden">
-                    <h4>🔗 路径参数</h4>
+                    <h4>路径参数</h4>
                     <div id="apiTestPathParamsList"></div>
                 </div>
 
                 <!-- 查询参数 -->
                 <div id="apiTestQueryParams" class="api-test-section hidden">
-                    <h4>🔍 查询参数</h4>
+                    <h4>查询参数</h4>
                     <div id="apiTestQueryParamsList"></div>
                 </div>
 
                 <!-- 请求体 -->
                 <div id="apiTestBody" class="api-test-section hidden">
-                    <h4>📝 请求体 (JSON)</h4>
+                    <h4>请求体 (JSON)</h4>
                     <div class="api-test-param">
                         <textarea id="apiTestBodyContent" placeholder='{"key": "value"}'></textarea>
                     </div>
@@ -1777,18 +1777,6 @@ Content-Type: application/json
         </div>
     </div>
 
-    <!-- JavaScript 模块 -->
-    <script src="/static/js/api.js"></script>
-    <script src="/static/js/utils.js"></script>
-    <script src="/static/js/ui.js"></script>
-    <script src="/static/js/accounts.js"></script>
-    <script src="/static/js/emails.js"></script>
-    <script src="/static/js/batch.js"></script>
-    <script src="/static/js/tags.js"></script>
-    <script src="/static/js/apidocs.js"></script>
-    <script src="/static/js/admin.js"></script>
-    <script src="/static/js/apitest.js"></script>
-    <script src="/static/js/context-menu.js"></script>
-    <script src="/static/js/main.js"></script>
+    <script src="/static/js/app.js"></script>
 </body>
 </html>

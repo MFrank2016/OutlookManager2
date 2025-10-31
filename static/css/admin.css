@@ -1,0 +1,435 @@
+/* admin.css - 自动生成 */
+
+.admin-panel {
+            animation: fadeIn 0.3s ease;
+        }
+
+.tables-list {
+            display: grid;
+            gap: 12px;
+        }
+
+.table-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+
+.table-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+.table-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+.table-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 4px;
+        }
+
+.table-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+.count-badge {
+            background: #e0e7ff;
+            color: #4f46e5;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.688rem;
+        }
+
+.count-badge {
+                font-size: 0.625rem;
+                padding: 1px 6px;
+            }
+
+.configs-list {
+            display: grid;
+            gap: 12px;
+        }
+
+.configs-list {
+                gap: 10px;
+            }
+
+.configs-list {
+                gap: 8px;
+            }
+
+.config-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: white;
+            transition: all 0.2s;
+        }
+
+.config-item {
+                padding: 10px;
+            }
+
+.config-item {
+                padding: 8px;
+            }
+
+.config-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            flex-shrink: 0;
+        }
+
+.config-icon {
+                width: 28px;
+                height: 28px;
+                font-size: 0.75rem;
+            }
+
+.config-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+.config-value {
+            color: #64748b;
+            font-size: 0.75rem;
+            font-family: 'Courier New', monospace;
+            background: #f8fafc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+.config-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+.config-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+.config-actions {
+                width: 100%;
+                margin-top: 8px;
+            }
+
+.table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: visible;
+            -webkit-overflow-scrolling: touch;
+            margin: 16px 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+.table-responsive {
+                margin: 12px 0;
+            }
+
+.table-responsive {
+                border-radius: 6px;
+                margin: 8px 0;
+            }
+
+.data-table {
+            width: 100%;
+            min-width: 600px; /* 最小宽度，确保表格不会太挤 */
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+.data-table {
+                font-size: 0.813rem;
+                min-width: 550px;
+            }
+
+.data-table {
+                font-size: 0.75rem;
+                min-width: 500px; /* 移动端减小最小宽度 */
+            }
+
+.data-table-actions {
+            display: flex;
+            gap: 8px;
+            white-space: nowrap;
+            justify-content: flex-start;
+        }
+
+.data-table-actions {
+                gap: 6px;
+            }
+
+.data-table-actions {
+                gap: 4px;
+                flex-wrap: wrap;
+            }
+
+.api-test-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+.api-test-modal.show {
+            display: flex;
+        }
+
+.api-test-content {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+.api-test-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f8fafc;
+            border-radius: 12px 12px 0 0;
+        }
+
+.api-test-body {
+            padding: 24px;
+        }
+
+.api-test-section {
+            margin-bottom: 24px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+
+.api-test-section h4 {
+            margin: 0 0 16px 0;
+            color: #1e293b;
+            font-size: 1rem;
+            font-weight: 600;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+.api-test-param {
+            margin-bottom: 16px;
+        }
+
+.api-test-param:last-child {
+            margin-bottom: 0;
+        }
+
+.api-test-param label {
+            display: block;
+            margin-bottom: 8px;
+            color: #475569;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+.api-test-param input[type="text"],
+.api-test-param input[type="number"] {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            color: #1e293b;
+            background: white;
+            transition: all 0.2s ease;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+
+.api-test-param input[type="text"]:focus,
+.api-test-param input[type="number"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+.api-test-param input[type="text"]::placeholder,
+.api-test-param input[type="number"]::placeholder {
+            color: #9ca3af;
+        }
+
+.api-test-param input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 8px;
+            cursor: pointer;
+            accent-color: #3b82f6;
+        }
+
+.api-test-param textarea {
+            width: 100%;
+            min-height: 250px;
+            padding: 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Courier New', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+            color: #e2e8f0;
+            background: #1e293b;
+            resize: vertical;
+            transition: all 0.2s ease;
+        }
+
+.api-test-param textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+.api-test-param textarea::placeholder {
+            color: #64748b;
+        }
+
+/* 请求信息网格布局 */
+.api-test-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 16px;
+        }
+
+.api-test-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+.api-test-info-item label {
+            color: #64748b;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+.api-method-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            background: #dbeafe;
+            color: #1e40af;
+            width: fit-content;
+        }
+
+.api-endpoint-path {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem;
+            color: #1e293b;
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            word-break: break-all;
+        }
+
+.api-test-result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+        }
+
+.api-test-result h4 {
+            margin: 0 0 12px 0;
+            color: #15803d;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+.api-test-result pre {
+            margin: 0;
+            padding: 14px;
+            background: #1e293b;
+            color: #e2e8f0;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+
+.api-test-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .api-test-info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .api-test-content {
+        width: 95%;
+        max-height: 95vh;
+    }
+    
+    .api-test-actions {
+        flex-direction: column;
+    }
+    
+    .api-test-actions button {
+        width: 100%;
+    }
+}
