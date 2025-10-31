@@ -164,7 +164,7 @@ class IMAPConnectionPool:
 
     def close_all_connections(self, email: str = None) -> None:
         """
-        关闭所有连接
+        关闭所有连接（带超时保护，防止卡住）
 
         Args:
             email: 指定邮箱地址，如果为None则关闭所有邮箱的连接
@@ -177,10 +177,36 @@ class IMAPConnectionPool:
                     while not self.connections[email].empty():
                         try:
                             conn = self.connections[email].get_nowait()
-                            conn.logout()
-                            closed_count += 1
+                            
+                            # 尝试优雅退出（带超时）
+                            try:
+                                # 设置短超时，防止卡住
+                                original_timeout = conn.sock.gettimeout()
+                                conn.sock.settimeout(2.0)  # 2秒超时
+                                conn.logout()
+                                closed_count += 1
+                                logger.debug(f"Gracefully closed connection for {email}")
+                            except socket.timeout:
+                                # 超时，强制关闭
+                                logger.warning(f"Logout timeout for {email}, forcing close")
+                                try:
+                                    conn.sock.shutdown(socket.SHUT_RDWR)
+                                    conn.sock.close()
+                                except:
+                                    pass
+                                closed_count += 1
+                            except Exception as logout_err:
+                                # logout失败，强制关闭socket
+                                logger.debug(f"Logout failed for {email}: {logout_err}, forcing close")
+                                try:
+                                    if hasattr(conn, 'sock') and conn.sock:
+                                        conn.sock.close()
+                                except:
+                                    pass
+                                closed_count += 1
+                                
                         except Exception as e:
-                            logger.debug(f"Error closing connection: {e}")
+                            logger.debug(f"Error closing connection for {email}: {e}")
 
                     self.connection_count[email] = 0
                     logger.info(f"Closed {closed_count} connections for {email}")

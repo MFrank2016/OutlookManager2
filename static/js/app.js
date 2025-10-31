@@ -4,6 +4,10 @@
         let currentEmailFolder = 'all';
         let currentEmailPage = 1;
         let accounts = [];
+        let accountsLoaded = false; // 标记账户是否已加载
+        let accountsCache = null; // 账户列表缓存
+        let accountsCacheTime = 0; // 缓存时间戳
+        const ACCOUNTS_CACHE_DURATION = 30000; // 缓存有效期：30秒
         
         // 账户管理分页相关变量
         let accountsCurrentPage = 1;
@@ -67,7 +71,8 @@
 
             // 页面特定逻辑
             if (pageName === 'accounts') {
-                loadAccounts();
+                // 智能加载：优先使用缓存
+                loadAccountsSmart();
             } else if (pageName === 'addAccount') {
                 clearAddAccountForm();
             } else if (pageName === 'batchAdd') {
@@ -125,6 +130,105 @@
             } catch (error) {
                 console.error('Date formatting error:', error);
                 return '时间解析失败';
+            }
+        }
+
+        // 前端验证码检测函数
+        function detectVerificationCode(subject = '', body = '') {
+            // 关键词列表
+            const keywords = [
+                'verification code', 'security code', 'OTP', 'one-time password',
+                '验证码', '安全码', '一次性密码', '激活码', '校验码', '动态码',
+                'código de verificación', 'code de vérification', 'verificatiecode'
+            ];
+            
+            // 检查是否包含关键词
+            const text = `${subject} ${body}`.toLowerCase();
+            const hasKeyword = keywords.some(keyword => text.includes(keyword.toLowerCase()));
+            
+            if (!hasKeyword) {
+                return null;
+            }
+            
+            // 验证码正则表达式（按优先级排序）
+            const patterns = [
+                // 明确标识的验证码
+                /(?:code|Code|CODE|验证码|驗證碼|verification code)[:\s是：]+([A-Z0-9]{4,8})/i,
+                /(?:OTP|otp)[:\s]+(\d{4,8})/i,
+                
+                // HTML中的验证码
+                /<(?:b|strong|span)[^>]*>([A-Z0-9]{4,8})<\/(?:b|strong|span)>/i,
+                
+                // 纯数字验证码（4-8位）
+                /\b(\d{4,8})\b/,
+                
+                // 字母数字组合
+                /\b([A-Z]{2,4}[0-9]{2,6})\b/i,
+                /\b([0-9]{2,4}[A-Z]{2,4})\b/i,
+                /\b([A-Z0-9]{6})\b/i,
+                
+                // 带分隔符的验证码
+                /(\d{3}[-\s]\d{3})/,
+                /(\d{2}[-\s]\d{2}[-\s]\d{2})/
+            ];
+            
+            // 排除的常见词
+            const excludeList = [
+                'your', 'code', 'the', 'this', 'that', 'from', 'email', 'mail',
+                'click', 'here', 'link', 'button', 'verify', 'account', 'please',
+                '邮件', '点击', '链接', '账户', '账号', '请', '您的'
+            ];
+            
+            // 尝试匹配
+            for (const pattern of patterns) {
+                const searchText = body || subject;
+                const match = searchText.match(pattern);
+                if (match && match[1]) {
+                    const code = match[1].trim();
+                    
+                    // 验证码有效性检查
+                    if (code.length < 4 || code.length > 8) continue;
+                    if (excludeList.includes(code.toLowerCase())) continue;
+                    if (/^(.)\1+$/.test(code)) continue; // 排除全是重复字符
+                    if (/^[a-zA-Z]+$/.test(code) && code.length < 6) continue; // 纯字母且太短
+                    
+                    return code;
+                }
+            }
+            
+            return null;
+        }
+
+        // 复制验证码到剪切板
+        async function copyVerificationCode(code) {
+            try {
+                // 使用现代剪切板API
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(code);
+                    showNotification(`验证码已复制: ${code}`, 'success', '✅ 复制成功', 3000);
+                } else {
+                    // 降级方案：使用传统方法
+                    const textArea = document.createElement('textarea');
+                    textArea.value = code;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-9999px';
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    
+                    try {
+                        document.execCommand('copy');
+                        showNotification(`验证码已复制: ${code}`, 'success', '✅ 复制成功', 3000);
+                    } catch (err) {
+                        console.error('复制失败:', err);
+                        showNotification('复制失败，请手动复制', 'error', '❌ 错误', 3000);
+                    }
+                    
+                    document.body.removeChild(textArea);
+                }
+            } catch (err) {
+                console.error('复制验证码失败:', err);
+                showNotification('复制失败: ' + err.message, 'error', '❌ 错误', 3000);
             }
         }
 
@@ -320,7 +424,42 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
             }
         }
 
-        async function loadAccounts(page = 1, resetSearch = false) {
+        // 智能加载账户：优先使用缓存
+        async function loadAccountsSmart(forceRefresh = false) {
+            const now = Date.now();
+            const cacheValid = accountsCache && (now - accountsCacheTime) < ACCOUNTS_CACHE_DURATION;
+            
+            // 如果缓存有效且不强制刷新，使用缓存
+            if (!forceRefresh && cacheValid && accountsLoaded) {
+                console.log('✅ [账户列表] 使用缓存数据，秒开！');
+                renderAccountsFromCache();
+                return;
+            }
+            
+            // 缓存失效或强制刷新，从服务器加载
+            console.log('🔄 [账户列表] 从服务器加载数据');
+            await loadAccounts(accountsCurrentPage, false, true);
+        }
+        
+        // 从缓存渲染账户列表
+        function renderAccountsFromCache() {
+            if (!accountsCache) return;
+            
+            const accountsList = document.getElementById('accountsList');
+            const accountsPagination = document.getElementById('accountsPagination');
+            
+            // 立即渲染缓存数据
+            accountsList.innerHTML = accountsCache.html;
+            
+            // 显示分页
+            accountsPagination.style.display = 'block';
+            updateAccountsPagination();
+            
+            // 更新统计信息
+            updateAccountsStats();
+        }
+
+        async function loadAccounts(page = 1, resetSearch = false, showLoading = true) {
             if (resetSearch) {
                 // 重置搜索条件
                 currentEmailSearch = '';
@@ -330,6 +469,9 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                 document.getElementById('tagSearch').value = '';
                 document.getElementById('refreshStatusFilter').value = 'all';
                 page = 1;
+                // 重置缓存
+                accountsCache = null;
+                accountsLoaded = false;
             }
             
             accountsCurrentPage = page;
@@ -338,7 +480,10 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
             const accountsStats = document.getElementById('accountsStats');
             const accountsPagination = document.getElementById('accountsPagination');
             
+            // 只在需要时显示加载动画
+            if (showLoading) {
             accountsList.innerHTML = '<div class="loading">正在加载账户列表...</div>';
+            }
             accountsStats.style.display = 'none';
             accountsPagination.style.display = 'none';
 
@@ -380,6 +525,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                 
                 accounts = data.accounts || [];
                 accountsTotalCount = data.total_accounts || 0;
+                accountsLoaded = true; // 标记已加载
                 accountsTotalPages = data.total_pages || 0;
                 
                 // 更新统计信息
@@ -390,7 +536,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                     return;
                 }
 
-                accountsList.innerHTML = accounts.map(account => {
+                const accountsHtml = accounts.map(account => {
                     // 生成标签HTML
                     const tagsHtml = account.tags && account.tags.length > 0 
                         ? `<div class="account-tags">${account.tags.map(tag => 
@@ -448,6 +594,17 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                         </div>
                     `;
                 }).join('');
+                
+                // 渲染到页面
+                accountsList.innerHTML = accountsHtml;
+                
+                // 缓存HTML和数据
+                accountsCache = {
+                    html: accountsHtml,
+                    data: accounts,
+                    totalCount: accountsTotalCount
+                };
+                accountsCacheTime = Date.now();
                 
                 // 更新分页控件
                 updateAccountsPagination();
@@ -890,6 +1047,33 @@ GET /emails/{email_id}/{message_id}
         let allEmails = []; // 存储所有邮件数据
         let filteredEmails = []; // 存储过滤后的邮件数据
         let searchTimeout = null;
+        let autoRefreshTimer = null; // 自动刷新定时器
+        let isLoadingEmails = false; // 是否正在加载邮件
+
+        // 启动自动刷新定时器
+        function startAutoRefresh() {
+            // 清除旧的定时器
+            stopAutoRefresh();
+            
+            // 每10秒自动刷新一次邮件列表
+            autoRefreshTimer = setInterval(() => {
+                if (currentAccount && document.getElementById('emailsPage').classList.contains('hidden') === false) {
+                    console.log('[自动刷新] 正在检查新邮件...');
+                    loadEmails(true, false); // 强制刷新服务器数据，不显示加载提示
+                }
+            }, 10000); // 10秒
+            
+            console.log('[自动刷新] 定时器已启动（每10秒从服务器检查新邮件）');
+        }
+
+        // 停止自动刷新定时器
+        function stopAutoRefresh() {
+            if (autoRefreshTimer) {
+                clearInterval(autoRefreshTimer);
+                autoRefreshTimer = null;
+                console.log('[自动刷新] 定时器已停止');
+            }
+        }
 
         // 邮件管理
         function viewAccountEmails(emailId) {
@@ -912,11 +1096,19 @@ GET /emails/{email_id}/{message_id}
             if (folderFilter) folderFilter.value = 'all';
             if (sortOrder) sortOrder.value = 'desc';
 
+            // 启动自动刷新
+            startAutoRefresh();
+
             showPage('emails');
+            
+            // 立即从服务器加载最新邮件
+            loadEmails(true, true);
         }
 
         function backToAccounts() {
             currentAccount = null;
+            // 停止自动刷新
+            stopAutoRefresh();
             document.getElementById('emailsNav').style.display = 'none';
             showPage('accounts');
         }
@@ -942,11 +1134,21 @@ GET /emails/{email_id}/{message_id}
             loadEmails();
         }
 
-        async function loadEmails(forceRefresh = false) {
+        async function loadEmails(forceRefresh = false, showLoading = true) {
             if (!currentAccount) return;
+            
+            // 防止重复请求
+            if (isLoadingEmails) {
+                console.log('邮件正在加载中，跳过本次请求');
+                return;
+            }
 
             const emailsList = document.getElementById('emailsList');
             const refreshBtn = document.getElementById('refreshBtn');
+            
+            // 保存旧的邮件列表用于对比
+            const oldEmails = [...allEmails];
+            const oldEmailIds = new Set(oldEmails.map(e => e.message_id));
 
             // 获取搜索和排序参数
             const senderSearch = document.getElementById('senderSearch')?.value || '';
@@ -954,10 +1156,20 @@ GET /emails/{email_id}/{message_id}
             const sortOrder = document.getElementById('sortOrder')?.value || 'desc';
             const folder = document.getElementById('folderFilter')?.value || 'all';
 
-            // 显示加载状态
+            // 设置加载状态
+            isLoadingEmails = true;
+            
+            // 只在首次加载或列表为空时显示加载遮罩
+            if (showLoading && allEmails.length === 0) {
             emailsList.innerHTML = '<tr><td colspan="4" style="padding: 40px; text-align: center;"><div class="loading"><div class="loading-spinner"></div>正在加载邮件...</div></td></tr>';
+            }
+
+            // 更新刷新按钮状态（添加旋转动画）
+            if (refreshBtn) {
             refreshBtn.disabled = true;
-            refreshBtn.innerHTML = '<span>⏳</span> 加载中...';
+                refreshBtn.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite;">🔄</span> 加载中...';
+                refreshBtn.style.opacity = '0.6';
+            }
 
             try {
                 // 构建 URL 参数
@@ -977,11 +1189,84 @@ GET /emails/{email_id}/{message_id}
 
                 const data = await apiRequest(url);
 
-                // 存储所有邮件数据和总数
-                allEmails = data.emails || [];
-                emailTotalCount = data.total_emails || 0;
+                // 存储新的邮件数据和总数
+                const newEmails = data.emails || [];
+                const newEmailTotalCount = data.total_emails || 0;
 
-                // 直接渲染邮件（不再需要前端过滤）
+                // 检测新邮件
+                if (oldEmails.length > 0) {
+                    const newEmailsList = newEmails.filter(email => !oldEmailIds.has(email.message_id));
+                    if (newEmailsList.length > 0) {
+                        // 有新邮件，显示通知
+                        const newCount = newEmailsList.length;
+                        
+                        // 使用前端检测验证码
+                        const emailsWithCode = newEmailsList.filter(e => detectVerificationCode(e.subject || '', ''));
+                        const hasVerificationCode = emailsWithCode.length > 0;
+                        
+                        // 自动复制第一个验证码
+                        if (hasVerificationCode) {
+                            const firstCode = detectVerificationCode(emailsWithCode[0].subject || '', '');
+                            if (firstCode) {
+                                // 尝试自动复制（直接在当前 async 上下文中执行）
+                                try {
+                                    // 方法1: 使用 Clipboard API
+                                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                                        await navigator.clipboard.writeText(firstCode);
+                                        console.log(`✅ [自动复制] 验证码已复制到剪切板: ${firstCode}`);
+                                    } else {
+                                        // 方法2: 降级方案，使用 execCommand
+                                        const textArea = document.createElement('textarea');
+                                        textArea.value = firstCode;
+                                        textArea.style.position = 'fixed';
+                                        textArea.style.left = '-9999px';
+                                        textArea.style.top = '0';
+                                        textArea.setAttribute('readonly', '');
+                                        document.body.appendChild(textArea);
+                                        textArea.focus();
+                                        textArea.select();
+                                        
+                                        const successful = document.execCommand('copy');
+                                        document.body.removeChild(textArea);
+                                        
+                                        if (successful) {
+                                            console.log(`✅ [自动复制] 验证码已复制到剪切板(降级方案): ${firstCode}`);
+                                        } else {
+                                            console.warn('⚠️ [自动复制] execCommand 复制失败');
+                                        }
+                                    }
+                                } catch (err) {
+                                    console.error('❌ [自动复制] 复制失败:', err);
+                                    console.log('💡 [提示] 浏览器可能阻止了自动复制，请手动点击复制按钮');
+                                }
+                            }
+                        }
+                        
+                        // 显示新邮件通知
+                        const vCodeMsg = hasVerificationCode ? ` (验证码: ${detectVerificationCode(emailsWithCode[0].subject || '', '')} 已复制🔑)` : '';
+                        showNotification(
+                            `收到 ${newCount} 封新邮件${vCodeMsg}`, 
+                            'success', 
+                            '📬 新邮件提醒', 
+                            hasVerificationCode ? 8000 : 5000
+                        );
+                        
+                        // 播放提示音（如果浏览器支持）
+                        try {
+                            const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBCWA0fPTgjMGHm7A7+OZRA0PVqzn77BdGAg+ltrywnEiBC1+z/LaiDYIF2W66OKaSwwNU6fh8bdjHAU1j9f0yHsoBSl1xvDckjwKElys6eyrWBUIR5/b8sFuHwQlfM/z1YU1Bx5twO7imEQMDlSs5++wXRgIOJTY8sFxIgMtf9Dz2Yg2Bxdlu+njmksLDlOo4vK4Yx0FNI/Y88h7KAUpdsXw3ZM8ChJcrOntqVgVCEef3fLBbh8EJXzP89SFNQcebc/u4plEDA5UrOjwsFwYCjiU2PLBcSIDLX/Q89mINgcXZbzp45pLCw5TqOLyuGMdBTSP2PPIeygFKXbF8N2TPAoSXKzp7alYFQhHn93ywW4fBCV8z/PUhTUHHm3P7uKZRAwOVKzp8LBcGAo4lNjywXEiAy1/0PPZiDYHF2W76eOaSwsOU6ji8rhjHQU0j9jzyHsoBSl2xfDdkzwKElys6e2pWBUIR5/d8sFuHwQlfM/z1IU1Bx5tz+7imUQMDlSs6fCwXBgKOJTY8sFxIgMtf9Dz2Yg2Bxdlu+njmksLDlOo4vK4Yx0FNI/Y88h7KAUpdsXw3ZM8ChJcrOntqVgVCEef3fLBbh8EJXzP89SFNQcebc/u4plEDA5UrOnwsFwYCjiU2PLBcSIDLX/Q89mINgcXZbvp45pLCw5TqOLyuGMdBTSP2PPIeygFKXbF8N2TPAoSXKzp7alYFQhHn93ywW4fBCV8z/PUhTUHHm3P7uKZRAwOVKzp8LBcGAo4lNjywXEiAy1/0PPZiDYHF2W76eOaSwsOU6ji8rhjHQU0j9jzyHsoBSl2xfDdkzwKElys6e2pWBUIR5/d8sFuHwQlfM/z1IU1Bx5tz+7imUQMDlSs6fCwXBgKOJTY8sFxIgMtf9Dz2Yg2Bxdlu+njmksLDlOo4vK4Yx0FNI/Y88h7KAUpdsXw3ZM8ChJcrOntqVgVCEef3fLBbh8EJXzP89SFNQcebc/u4plEDA5UrOnwsFwYCjiU2PLBcSIDLX/Q89mINgcXZbvp45pLCw5TqOLyuGMdBTSP2PPIeygFKXbF8N2TPAoSXKzp7alYFQhHn93ywW4fBCV8z/PUhTUHHm3P7uKZRAwOVKzp8LBcGAo4lNjywXEiAy1/0PPZiDYHF2W76eOaSwsOU6ji8rhjHQU0j9jzyHsoBSl2xfDdkzwKElys6e2pWBUIR5/d8sFuHwQlfM/z1IU1Bx5tz+7imUQMDlSs6fCwXBgKOJTY8sFxIgMtf9Dz2Yg2Bxdlu+njmksLDlOo4vK4Yx0FNI/Y88h7KAUpdsXw3ZM8ChJcrOntqVgVCEef3fLBbh8EJXzP89SFNQcebc/u4plEDA5UrOnwsFwYCjiU2PLBcSIDLX/Q89mINgcXZbvp45pLCw5TqOLyuGMdBTSP2PPIeygFKXbF8N2TPAoSXKzp7alYFQhHn93ywW4fBCV8z/PUhTUHHm3P7uKZRAwOVKzp8LBcGAo4lNjywXEiAy1/0PPZiDYHF2W76eOaSwsOU6ji8rhjHQU0j9jzyHsoBSl2xfDdkzwKElys6e2pWBUIR5/d8sFuHwQlfM/z1IU1Bx5tz+7imUQMDlSs6fCwXBgKOJTY8sFxIgMtf9Dz2Yg2Bxdlu+njmksLDlOo4vK4Yx0FNI/Y88h7KAUpdsXw3ZM8ChJcrOntqVgVCEef3fLBbh8EJXzP89SFNQcebc/u4plEDA5UrOnwsFwYCjiU2PLBcSIDLX/Q89mINgcXZbvp45pLCw==');
+                            audio.volume = 0.3;
+                            audio.play().catch(() => {});
+                        } catch (e) {
+                            // 忽略音频播放错误
+                        }
+                    }
+                }
+
+                // 更新全局变量
+                allEmails = newEmails;
+                emailTotalCount = newEmailTotalCount;
+
+                // 渲染邮件列表
                 renderEmails(allEmails);
 
                 // 更新统计信息
@@ -993,17 +1278,27 @@ GET /emails/{email_id}/{message_id}
                 // 更新最后更新时间
                 document.getElementById('lastUpdateTime').textContent = new Date().toLocaleString();
 
-                if (forceRefresh) {
-                    showNotification('邮件列表已刷新', 'success');
+                if (forceRefresh && showLoading) {
+                    showNotification('邮件列表已刷新', 'success', '✅ 刷新成功', 2000);
                 }
 
             } catch (error) {
+                console.error('加载邮件失败:', error);
+                // 只在首次加载失败时显示错误（避免覆盖现有列表）
+                if (allEmails.length === 0) {
                 emailsList.innerHTML = '<tr><td colspan="4" style="padding: 40px; text-align: center;"><div class="error">❌ 加载失败: ' + error.message + '</div></td></tr>';
-                showNotification('加载邮件失败: ' + error.message, 'error');
+                }
+                showNotification('加载邮件失败: ' + error.message, 'error', '❌ 错误', 3000);
             } finally {
+                // 恢复加载状态
+                isLoadingEmails = false;
+                
                 // 恢复刷新按钮状态
+                if (refreshBtn) {
                 refreshBtn.disabled = false;
                 refreshBtn.innerHTML = '<span>🔄</span> 刷新';
+                    refreshBtn.style.opacity = '1';
+                }
             }
         }
 
@@ -1182,6 +1477,15 @@ GET /emails/{email_id}/{message_id}
             const unreadClass = email.is_read ? '' : 'unread';
             const attachmentIcon = email.has_attachments ? '<span style="color: #8b5cf6;">📎</span>' : '';
             
+            // 前端实时检测验证码
+            const verificationCode = detectVerificationCode(email.subject || '', '');
+            
+            // 验证码按钮（如果检测到验证码）
+            const verificationCodeBtn = verificationCode ? 
+                `<button class="btn-verification-code" onclick="event.stopPropagation(); copyVerificationCode('${verificationCode}')" title="复制验证码: ${verificationCode}">
+                    🔑 复制
+                </button>` : '';
+            
             return `
                 <tr class="${unreadClass}" onclick="showEmailDetail('${email.message_id}')">
                     <td>
@@ -1193,6 +1497,7 @@ GET /emails/{email_id}/{message_id}
                     <td>
                         <div class="email-subject" title="${email.subject || '(无主题)'}">
                             ${email.subject || '(无主题)'} ${attachmentIcon}
+                            ${verificationCode ? '<span style="color: #10b981; font-weight: bold; margin-left: 8px;" title="包含验证码: ' + verificationCode + '">🔑</span>' : ''}
                         </div>
                     </td>
                     <td>
@@ -1202,6 +1507,7 @@ GET /emails/{email_id}/{message_id}
                         <button class="btn btn-sm" onclick="event.stopPropagation(); showEmailDetail('${email.message_id}')" style="padding: 4px 8px; font-size: 0.75rem;">
                             查看
                         </button>
+                        ${verificationCodeBtn}
                     </td>
                 </tr>
             `;
@@ -1230,17 +1536,21 @@ GET /emails/{email_id}/{message_id}
             const unreadClass = email.is_read ? '' : 'unread';
             const attachmentIcon = email.has_attachments ? '<span style="color: #8b5cf6;">📎</span>' : '';
             const readIcon = email.is_read ? '📖' : '📧';
+            
+            // 前端实时检测验证码
+            const verificationCode = detectVerificationCode(email.subject || '', '');
+            const vCodeIcon = verificationCode ? '<span style="color: #10b981; font-weight: bold;" title="包含验证码: ' + verificationCode + '">🔑</span>' : '';
 
             return `
                 <div class="email-item ${unreadClass}" onclick="showEmailDetail('${email.message_id}')">
                     <div class="email-avatar">${email.sender_initial}</div>
                     <div class="email-content">
                         <div class="email-header">
-                            <div class="email-subject">${email.subject || '(无主题)'}</div>
+                            <div class="email-subject">${email.subject || '(无主题)'} ${vCodeIcon}</div>
                             <div class="email-date">${formatEmailDate(email.date)}</div>
                         </div>
                         <div class="email-from">${readIcon} ${email.from_email} ${attachmentIcon}</div>
-                        <div class="email-preview">文件夹: ${email.folder} | 点击查看详情</div>
+                        <div class="email-preview">文件夹: ${email.folder} | 点击查看详情 ${verificationCode ? '| 🔑 验证码: ' + verificationCode : ''}</div>
                     </div>
                 </div>
             `;
@@ -1249,13 +1559,63 @@ GET /emails/{email_id}/{message_id}
         async function showEmailDetail(messageId) {
             document.getElementById('emailModal').classList.remove('hidden');
             document.getElementById('emailModalTitle').textContent = '邮件详情';
-            document.getElementById('emailModalContent').innerHTML = '<div class="loading">正在加载邮件详情...</div>';
+            
+            // 第一步：优先从缓存（allEmails）中查找并立即显示
+            const cachedEmail = allEmails.find(e => e.message_id === messageId);
+            
+            if (cachedEmail) {
+                // 立即显示缓存的基本信息
+                console.log('✅ [缓存命中] 使用缓存数据快速显示邮件详情');
+                
+                document.getElementById('emailModalTitle').textContent = cachedEmail.subject || '(无主题)';
+                document.getElementById('emailModalContent').innerHTML = `
+                    <div style="background: #f0f9ff; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; font-size: 0.85em; color: #0369a1;">
+                        ⚡ 快速预览模式 · 正在加载完整内容...
+                    </div>
+                    <div class="email-detail-meta">
+                        <p><strong>发件人:</strong> ${cachedEmail.from_email}</p>
+                        <p><strong>日期:</strong> ${formatEmailDate(cachedEmail.date)} (${new Date(cachedEmail.date).toLocaleString()})</p>
+                        <p><strong>邮件ID:</strong> ${cachedEmail.message_id}</p>
+                    </div>
+                    <div style="padding: 20px; text-align: center; color: #64748b;">
+                        <div class="loading-spinner"></div>
+                        <p style="margin-top: 10px;">正在加载邮件正文...</p>
+                    </div>
+                `;
+            } else {
+                // 缓存未命中，显示加载提示
+                console.log('⚠️ [缓存未命中] 直接从服务器加载');
+                document.getElementById('emailModalContent').innerHTML = '<div class="loading"><div class="loading-spinner"></div>正在加载邮件详情...</div>';
+            }
 
+            // 第二步：从服务器获取完整详情（异步进行）
             try {
                 const data = await apiRequest(`/emails/${currentAccount}/${messageId}`);
 
+                // 前端实时检测验证码
+                const bodyText = data.body_plain || data.body_html || '';
+                const verificationCode = detectVerificationCode(data.subject || '', bodyText);
+
+                // 验证码提示和复制按钮
+                const verificationCodeHtml = verificationCode ? `
+                    <div style="background: #dcfce7; border-left: 4px solid #10b981; padding: 12px; margin: 10px 0; border-radius: 4px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <strong style="color: #059669;">🔑 检测到验证码:</strong>
+                                <code style="background: #fff; padding: 4px 8px; border-radius: 4px; margin: 0 8px; font-size: 1.1em; font-weight: bold; color: #047857;">${verificationCode}</code>
+                            </div>
+                            <button class="btn-verification-code" onclick="copyVerificationCode('${verificationCode}')">
+                                📋 复制
+                            </button>
+                        </div>
+                    </div>
+                ` : '';
+
+                // 第三步：用完整数据替换显示
+                console.log('✅ [服务器数据] 完整邮件详情加载完成');
                 document.getElementById('emailModalTitle').textContent = data.subject || '(无主题)';
                 document.getElementById('emailModalContent').innerHTML = `
+                    ${verificationCodeHtml}
                     <div class="email-detail-meta">
                         <p><strong>发件人:</strong> ${data.from_email}</p>
                         <p><strong>收件人:</strong> ${data.to_email}</p>
@@ -1266,7 +1626,8 @@ GET /emails/{email_id}/{message_id}
                 `;
 
             } catch (error) {
-                document.getElementById('emailModalContent').innerHTML = '<div class="error">加载失败: ' + error.message + '</div>';
+                console.error('❌ [加载失败]', error);
+                document.getElementById('emailModalContent').innerHTML = '<div class="error">❌ 加载失败: ' + error.message + '</div>';
             }
         }
 
@@ -1641,6 +2002,10 @@ GET /emails/{email_id}/{message_id}
         function searchAccounts() {
             console.log('[搜索] 开始搜索...');
             
+            // 清除缓存，强制重新加载
+            accountsCache = null;
+            accountsLoaded = false;
+            
             currentEmailSearch = document.getElementById('emailSearch').value.trim();
             currentTagSearch = document.getElementById('tagSearch').value.trim();
             currentRefreshStatusFilter = document.getElementById('refreshStatusFilter').value;
@@ -1690,6 +2055,10 @@ GET /emails/{email_id}/{message_id}
         }
         
         function clearSearch() {
+            // 清除缓存
+            accountsCache = null;
+            accountsLoaded = false;
+            
             document.getElementById('emailSearch').value = '';
             document.getElementById('tagSearch').value = '';
             document.getElementById('refreshStatusFilter').value = 'all';

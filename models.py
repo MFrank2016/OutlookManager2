@@ -44,6 +44,7 @@ class EmailItem(BaseModel):
     is_read: bool = False
     has_attachments: bool = False
     sender_initial: str = "?"
+    verification_code: Optional[str] = None  # 验证码（如果检测到）
 
     class Config:
         json_schema_extra = {
@@ -56,6 +57,7 @@ class EmailItem(BaseModel):
                 "is_read": False,
                 "has_attachments": False,
                 "sender_initial": "A",
+                "verification_code": None,
             }
         }
 
@@ -91,6 +93,7 @@ class EmailDetailsResponse(BaseModel):
     date: str
     body_plain: Optional[str] = None
     body_html: Optional[str] = None
+    verification_code: Optional[str] = None  # 验证码（如果检测到）
 
 
 class AccountResponse(BaseModel):

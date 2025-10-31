@@ -7,6 +7,16 @@
             line-height: 1.6;
         }
 
+        /* 旋转动画（用于刷新按钮） */
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
         .app-container {
             display: flex;
             height: 100vh;
@@ -240,9 +250,46 @@
             background: #dc2626;
         }
 
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
         .btn-sm {
             padding: 6px 12px;
             font-size: 0.75rem;
+        }
+        
+        /* 验证码按钮特殊样式 */
+        .btn-verification-code {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 4px;
+        }
+        
+        .btn-verification-code:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .btn-verification-code:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
         }
 
         /* 邮箱账户列表 */
@@ -349,6 +396,8 @@
             top: 0;
             background: #f8fafc;
             z-index: 10;
+            padding: 8px 16px;
+            font-size: 0.875rem;
         }
 
         .email-table tbody tr {
@@ -371,9 +420,15 @@
         }
 
         .email-table td {
-            padding: 12px 16px;
+            padding: 10px 16px;
             font-size: 0.875rem;
             color: #334155;
+        }
+        
+        /* 操作列特殊处理 */
+        .email-table td:last-child {
+            white-space: nowrap;
+            min-width: 150px;
         }
 
         .email-sender {

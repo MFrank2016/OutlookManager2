@@ -98,10 +98,19 @@ def init_database() -> None:
                 is_read INTEGER DEFAULT 0,
                 has_attachments INTEGER DEFAULT 0,
                 sender_initial TEXT,
+                verification_code TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(email_account, message_id)
             )
         """)
+        
+        # 尝试添加 verification_code 列（如果表已存在但没有此列）
+        try:
+            cursor.execute("ALTER TABLE emails_cache ADD COLUMN verification_code TEXT")
+            logger.info("Added verification_code column to emails_cache table")
+        except Exception:
+            # 列已存在，忽略错误
+            pass
         
         # 创建邮件详情缓存表
         cursor.execute("""
@@ -115,10 +124,19 @@ def init_database() -> None:
                 date TEXT,
                 body_plain TEXT,
                 body_html TEXT,
+                verification_code TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(email_account, message_id)
             )
         """)
+        
+        # 尝试添加 verification_code 列（如果表已存在但没有此列）
+        try:
+            cursor.execute("ALTER TABLE email_details_cache ADD COLUMN verification_code TEXT")
+            logger.info("Added verification_code column to email_details_cache table")
+        except Exception:
+            # 列已存在，忽略错误
+            pass
         
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)")
@@ -947,8 +965,8 @@ def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
                 cursor.execute("""
                     INSERT OR REPLACE INTO emails_cache 
                     (email_account, message_id, folder, subject, from_email, date, 
-                     is_read, has_attachments, sender_initial, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                     is_read, has_attachments, sender_initial, verification_code, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, (
                     email_account,
                     email.get('message_id'),
@@ -958,7 +976,8 @@ def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
                     email.get('date'),
                     1 if email.get('is_read') else 0,
                     1 if email.get('has_attachments') else 0,
-                    email.get('sender_initial', '?')
+                    email.get('sender_initial', '?'),
+                    email.get('verification_code')
                 ))
             
             conn.commit()
@@ -1036,7 +1055,7 @@ def get_cached_emails(
         offset = (page - 1) * page_size
         cursor.execute(f"""
             SELECT message_id, folder, subject, from_email, date, 
-                   is_read, has_attachments, sender_initial
+                   is_read, has_attachments, sender_initial, verification_code
             FROM emails_cache 
             WHERE {where_clause}
             ORDER BY {sort_by} {sort_order.upper()}
@@ -1055,7 +1074,8 @@ def get_cached_emails(
                 'date': row[4],
                 'is_read': bool(row[5]),
                 'has_attachments': bool(row[6]),
-                'sender_initial': row[7]
+                'sender_initial': row[7],
+                'verification_code': row[8]
             })
         
         return emails, total
@@ -1079,8 +1099,8 @@ def cache_email_detail(email_account: str, email_detail: Dict[str, Any]) -> bool
             cursor.execute("""
                 INSERT OR REPLACE INTO email_details_cache 
                 (email_account, message_id, subject, from_email, to_email, 
-                 date, body_plain, body_html, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                 date, body_plain, body_html, verification_code, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """, (
                 email_account,
                 email_detail.get('message_id'),
@@ -1089,7 +1109,8 @@ def cache_email_detail(email_account: str, email_detail: Dict[str, Any]) -> bool
                 email_detail.get('to_email'),
                 email_detail.get('date'),
                 email_detail.get('body_plain'),
-                email_detail.get('body_html')
+                email_detail.get('body_html'),
+                email_detail.get('verification_code')
             ))
             
             conn.commit()
@@ -1115,7 +1136,7 @@ def get_cached_email_detail(email_account: str, message_id: str) -> Optional[Dic
         cursor = conn.cursor()
         cursor.execute("""
             SELECT message_id, subject, from_email, to_email, date, 
-                   body_plain, body_html
+                   body_plain, body_html, verification_code
             FROM email_details_cache 
             WHERE email_account = ? AND message_id = ?
         """, (email_account, message_id))
@@ -1130,7 +1151,8 @@ def get_cached_email_detail(email_account: str, message_id: str) -> Optional[Dic
                 'to_email': row[3],
                 'date': row[4],
                 'body_plain': row[5],
-                'body_html': row[6]
+                'body_html': row[6],
+                'verification_code': row[7]
             }
         return None
 

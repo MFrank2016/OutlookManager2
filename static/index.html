@@ -67,7 +67,7 @@
                                     <span>📦</span>
                                     批量添加
                                 </button>
-                                <button class="btn btn-secondary btn-sm" onclick="loadAccounts()">
+                                <button class="btn btn-secondary btn-sm" onclick="loadAccountsSmart(true)">
                                     <span>🔄</span>
                                     刷新列表
                                 </button>
@@ -1606,10 +1606,10 @@ Content-Type: application/json
                             <table class="email-table" style="width: 100%; border-collapse: collapse;">
                                 <thead>
                                     <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
-                                        <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #475569; width: 30%;">发件人</th>
-                                        <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #475569; width: 45%;">主题</th>
-                                        <th style="padding: 12px 16px; text-align: left; font-weight: 600; color: #475569; width: 20%;">日期</th>
-                                        <th style="padding: 12px 16px; text-align: center; font-weight: 600; color: #475569; width: 5%;">操作</th>
+                                        <th style="padding: 8px 16px; text-align: left; font-weight: 600; color: #475569; width: 28%;">发件人</th>
+                                        <th style="padding: 8px 16px; text-align: left; font-weight: 600; color: #475569; width: 38%;">主题</th>
+                                        <th style="padding: 8px 16px; text-align: left; font-weight: 600; color: #475569; width: 18%;">日期</th>
+                                        <th style="padding: 8px 16px; text-align: center; font-weight: 600; color: #475569; width: 16%;">操作</th>
                                     </tr>
                                 </thead>
                                 <tbody id="emailsList">

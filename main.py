@@ -160,15 +160,32 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # 应用关闭
     logger.info(f"Shutting down {APP_TITLE}...")
 
-    # 取消后台任务
+    # 取消后台任务（带超时）
     refresh_task.cancel()
     try:
-        await refresh_task
+        await asyncio.wait_for(refresh_task, timeout=3.0)
     except asyncio.CancelledError:
         logger.info("Token refresh background task cancelled")
+    except asyncio.TimeoutError:
+        logger.warning("Token refresh task cancellation timeout, forcing shutdown")
+    except Exception as e:
+        logger.error(f"Error cancelling refresh task: {e}")
 
+    # 关闭IMAP连接池（使用线程，防止阻塞）
     logger.info("Closing IMAP connection pool...")
-    imap_pool.close_all_connections()
+    try:
+        # 在executor中运行，避免阻塞事件循环
+        loop = asyncio.get_event_loop()
+        await asyncio.wait_for(
+            loop.run_in_executor(None, imap_pool.close_all_connections),
+            timeout=5.0  # 5秒超时
+        )
+        logger.info("IMAP connection pool closed successfully")
+    except asyncio.TimeoutError:
+        logger.warning("IMAP connection pool close timeout, forcing shutdown")
+    except Exception as e:
+        logger.error(f"Error closing IMAP connection pool: {e}")
+    
     logger.info("Application shutdown complete.")
 
 

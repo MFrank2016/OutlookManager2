@@ -21,6 +21,7 @@ from email_utils import decode_header_value, extract_email_content
 from imap_pool import imap_pool
 from models import AccountCredentials, EmailDetailsResponse, EmailItem, EmailListResponse
 from oauth_service import get_access_token
+from verification_code_detector import detect_verification_code
 
 # 获取日志记录器
 logger = logging.getLogger(__name__)
@@ -172,9 +173,12 @@ async def list_emails(
                                 if date_str
                                 else datetime.now()
                             )
+                            # 转换为UTC时间并去除时区信息，确保统一格式
+                            if date_obj.tzinfo is not None:
+                                date_obj = date_obj.astimezone(datetime.now().astimezone().tzinfo).replace(tzinfo=None)
                             formatted_date = date_obj.isoformat()
                         except Exception:
-                            date_obj = datetime.now()
+                            date_obj = datetime.now().replace(tzinfo=None)
                             formatted_date = date_obj.isoformat()
 
                         message_id = f"{folder_name}-{fetched_msg_id.decode()}"
@@ -187,6 +191,15 @@ async def list_emails(
                             if email_match:
                                 sender_initial = email_match.group(1).upper()
 
+                        # 检测验证码（只从主题检测，避免获取正文）
+                        verification_code = None
+                        try:
+                            code_info = detect_verification_code(subject=subject, body="")
+                            if code_info:
+                                verification_code = code_info["code"]
+                        except Exception as e:
+                            logger.warning(f"Failed to detect verification code: {e}")
+
                         email_item = EmailItem(
                             message_id=message_id,
                             folder=folder_name,
@@ -196,6 +209,7 @@ async def list_emails(
                             is_read=False,  # 简化处理，实际可通过IMAP flags判断
                             has_attachments=False,  # 简化处理，实际需要检查邮件结构
                             sender_initial=sender_initial,
+                            verification_code=verification_code,
                         )
                         email_items.append(email_item)
 
@@ -205,8 +219,14 @@ async def list_emails(
                     )
                     continue
 
-            # 按日期重新排序最终结果
-            email_items.sort(key=lambda x: x.date, reverse=True)
+            # 按日期重新排序最终结果（使用datetime对象排序以确保准确性）
+            def get_sort_key(email_item):
+                try:
+                    return datetime.fromisoformat(email_item.date)
+                except:
+                    return datetime.min
+            
+            email_items.sort(key=get_sort_key, reverse=True)
 
             # 归还连接到池中
             imap_pool.return_connection(credentials.email, imap_client)
@@ -312,6 +332,18 @@ async def get_email_details(
             # 提取邮件内容
             body_plain, body_html = extract_email_content(msg)
 
+            # 检测验证码
+            verification_code = None
+            try:
+                # 使用主题和正文进行检测
+                body_for_detection = body_plain or body_html or ""
+                code_info = detect_verification_code(subject=subject, body=body_for_detection)
+                if code_info:
+                    verification_code = code_info["code"]
+                    logger.info(f"Detected verification code in email {message_id}: {verification_code}")
+            except Exception as e:
+                logger.warning(f"Failed to detect verification code in email details: {e}")
+
             # 归还连接到池中
             imap_pool.return_connection(credentials.email, imap_client)
 
@@ -323,6 +355,7 @@ async def get_email_details(
                 date=formatted_date,
                 body_plain=body_plain if body_plain else None,
                 body_html=body_html if body_html else None,
+                verification_code=verification_code,
             )
             
             # 缓存到 SQLite
