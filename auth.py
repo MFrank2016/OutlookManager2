@@ -8,7 +8,7 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -24,8 +24,8 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 # 密码加密上下文
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# HTTP Bearer认证
-security = HTTPBearer()
+# HTTP Bearer认证（可选，支持API Key）
+security = HTTPBearer(auto_error=False)
 
 
 # ============================================================================
@@ -160,6 +160,23 @@ def verify_token(token: str) -> TokenData:
 # 认证函数
 # ============================================================================
 
+def verify_api_key(api_key: str) -> bool:
+    """
+    验证API Key是否正确
+    
+    Args:
+        api_key: API Key值
+        
+    Returns:
+        是否验证通过
+    """
+    stored_key = db.get_api_key()
+    if not stored_key:
+        return False
+    
+    return api_key == stored_key
+
+
 def authenticate_admin(username: str, password: str) -> Optional[dict]:
     """
     验证管理员用户名和密码
@@ -186,16 +203,21 @@ def authenticate_admin(username: str, password: str) -> Optional[dict]:
 
 
 async def get_current_admin(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> dict:
     """
     获取当前已认证的管理员
     
-    通过JWT token验证管理员身份
+    支持两种认证方式：
+    1. JWT Token (Authorization: Bearer <token>)
+    2. API Key (X-API-Key: <key> 或 Authorization: ApiKey <key>)
+    
     用作FastAPI依赖注入
     
     Args:
-        credentials: HTTP Bearer凭据
+        request: FastAPI请求对象
+        credentials: HTTP Bearer凭据（可选）
         
     Returns:
         管理员信息字典
@@ -203,25 +225,65 @@ async def get_current_admin(
     Raises:
         HTTPException: 未认证或认证失败
     """
-    token = credentials.credentials
-    token_data = verify_token(token)
-    
-    admin = db.get_admin_by_username(token_data.username)
-    
-    if admin is None:
+    # 方式1: 尝试从 X-API-Key 头获取 API Key
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        if verify_api_key(api_key):
+            # API Key认证成功，返回默认管理员（第一个管理员）
+            admins = db.get_all_admins()
+            if admins:
+                admin = admins[0]
+                if admin.get('is_active'):
+                    return admin
+        
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="管理员不存在",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail="无效的API Key"
         )
     
-    if not admin['is_active']:
+    # 方式2: 尝试从 Authorization 头获取 API Key (格式: ApiKey <key>)
+    if credentials and credentials.scheme.lower() == "apikey":
+        if verify_api_key(credentials.credentials):
+            # API Key认证成功
+            admins = db.get_all_admins()
+            if admins:
+                admin = admins[0]
+                if admin.get('is_active'):
+                    return admin
+        
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="管理员账户已被禁用"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效的API Key"
         )
     
-    return admin
+    # 方式3: JWT Token认证 (Authorization: Bearer <token>)
+    if credentials and credentials.scheme.lower() == "bearer":
+        token = credentials.credentials
+        token_data = verify_token(token)
+        
+        admin = db.get_admin_by_username(token_data.username)
+        
+        if admin is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="管理员不存在",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        if not admin['is_active']:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="管理员账户已被禁用"
+            )
+        
+        return admin
+    
+    # 没有提供任何有效的认证信息
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="未提供认证信息或认证信息无效",
+        headers={"WWW-Authenticate": "Bearer"}
+    )
 
 
 # ============================================================================

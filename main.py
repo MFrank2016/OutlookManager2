@@ -227,6 +227,12 @@ class UpdateTagsRequest(BaseModel):
     tags: List[str]
 
 
+class AddTagRequest(BaseModel):
+    """添加标签请求模型"""
+
+    tag: str
+
+
 # ============================================================================
 # IMAP连接池管理
 # ============================================================================
@@ -1290,6 +1296,12 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
     # 初始化默认管理员（如果不存在）
     auth.init_default_admin()
+    
+    # 初始化API Key（如果不存在）
+    api_key = db.init_default_api_key()
+    logger.info("API Key initialized")
+    print(f"系统API Key: {api_key}")
+    print(f"使用方式: 在请求头中添加 X-API-Key: {api_key}")
 
     logger.info(
         f"IMAP connection pool initialized with max_connections={MAX_CONNECTIONS}"
@@ -1406,6 +1418,65 @@ async def change_password(
 # ============================================================================
 # 账户管理API端点
 # ============================================================================
+
+
+@app.get("/accounts/random", response_model=AccountListResponse, tags=["账户管理"])
+async def get_random_accounts(
+    include_tags: Optional[str] = Query(None, description="必须包含的标签，多个用逗号分隔"),
+    exclude_tags: Optional[str] = Query(None, description="必须不包含的标签，多个用逗号分隔"),
+    page: int = Query(1, ge=1, description="页码，从1开始"),
+    page_size: int = Query(10, ge=1, le=100, description="每页数量，范围1-100"),
+    admin: dict = Depends(auth.get_current_admin),
+):
+    """随机获取邮箱账户列表（支持标签筛选和分页）"""
+    try:
+        # 解析标签列表
+        include_tag_list = [tag.strip() for tag in include_tags.split(",")] if include_tags else None
+        exclude_tag_list = [tag.strip() for tag in exclude_tags.split(",")] if exclude_tags else None
+        
+        # 从数据库获取随机账户
+        accounts_data, total_accounts = db.get_random_accounts(
+            include_tags=include_tag_list,
+            exclude_tags=exclude_tag_list,
+            page=page,
+            page_size=page_size
+        )
+        
+        # 转换为AccountInfo对象
+        all_accounts = []
+        for account_data in accounts_data:
+            # 验证账户状态
+            status = "active"
+            try:
+                if not account_data.get("refresh_token") or not account_data.get("client_id"):
+                    status = "invalid"
+            except Exception:
+                status = "error"
+            
+            account = AccountInfo(
+                email_id=account_data["email"],
+                client_id=account_data.get("client_id", ""),
+                status=status,
+                tags=account_data.get("tags", []),
+                last_refresh_time=account_data.get("last_refresh_time"),
+                next_refresh_time=account_data.get("next_refresh_time"),
+                refresh_status=account_data.get("refresh_status", "pending"),
+            )
+            all_accounts.append(account)
+        
+        # 计算分页信息
+        total_pages = (total_accounts + page_size - 1) // page_size if total_accounts > 0 else 0
+        
+        return AccountListResponse(
+            total_accounts=total_accounts,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            accounts=all_accounts,
+        )
+    except Exception as e:
+        logger.error(f"Error getting random accounts: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/accounts", response_model=AccountListResponse, tags=["账户管理"])
@@ -1576,6 +1647,40 @@ async def update_account_tags(
     except Exception as e:
         logger.error(f"Error updating account tags: {e}")
         raise HTTPException(status_code=500, detail="Failed to update account tags")
+
+
+@app.post("/accounts/{email_id}/tags/add", response_model=AccountResponse, tags=["账户管理"])
+async def add_account_tag(
+    email_id: str,
+    request: AddTagRequest,
+    admin: dict = Depends(auth.get_current_admin),
+):
+    """为账户添加标签（如果标签已存在则不处理）"""
+    try:
+        # 使用数据库函数添加标签
+        success = db.add_tag_to_account(email_id, request.tag)
+        
+        if not success:
+            # 账户不存在
+            raise HTTPException(status_code=404, detail=f"Account {email_id} not found")
+        
+        # 检查标签是否已存在
+        account = db.get_account_by_email(email_id)
+        if request.tag in account.get('tags', []):
+            return AccountResponse(
+                email_id=email_id, 
+                message=f"Tag '{request.tag}' already exists for account."
+            )
+        else:
+            return AccountResponse(
+                email_id=email_id, 
+                message=f"Tag '{request.tag}' added successfully."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding tag to account: {e}")
+        raise HTTPException(status_code=500, detail="Failed to add tag to account")
 
 
 @app.get(

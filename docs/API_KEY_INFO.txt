@@ -1,0 +1,37 @@
+================================================================
+Outlook邮件管理系统 - API Key 信息
+================================================================
+
+本文件包含系统自动生成的API Key信息。
+
+API Key存储位置：
+- 数据库: data.db -> system_config表 -> key='api_key'
+
+获取API Key的方法：
+1. 查看服务器启动日志
+2. 运行以下Python代码：
+   
+   import sqlite3
+   conn = sqlite3.connect("data.db")
+   cursor = conn.cursor()
+   cursor.execute("SELECT value FROM system_config WHERE key = 'api_key'")
+   api_key = cursor.fetchone()[0]
+   print(f"API Key: {api_key}")
+   conn.close()
+
+使用方式：
+在HTTP请求头中添加以下任一方式：
+- X-API-Key: <你的API Key>
+- Authorization: ApiKey <你的API Key>
+
+示例：
+curl -H "X-API-Key: YOUR_API_KEY" http://localhost:8000/accounts
+
+安全提示：
+⚠️ API Key具有完全访问权限，请妥善保管
+⚠️ 不要将API Key提交到版本控制系统
+⚠️ 建议在生产环境中定期更换
+
+更多信息请查看：docs/新功能使用说明.md
+================================================================
+

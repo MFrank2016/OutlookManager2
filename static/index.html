@@ -3231,6 +3231,141 @@ example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
                 </div>
             </div>
 
+            <!-- 添加账户标签 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method post">POST</span>
+                        <span class="api-path">/accounts/{email_id}/tags/add</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('addTag')">🚀 试用接口</button>
+                </div>
+                <div class="api-body">
+                    <p class="api-description">为指定账户添加单个标签（如果标签已存在则不处理，幂等操作）。</p>
+
+                    <div class="api-section">
+                        <h4>路径参数</h4>
+                        <div class="api-params">
+                            <div class="api-param">
+                                <span class="api-param-name">email_id</span>
+                                <span class="api-param-type">string</span>
+                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="api-section">
+                        <h4>请求体</h4>
+                        <div class="api-example">{
+  "tag": "VIP"
+}</div>
+                    </div>
+
+                    <div class="api-section">
+                        <h4>请求示例</h4>
+                        <div class="api-example">POST /accounts/example%40outlook.com/tags/add
+Content-Type: application/json
+
+{
+  "tag": "VIP"
+}</div>
+                    </div>
+
+                    <div class="api-section">
+                        <h4>响应示例</h4>
+                        <div class="api-example">{
+  "email_id": "example@outlook.com",
+  "message": "Tag 'VIP' added successfully."
+}</div>
+                    </div>
+
+                    <div class="api-section">
+                        <h4>特性说明</h4>
+                        <ul style="margin: 0; padding-left: 20px; color: #6b7280;">
+                            <li>幂等操作：重复添加相同标签不会报错</li>
+                            <li>标签添加到现有标签列表末尾，不会覆盖现有标签</li>
+                            <li>账户不存在时返回404错误</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 随机获取邮箱 -->
+            <div class="api-endpoint">
+                <div class="api-header">
+                    <div style="display: flex; align-items: center;">
+                        <span class="api-method get">GET</span>
+                        <span class="api-path">/accounts/random</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('randomAccounts')">🚀 试用接口</button>
+                </div>
+                <div class="api-body">
+                    <p class="api-description">随机获取邮箱账户列表，支持标签筛选和分页。每次请求返回的顺序都是随机的。</p>
+
+                    <div class="api-section">
+                        <h4>请求参数</h4>
+                        <div class="api-params">
+                            <div class="api-param">
+                                <span class="api-param-name">include_tags</span>
+                                <span class="api-param-type">string</span>
+                                <span class="api-param-desc">必须包含的标签，多个用逗号分隔，可选</span>
+                            </div>
+                            <div class="api-param">
+                                <span class="api-param-name">exclude_tags</span>
+                                <span class="api-param-type">string</span>
+                                <span class="api-param-desc">必须不包含的标签，多个用逗号分隔，可选</span>
+                            </div>
+                            <div class="api-param">
+                                <span class="api-param-name">page</span>
+                                <span class="api-param-type">integer</span>
+                                <span class="api-param-desc">页码，从1开始，默认: 1</span>
+                            </div>
+                            <div class="api-param">
+                                <span class="api-param-name">page_size</span>
+                                <span class="api-param-type">integer</span>
+                                <span class="api-param-desc">每页数量，范围1-100，默认: 10</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="api-section">
+                        <h4>请求示例</h4>
+                        <div class="api-example">GET /accounts/random?exclude_tags=禁用&page_size=5</div>
+                    </div>
+
+                    <div class="api-section">
+                        <h4>响应示例</h4>
+                        <div class="api-example">{
+  "total_accounts": 20,
+  "page": 1,
+  "page_size": 5,
+  "total_pages": 4,
+  "accounts": [
+    {
+      "email_id": "user1@outlook.com",
+      "client_id": "client-id",
+      "status": "active",
+      "tags": ["工作", "重要"],
+      "last_refresh_time": "2025-10-30T12:00:00",
+      "next_refresh_time": "2025-11-02T12:00:00",
+      "refresh_status": "success"
+    }
+  ]
+}</div>
+                    </div>
+
+                    <div class="api-section">
+                        <h4>使用场景</h4>
+                        <ul style="margin: 0; padding-left: 20px; color: #6b7280;">
+                            <li>随机分配邮箱给任务</li>
+                            <li>按标签随机抽取邮箱进行测试</li>
+                            <li>避免重复使用同一批邮箱</li>
+                            <li>实现邮箱池的随机轮换</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
             <!-- 刷新Token -->
             <div class="api-endpoint">
                 <div class="api-header">
@@ -6362,6 +6497,24 @@ GET /emails/{email_id}/{message_id}
                 endpoint: '/accounts/{email_id}/tags',
                 path: { email_id: 'example@outlook.com' },
                 body: { tags: ['工作', '个人'] },
+                requiresAuth: true
+            },
+            'addTag': {
+                method: 'POST',
+                endpoint: '/accounts/{email_id}/tags/add',
+                path: { email_id: 'example@outlook.com' },
+                body: { tag: 'VIP' },
+                requiresAuth: true
+            },
+            'randomAccounts': {
+                method: 'GET',
+                endpoint: '/accounts/random',
+                query: {
+                    include_tags: '',
+                    exclude_tags: '',
+                    page: 1,
+                    page_size: 5
+                },
                 requiresAuth: true
             },
             'refreshToken': {

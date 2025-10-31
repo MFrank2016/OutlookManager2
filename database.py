@@ -389,6 +389,103 @@ def delete_account(email: str) -> bool:
         return success
 
 
+def get_random_accounts(
+    include_tags: Optional[List[str]] = None,
+    exclude_tags: Optional[List[str]] = None,
+    page: int = 1,
+    page_size: int = 10
+) -> Tuple[List[Dict[str, Any]], int]:
+    """
+    随机获取账户列表（支持标签筛选和分页）
+    
+    Args:
+        include_tags: 必须包含的标签列表
+        exclude_tags: 必须不包含的标签列表
+        page: 页码（从1开始）
+        page_size: 每页数量
+        
+    Returns:
+        (账户列表, 总数)
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # 构建查询条件
+        conditions = []
+        params = []
+        
+        # 包含标签筛选
+        if include_tags:
+            for tag in include_tags:
+                conditions.append("tags LIKE ?")
+                params.append(f"%{tag}%")
+        
+        # 排除标签筛选
+        if exclude_tags:
+            for tag in exclude_tags:
+                conditions.append("tags NOT LIKE ?")
+                params.append(f"%{tag}%")
+        
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        
+        # 获取总数
+        cursor.execute(f"SELECT COUNT(*) FROM accounts WHERE {where_clause}", params)
+        total = cursor.fetchone()[0]
+        
+        # 获取随机分页数据
+        offset = (page - 1) * page_size
+        cursor.execute(
+            f"SELECT * FROM accounts WHERE {where_clause} ORDER BY RANDOM() LIMIT ? OFFSET ?",
+            params + [page_size, offset]
+        )
+        rows = cursor.fetchall()
+        
+        accounts = []
+        for row in rows:
+            account = dict(row)
+            account['tags'] = json.loads(account['tags']) if account['tags'] else []
+            accounts.append(account)
+        
+        logger.info(f"Random accounts query: {len(accounts)} accounts found (total: {total})")
+        return accounts, total
+
+
+def add_tag_to_account(email: str, tag: str) -> bool:
+    """
+    为账户添加标签（如果标签已存在则不处理）
+    
+    Args:
+        email: 邮箱地址
+        tag: 要添加的标签
+        
+    Returns:
+        是否成功（账户不存在返回False）
+    """
+    account = get_account_by_email(email)
+    
+    if not account:
+        logger.warning(f"Account {email} not found, cannot add tag")
+        return False
+    
+    current_tags = account.get('tags', [])
+    
+    # 如果标签已存在，不处理
+    if tag in current_tags:
+        logger.info(f"Tag '{tag}' already exists for account {email}")
+        return True
+    
+    # 添加新标签
+    current_tags.append(tag)
+    
+    # 更新账户
+    success = update_account(email, tags=current_tags)
+    
+    if success:
+        logger.info(f"Added tag '{tag}' to account {email}")
+    
+    return success
+
+
 # ============================================================================
 # Admins 表操作
 # ============================================================================
@@ -581,6 +678,55 @@ def delete_config(key: str) -> bool:
         if success:
             logger.info(f"Deleted config: {key}")
         return success
+
+
+# ============================================================================
+# API Key 管理函数
+# ============================================================================
+
+def get_api_key() -> Optional[str]:
+    """
+    获取系统API Key
+    
+    Returns:
+        API Key或None
+    """
+    return get_config("api_key")
+
+
+def set_api_key(api_key: str) -> bool:
+    """
+    设置系统API Key
+    
+    Args:
+        api_key: API Key值
+        
+    Returns:
+        是否设置成功
+    """
+    return set_config("api_key", api_key, "系统API Key，用于API访问认证")
+
+
+def init_default_api_key() -> str:
+    """
+    初始化默认API Key（如果不存在）
+    
+    Returns:
+        API Key
+    """
+    import secrets
+    
+    existing_key = get_api_key()
+    if existing_key:
+        logger.info("API Key already exists")
+        return existing_key
+    
+    # 生成新的API Key
+    new_key = secrets.token_urlsafe(32)
+    set_api_key(new_key)
+    logger.info(f"Generated new API Key: {new_key}")
+    
+    return new_key
 
 
 # ============================================================================
