@@ -11,8 +11,15 @@ from fastapi import APIRouter, Depends, Query
 
 import auth
 from account_service import get_account_credentials
-from email_service import get_email_details, list_emails
-from models import DualViewEmailResponse, EmailDetailsResponse, EmailListResponse
+from email_service import get_email_details, list_emails, delete_email, send_email
+from models import (
+    DualViewEmailResponse,
+    EmailDetailsResponse,
+    EmailListResponse,
+    SendEmailRequest,
+    SendEmailResponse,
+    DeleteEmailResponse
+)
 
 # 获取日志记录器
 logger = logging.getLogger(__name__)
@@ -73,4 +80,51 @@ async def get_email_detail(
     """获取邮件详细内容"""
     credentials = await get_account_credentials(email_id)
     return await get_email_details(credentials, message_id)
+
+
+@router.delete("/{email_id}/{message_id}", response_model=DeleteEmailResponse)
+async def delete_email_route(
+    email_id: str, message_id: str, admin: dict = Depends(auth.get_current_admin)
+):
+    """删除指定邮件"""
+    credentials = await get_account_credentials(email_id)
+    success = await delete_email(credentials, message_id)
+    
+    return DeleteEmailResponse(
+        success=success,
+        message="Email deleted successfully" if success else "Failed to delete email",
+        message_id=message_id
+    )
+
+
+@router.post("/{email_id}/send", response_model=SendEmailResponse)
+async def send_email_route(
+    email_id: str,
+    request: SendEmailRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """发送邮件"""
+    credentials = await get_account_credentials(email_id)
+    
+    try:
+        message_id = await send_email(
+            credentials,
+            request.to,
+            request.subject,
+            request.body_text,
+            request.body_html
+        )
+        
+        return SendEmailResponse(
+            success=True,
+            message="Email sent successfully",
+            message_id=message_id
+        )
+    except Exception as e:
+        logger.error(f"Error sending email: {e}")
+        return SendEmailResponse(
+            success=False,
+            message=str(e),
+            message_id=None
+        )
 

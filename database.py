@@ -243,6 +243,13 @@ def init_database() -> None:
         except Exception:
             pass
         
+        # 添加 API 方法字段 - accounts
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN api_method TEXT DEFAULT 'imap'")
+            logger.info("Added api_method column to accounts table")
+        except Exception:
+            pass
+        
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username)")

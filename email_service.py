@@ -43,6 +43,14 @@ async def list_emails(
     import time
     start_time = time.time()
     from_cache = False
+    
+    # 检查是否使用 Graph API
+    if credentials.api_method == "graph_api":
+        logger.info(f"Using Graph API for {credentials.email}")
+        return await list_emails_via_graph_api(
+            credentials, folder, page, page_size, force_refresh,
+            sender_search, subject_search, sort_by, sort_order, start_time
+        )
 
     # 优先从 SQLite 缓存获取
     if not force_refresh:
@@ -314,6 +322,12 @@ async def get_email_details(
 ) -> EmailDetailsResponse:
     """获取邮件详细内容 - 优化版本（支持SQLite缓存）"""
     
+    # 检查是否使用 Graph API
+    if credentials.api_method == "graph_api":
+        logger.info(f"Using Graph API for email details: {credentials.email}")
+        from graph_api_service import get_email_details_graph
+        return await get_email_details_graph(credentials, message_id)
+    
     # 先尝试从 SQLite 缓存获取
     try:
         cached_detail = db.get_cached_email_detail(credentials.email, message_id)
@@ -443,4 +457,180 @@ async def get_email_details(
             logger.info(f"Retrying email details fetch with fresh token for {credentials.email}")
             return await asyncio.to_thread(_sync_get_email_details)
         raise
+
+
+async def list_emails_via_graph_api(
+    credentials: AccountCredentials,
+    folder: str,
+    page: int,
+    page_size: int,
+    force_refresh: bool,
+    sender_search: Optional[str],
+    subject_search: Optional[str],
+    sort_by: str,
+    sort_order: str,
+    start_time: float
+) -> EmailListResponse:
+    """使用 Graph API 获取邮件列表"""
+    from graph_api_service import list_emails_graph
+    import time
+    
+    # 优先从 SQLite 缓存获取
+    if not force_refresh:
+        try:
+            cached_emails, total = db.get_cached_emails(
+                email_account=credentials.email,
+                page=page,
+                page_size=page_size,
+                folder=folder if folder != 'all' else None,
+                sender_search=sender_search,
+                subject_search=subject_search,
+                sort_by=sort_by,
+                sort_order=sort_order
+            )
+            
+            if cached_emails:
+                fetch_time_ms = int((time.time() - start_time) * 1000)
+                logger.info(f"Returning {len(cached_emails)} cached emails from SQLite for {credentials.email} ({fetch_time_ms}ms)")
+                email_items = [EmailItem(**email) for email in cached_emails]
+                return EmailListResponse(
+                    email_id=credentials.email,
+                    folder_view=folder,
+                    page=page,
+                    page_size=page_size,
+                    total_emails=total,
+                    emails=email_items,
+                    from_cache=True,
+                    fetch_time_ms=fetch_time_ms
+                )
+        except Exception as e:
+            logger.warning(f"Failed to load from cache, fetching from Graph API: {e}")
+    
+    # 从 Graph API 获取
+    email_items, total = await list_emails_graph(
+        credentials, folder, page, page_size,
+        sender_search, subject_search, sort_by, sort_order
+    )
+    
+    # 缓存到 SQLite
+    try:
+        emails_to_cache = [email.dict() for email in email_items]
+        db.cache_emails(credentials.email, emails_to_cache)
+        logger.info(f"Cached {len(emails_to_cache)} emails to SQLite for {credentials.email}")
+    except Exception as e:
+        logger.warning(f"Failed to cache emails to SQLite: {e}")
+    
+    fetch_time_ms = int((time.time() - start_time) * 1000)
+    
+    return EmailListResponse(
+        email_id=credentials.email,
+        folder_view=folder,
+        page=page,
+        page_size=page_size,
+        total_emails=total,
+        emails=email_items,
+        from_cache=False,
+        fetch_time_ms=fetch_time_ms
+    )
+
+
+async def delete_email(
+    credentials: AccountCredentials,
+    message_id: str
+) -> bool:
+    """
+    删除邮件（支持 Graph API 和 IMAP）
+    
+    Args:
+        credentials: 账户凭证
+        message_id: 邮件ID
+        
+    Returns:
+        bool: 是否删除成功
+    """
+    if credentials.api_method == "graph_api":
+        logger.info(f"Deleting email via Graph API: {message_id}")
+        from graph_api_service import delete_email_graph
+        return await delete_email_graph(credentials, message_id)
+    else:
+        logger.info(f"Deleting email via IMAP: {message_id}")
+        return await delete_email_via_imap(credentials, message_id)
+
+
+async def delete_email_via_imap(
+    credentials: AccountCredentials,
+    message_id: str
+) -> bool:
+    """使用 IMAP 删除邮件"""
+    # 解析复合message_id
+    try:
+        folder_name, msg_id = message_id.split("-", 1)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid message_id format")
+    
+    access_token = await get_cached_access_token(credentials)
+    
+    def _sync_delete_email():
+        imap_client = None
+        try:
+            # 从连接池获取连接
+            imap_client = imap_pool.get_connection(credentials.email, access_token)
+            
+            # 选择文件夹（可写模式）
+            imap_client.select(folder_name, readonly=False)
+            
+            # 标记为删除
+            imap_client.store(msg_id, '+FLAGS', '\\Deleted')
+            
+            # 永久删除
+            imap_client.expunge()
+            
+            # 归还连接
+            imap_pool.return_connection(credentials.email, imap_client)
+            
+            logger.info(f"Successfully deleted email {message_id} via IMAP for {credentials.email}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting email via IMAP: {e}")
+            if imap_client:
+                try:
+                    imap_pool.return_connection(credentials.email, imap_client)
+                except Exception:
+                    pass
+            raise HTTPException(status_code=500, detail="Failed to delete email via IMAP")
+    
+    return await asyncio.to_thread(_sync_delete_email)
+
+
+async def send_email(
+    credentials: AccountCredentials,
+    to: str,
+    subject: str,
+    body_text: Optional[str] = None,
+    body_html: Optional[str] = None
+) -> str:
+    """
+    发送邮件（仅支持 Graph API）
+    
+    Args:
+        credentials: 账户凭证
+        to: 收件人邮箱
+        subject: 邮件主题
+        body_text: 纯文本正文
+        body_html: HTML正文
+        
+    Returns:
+        str: 邮件ID
+    """
+    if credentials.api_method == "graph_api":
+        logger.info(f"Sending email via Graph API from {credentials.email} to {to}")
+        from graph_api_service import send_email_graph
+        return await send_email_graph(credentials, to, subject, body_text, body_html)
+    else:
+        # IMAP 不支持发送邮件
+        raise HTTPException(
+            status_code=400,
+            detail="Sending email is only supported via Graph API. Please enable Graph API for this account."
+        )
 

@@ -452,3 +452,31 @@ async def batch_refresh_tokens(
         logger.error(f"Error in batch token refresh: {e}")
         raise HTTPException(status_code=500, detail=f"Batch refresh failed: {str(e)}")
 
+
+@router.post("/{email_id}/detect-api-method", response_model=AccountResponse)
+async def detect_api_method_route(
+    email_id: str, admin: dict = Depends(auth.get_current_admin)
+):
+    """检测并更新账户的API方法（Graph API 或 IMAP）"""
+    from oauth_service import detect_and_update_api_method
+    
+    try:
+        # 获取账户凭证
+        credentials = await get_account_credentials(email_id)
+        
+        # 检测API方法
+        api_method = await detect_and_update_api_method(credentials)
+        
+        logger.info(f"Detected API method for {email_id}: {api_method} by {admin['username']}")
+        
+        return AccountResponse(
+            email_id=email_id,
+            message=f"API method detected and updated to: {api_method}"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error detecting API method for {email_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to detect API method")
+

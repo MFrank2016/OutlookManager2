@@ -48,14 +48,35 @@ async function loadTablesList() {
 
   try {
     const tables = [
-      { name: "accounts", description: "邮箱账户信息表", count: "?" },
-      { name: "admins", description: "管理员账户表", count: "?" },
-      { name: "system_config", description: "系统配置表", count: "?" },
-      { name: "emails_cache", description: "邮件列表缓存表", count: "?" },
+      { 
+        name: "accounts", 
+        description: "邮箱账户信息表 (含API方法字段)", 
+        count: "?",
+        fields: "id, email, refresh_token, client_id, tags, last_refresh_time, next_refresh_time, refresh_status, refresh_error, created_at, updated_at, access_token, token_expires_at, api_method"
+      },
+      { 
+        name: "admins", 
+        description: "管理员账户表", 
+        count: "?",
+        fields: "id, username, password_hash, email, is_active, created_at, last_login"
+      },
+      { 
+        name: "system_config", 
+        description: "系统配置表", 
+        count: "?",
+        fields: "id, key, value, description, updated_at"
+      },
+      { 
+        name: "emails_cache", 
+        description: "邮件列表缓存表 (含LRU字段)", 
+        count: "?",
+        fields: "id, email_account, message_id, folder, subject, from_email, date, is_read, has_attachments, sender_initial, created_at, verification_code, access_count, last_accessed_at, cache_size"
+      },
       {
         name: "email_details_cache",
-        description: "邮件详情缓存表",
+        description: "邮件详情缓存表 (含LRU字段)",
         count: "?",
+        fields: "id, email_account, message_id, subject, from_email, to_email, date, body_plain, body_html, created_at, verification_code, access_count, last_accessed_at, body_size"
       },
     ];
 
@@ -95,11 +116,16 @@ async function loadTablesList() {
 
     tables.forEach((table) => {
       const icon = iconMap[table.name] || "📊";
+      const fieldsTooltip = table.fields ? `字段: ${table.fields}` : '';
+      const fieldCount = table.fields ? table.fields.split(',').length : 0;
       html += `
-                <tr onclick="loadTableData('${table.name}')" style="cursor: pointer;">
+                <tr onclick="loadTableData('${table.name}')" style="cursor: pointer;" title="${fieldsTooltip}">
                     <td style="text-align: center; font-size: 1.5rem;">${icon}</td>
                     <td><strong>${table.name}</strong></td>
-                    <td>${table.description}</td>
+                    <td>
+                        ${table.description}
+                        ${fieldCount > 0 ? `<br><small style="color: #64748b; font-size: 0.75rem;">字段数: ${fieldCount}</small>` : ''}
+                    </td>
                     <td style="text-align: center;">
                         <span class="count-badge">${table.count}</span>
                     </td>

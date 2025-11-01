@@ -13,6 +13,8 @@ from pathlib import Path
 
 TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
 OAUTH_SCOPE = "https://outlook.office.com/IMAP.AccessAsUser.All offline_access"
+GRAPH_API_SCOPE = "https://graph.microsoft.com/.default"
+GRAPH_API_BASE_URL = "https://graph.microsoft.com/v1.0"
 
 # ============================================================================
 # IMAP服务器配置

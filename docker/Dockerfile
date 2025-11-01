@@ -31,6 +31,7 @@ COPY auth.py .
 COPY admin_api.py .
 COPY account_service.py .
 COPY oauth_service.py .
+COPY graph_api_service.py .
 COPY email_service.py .
 COPY email_utils.py .
 COPY imap_pool.py .

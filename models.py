@@ -19,6 +19,7 @@ class AccountCredentials(BaseModel):
     next_refresh_time: Optional[str] = None
     refresh_status: str = "pending"
     refresh_error: Optional[str] = None
+    api_method: str = "imap"  # 'graph_api' or 'imap'
 
     class Config:
         json_schema_extra = {
@@ -115,6 +116,7 @@ class AccountInfo(BaseModel):
     last_refresh_time: Optional[str] = None
     next_refresh_time: Optional[str] = None
     refresh_status: str = "pending"
+    api_method: str = "imap"  # 'graph_api' or 'imap'
 
 
 class AccountListResponse(BaseModel):
@@ -146,4 +148,39 @@ class BatchRefreshResult(BaseModel):
     success_count: int
     failed_count: int
     details: List[dict]
+
+
+class SendEmailRequest(BaseModel):
+    """发送邮件请求模型"""
+    
+    to: str = Field(..., description="收件人邮箱地址")
+    subject: str = Field(..., description="邮件主题")
+    body_text: Optional[str] = Field(None, description="纯文本正文")
+    body_html: Optional[str] = Field(None, description="HTML正文")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "to": "recipient@example.com",
+                "subject": "Test Email",
+                "body_text": "This is a test email",
+                "body_html": "<p>This is a test email</p>"
+            }
+        }
+
+
+class SendEmailResponse(BaseModel):
+    """发送邮件响应模型"""
+    
+    success: bool
+    message: str
+    message_id: Optional[str] = None
+
+
+class DeleteEmailResponse(BaseModel):
+    """删除邮件响应模型"""
+    
+    success: bool
+    message: str
+    message_id: str
 

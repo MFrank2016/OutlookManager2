@@ -59,6 +59,7 @@ async def get_account_credentials(email_id: str) -> AccountCredentials:
             next_refresh_time=account.get("next_refresh_time"),
             refresh_status=account.get("refresh_status", "pending"),
             refresh_error=account.get("refresh_error"),
+            api_method=account.get("api_method", "imap"),
         )
 
     except HTTPException:
@@ -153,6 +154,7 @@ async def get_all_accounts(
                 last_refresh_time=account_data.get("last_refresh_time"),
                 next_refresh_time=account_data.get("next_refresh_time"),
                 refresh_status=account_data.get("refresh_status", "pending"),
+                api_method=account_data.get("api_method", "imap"),
             )
             all_accounts.append(account)
 

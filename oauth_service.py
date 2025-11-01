@@ -226,3 +226,37 @@ async def clear_cached_access_token(email: str) -> bool:
         logger.error(f"Error clearing cached token for {email}: {e}")
         return False
 
+
+async def detect_and_update_api_method(credentials: AccountCredentials) -> str:
+    """
+    检测账户支持的 API 方法并更新数据库
+    
+    Args:
+        credentials: 账户凭证信息
+        
+    Returns:
+        str: 检测到的 API 方法 ('graph_api' 或 'imap')
+    """
+    from graph_api_service import check_graph_api_availability
+    
+    try:
+        # 检测 Graph API 可用性
+        result = await check_graph_api_availability(credentials)
+        
+        if result["available"]:
+            # 更新数据库中的 api_method 字段
+            db.update_account(credentials.email, api_method="graph_api")
+            logger.info(f"Detected and set Graph API for {credentials.email}")
+            return "graph_api"
+        else:
+            # 使用 IMAP
+            db.update_account(credentials.email, api_method="imap")
+            logger.info(f"Graph API not available for {credentials.email}, using IMAP")
+            return "imap"
+            
+    except Exception as e:
+        logger.error(f"Error detecting API method for {credentials.email}: {e}")
+        # 出错时默认使用 IMAP
+        db.update_account(credentials.email, api_method="imap")
+        return "imap"
+
