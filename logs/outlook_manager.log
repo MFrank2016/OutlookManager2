@@ -2290,3 +2290,296 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2025-11-01 15:34:35,808 - root - [INFO] - main.py:283 - Closing IMAP connection pool...
 2025-11-01 15:34:40,810 - root - [WARNING] - main.py:293 - IMAP connection pool close timeout, forcing shutdown
 2025-11-01 15:34:40,810 - root - [INFO] - main.py:297 - Application shutdown complete.
+2025-11-01 16:17:07,994 - root - [INFO] - logger_config.py:49 - Logging system initialized
+2025-11-01 16:17:08,020 - root - [INFO] - main.py:434 - Starting Outlook邮件API服务 on 0.0.0.0:8000
+2025-11-01 16:17:08,020 - root - [INFO] - main.py:435 - Access the web interface at: http://localhost:8000
+2025-11-01 16:17:08,020 - root - [INFO] - main.py:436 - Access the API documentation at: http://localhost:8000/docs
+2025-11-01 16:17:08,043 - root - [INFO] - main.py:296 - Starting Outlook邮件API服务 v2.0.0...
+2025-11-01 16:17:08,044 - root - [INFO] - main.py:299 - Initializing database...
+2025-11-01 16:17:08,046 - database - [INFO] - database.py:198 - Added access_count column to emails_cache table
+2025-11-01 16:17:08,046 - database - [INFO] - database.py:204 - Added last_accessed_at column to emails_cache table
+2025-11-01 16:17:08,047 - database - [INFO] - database.py:210 - Added cache_size column to emails_cache table
+2025-11-01 16:17:08,047 - database - [INFO] - database.py:217 - Added access_count column to email_details_cache table
+2025-11-01 16:17:08,048 - database - [INFO] - database.py:223 - Added last_accessed_at column to email_details_cache table
+2025-11-01 16:17:08,048 - database - [INFO] - database.py:229 - Added body_size column to email_details_cache table
+2025-11-01 16:17:08,060 - database - [INFO] - database.py:255 - Database initialized successfully
+2025-11-01 16:17:08,060 - root - [INFO] - main.py:301 - Database initialized successfully
+2025-11-01 16:17:08,061 - database - [INFO] - database.py:882 - API Key already exists
+2025-11-01 16:17:08,061 - root - [INFO] - main.py:308 - API Key initialized
+2025-11-01 16:17:08,061 - root - [INFO] - main.py:314 - Token refresh background task scheduled
+2025-11-01 16:17:08,061 - root - [INFO] - main.py:320 - Email sync background task scheduled
+2025-11-01 16:17:08,061 - root - [INFO] - main.py:321 - Auto sync interval: 300 seconds (5 minutes)
+2025-11-01 16:17:08,061 - root - [INFO] - main.py:57 - Token refresh background task started
+2025-11-01 16:17:08,061 - root - [INFO] - main.py:61 - Starting scheduled token refresh for all accounts...
+2025-11-01 16:17:08,112 - root - [INFO] - main.py:143 - Email sync background task started
+2025-11-01 16:17:08,113 - root - [INFO] - main.py:144 - Sync interval: 300 seconds (5 minutes)
+2025-11-01 16:17:08,113 - root - [INFO] - main.py:239 - Starting cache warmup...
+2025-11-01 16:17:08,113 - root - [ERROR] - main.py:280 - Error during cache warmup: module 'database' has no attribute 'get_all_accounts'
+2025-11-01 16:17:09,093 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:17:09,094 - oauth_service - [INFO] - oauth_service.py:128 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-11-01 16:17:09,099 - database - [INFO] - database.py:528 - Updated account: hprjiocj465@outlook.com
+2025-11-01 16:17:09,099 - root - [INFO] - main.py:107 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-11-01 16:17:10,087 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:17:10,088 - oauth_service - [INFO] - oauth_service.py:128 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-11-01 16:17:10,095 - database - [INFO] - database.py:528 - Updated account: hnybirs6215@outlook.com
+2025-11-01 16:17:10,096 - root - [INFO] - main.py:107 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-11-01 16:17:10,096 - root - [INFO] - main.py:126 - Token refresh completed: 2 succeeded, 0 failed
+2025-11-01 16:17:38,113 - root - [INFO] - main.py:151 - === Running scheduled email sync ===
+2025-11-01 16:17:38,114 - root - [INFO] - main.py:161 - Found 2 accounts to sync
+2025-11-01 16:17:38,114 - root - [INFO] - main.py:169 - [hprjiocj465@outlook.com] Starting email sync...
+2025-11-01 16:17:39,155 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:17:39,156 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:17:50,102 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-11-01 16:17:52,098 - verification_code_detector - [INFO] - verification_code_detector.py:67 - 验证码检测器初始化完成
+2025-11-01 16:17:53,198 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:17:53,198 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:17:53,198 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:17:53,198 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (15083ms)
+2025-11-01 16:17:53,199 - root - [INFO] - main.py:188 - [hprjiocj465@outlook.com] Successfully synced 6 emails (total: 6)
+2025-11-01 16:17:55,199 - root - [INFO] - main.py:169 - [hnybirs6215@outlook.com] Starting email sync...
+2025-11-01 16:17:56,156 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:17:56,156 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hnybirs6215@outlook.com
+2025-11-01 16:17:58,847 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hnybirs6215@outlook.com
+2025-11-01 16:18:01,602 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:18:01,602 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:18:01,602 - email_service - [INFO] - email_service.py:246 - Cached 2 emails to SQLite for hnybirs6215@outlook.com
+2025-11-01 16:18:01,603 - email_service - [INFO] - email_service.py:267 - Fetched 2 emails from IMAP for hnybirs6215@outlook.com (6402ms)
+2025-11-01 16:18:01,603 - root - [INFO] - main.py:188 - [hnybirs6215@outlook.com] Successfully synced 2 emails (total: 2)
+2025-11-01 16:18:03,605 - root - [INFO] - main.py:201 - === Email sync completed. Success: 2/2, Errors: 0 ===
+2025-11-01 16:18:43,665 - passlib.handlers.bcrypt - [WARNING] - bcrypt.py:622 - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/Users/mfrank/Documents/programming/github/OutlookManager2/venv/lib/python3.12/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-11-01 16:18:43,929 - routes.auth_routes - [INFO] - auth_routes.py:39 - Admin admin logged in successfully
+2025-11-01 16:18:44,761 - routes.account_routes - [INFO] - account_routes.py:108 - [API] GET /accounts 收到请求:
+2025-11-01 16:18:44,761 - routes.account_routes - [INFO] - account_routes.py:109 -   page=1, page_size=10
+2025-11-01 16:18:44,761 - routes.account_routes - [INFO] - account_routes.py:110 -   email_search=None, tag_search=None
+2025-11-01 16:18:44,761 - routes.account_routes - [INFO] - account_routes.py:111 -   refresh_status=None, time_filter=None
+2025-11-01 16:18:44,761 - routes.account_routes - [INFO] - account_routes.py:112 -   after_date=None
+2025-11-01 16:18:44,761 - routes.account_routes - [INFO] - account_routes.py:113 -   refresh_start_date=None
+2025-11-01 16:18:44,761 - routes.account_routes - [INFO] - account_routes.py:114 -   refresh_end_date=None
+2025-11-01 16:18:44,761 - database - [INFO] - database.py:433 - [筛选] SQL WHERE子句: 1=1
+2025-11-01 16:18:44,761 - database - [INFO] - database.py:434 - [筛选] SQL参数: []
+2025-11-01 16:18:44,761 - database - [INFO] - database.py:440 - [筛选] 符合条件的总数: 2
+2025-11-01 16:18:44,762 - routes.account_routes - [INFO] - account_routes.py:129 - [API] 查询结果: 总数=2, 返回=2条
+2025-11-01 16:20:04,172 - routes.account_routes - [INFO] - account_routes.py:108 - [API] GET /accounts 收到请求:
+2025-11-01 16:20:04,173 - routes.account_routes - [INFO] - account_routes.py:109 -   page=1, page_size=10
+2025-11-01 16:20:04,173 - routes.account_routes - [INFO] - account_routes.py:110 -   email_search=None, tag_search=None
+2025-11-01 16:20:04,173 - routes.account_routes - [INFO] - account_routes.py:111 -   refresh_status=None, time_filter=None
+2025-11-01 16:20:04,173 - routes.account_routes - [INFO] - account_routes.py:112 -   after_date=None
+2025-11-01 16:20:04,173 - routes.account_routes - [INFO] - account_routes.py:113 -   refresh_start_date=None
+2025-11-01 16:20:04,173 - routes.account_routes - [INFO] - account_routes.py:114 -   refresh_end_date=None
+2025-11-01 16:20:04,173 - database - [INFO] - database.py:433 - [筛选] SQL WHERE子句: 1=1
+2025-11-01 16:20:04,173 - database - [INFO] - database.py:434 - [筛选] SQL参数: []
+2025-11-01 16:20:04,174 - database - [INFO] - database.py:440 - [筛选] 符合条件的总数: 2
+2025-11-01 16:20:04,174 - routes.account_routes - [INFO] - account_routes.py:129 - [API] 查询结果: 总数=2, 返回=2条
+2025-11-01 16:20:06,303 - email_service - [INFO] - email_service.py:64 - Returning 6 cached emails from SQLite for hprjiocj465@outlook.com (2ms)
+2025-11-01 16:20:07,211 - email_service - [INFO] - email_service.py:298 - Returning cached email detail from SQLite for INBOX-5
+2025-11-01 16:20:08,192 - email_service - [INFO] - email_service.py:298 - Returning cached email detail from SQLite for INBOX-4
+2025-11-01 16:20:08,846 - email_service - [INFO] - email_service.py:298 - Returning cached email detail from SQLite for Junk-1
+2025-11-01 16:20:09,619 - email_service - [INFO] - email_service.py:298 - Returning cached email detail from SQLite for INBOX-2
+2025-11-01 16:20:10,661 - email_service - [INFO] - email_service.py:298 - Returning cached email detail from SQLite for INBOX-1
+2025-11-01 16:21:02,308 - routes.account_routes - [INFO] - account_routes.py:108 - [API] GET /accounts 收到请求:
+2025-11-01 16:21:02,309 - routes.account_routes - [INFO] - account_routes.py:109 -   page=1, page_size=10
+2025-11-01 16:21:02,309 - routes.account_routes - [INFO] - account_routes.py:110 -   email_search=None, tag_search=None
+2025-11-01 16:21:02,309 - routes.account_routes - [INFO] - account_routes.py:111 -   refresh_status=None, time_filter=None
+2025-11-01 16:21:02,309 - routes.account_routes - [INFO] - account_routes.py:112 -   after_date=None
+2025-11-01 16:21:02,309 - routes.account_routes - [INFO] - account_routes.py:113 -   refresh_start_date=None
+2025-11-01 16:21:02,309 - routes.account_routes - [INFO] - account_routes.py:114 -   refresh_end_date=None
+2025-11-01 16:21:02,309 - database - [INFO] - database.py:433 - [筛选] SQL WHERE子句: 1=1
+2025-11-01 16:21:02,309 - database - [INFO] - database.py:434 - [筛选] SQL参数: []
+2025-11-01 16:21:02,310 - database - [INFO] - database.py:440 - [筛选] 符合条件的总数: 2
+2025-11-01 16:21:02,310 - routes.account_routes - [INFO] - account_routes.py:129 - [API] 查询结果: 总数=2, 返回=2条
+2025-11-01 16:21:06,013 - email_service - [INFO] - email_service.py:64 - Returning 6 cached emails from SQLite for hprjiocj465@outlook.com (2ms)
+2025-11-01 16:21:07,373 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:21:07,374 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:21:10,840 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:21:10,840 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:21:10,840 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:21:10,841 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4540ms)
+2025-11-01 16:21:18,172 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:21:18,173 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:21:21,589 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:21:21,590 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:21:21,590 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:21:21,590 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (5291ms)
+2025-11-01 16:21:28,415 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:21:28,415 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:21:31,847 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:21:31,848 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:21:31,848 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:21:31,848 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (5037ms)
+2025-11-01 16:21:38,134 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:21:38,134 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:21:41,570 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:21:41,571 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:21:41,571 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:21:41,571 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4760ms)
+2025-11-01 16:21:47,639 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:21:47,640 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:21:51,071 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:21:51,071 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:21:51,071 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:21:51,071 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4259ms)
+2025-11-01 16:21:57,784 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:21:57,785 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:22:01,273 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:22:01,273 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:22:01,273 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:22:01,274 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4465ms)
+2025-11-01 16:22:07,843 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:22:07,844 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:22:11,262 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:22:11,262 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:22:11,262 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:22:11,262 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4451ms)
+2025-11-01 16:22:18,011 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:22:18,012 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:22:21,736 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:22:21,736 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:22:21,736 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:22:21,737 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4926ms)
+2025-11-01 16:22:28,692 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:22:28,692 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:22:32,066 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:22:32,066 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:22:32,066 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:22:32,066 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4252ms)
+2025-11-01 16:22:38,273 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:22:38,275 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:22:41,640 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:22:41,640 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:22:41,640 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:22:41,640 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4309ms)
+2025-11-01 16:22:46,999 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:22:47,000 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:22:50,475 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:22:50,475 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:22:50,475 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:22:50,476 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4171ms)
+2025-11-01 16:22:57,342 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:22:57,343 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:23:00,858 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:23:00,859 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:23:00,859 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:23:00,860 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4558ms)
+2025-11-01 16:23:03,606 - root - [INFO] - main.py:151 - === Running scheduled email sync ===
+2025-11-01 16:23:03,608 - root - [INFO] - main.py:161 - Found 2 accounts to sync
+2025-11-01 16:23:03,608 - root - [INFO] - main.py:169 - [hprjiocj465@outlook.com] Starting email sync...
+2025-11-01 16:23:04,458 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:23:04,459 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:23:07,183 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:23:07,184 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:23:07,890 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:23:07,890 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:23:07,890 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:23:07,890 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4280ms)
+2025-11-01 16:23:07,891 - root - [INFO] - main.py:188 - [hprjiocj465@outlook.com] Successfully synced 6 emails (total: 6)
+2025-11-01 16:23:09,843 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-11-01 16:23:09,892 - root - [INFO] - main.py:169 - [hnybirs6215@outlook.com] Starting email sync...
+2025-11-01 16:23:10,857 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:23:10,859 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hnybirs6215@outlook.com
+2025-11-01 16:23:12,981 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:23:12,982 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:23:12,982 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:23:12,982 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (6674ms)
+2025-11-01 16:23:13,633 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:23:13,633 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:23:13,633 - email_service - [INFO] - email_service.py:246 - Cached 2 emails to SQLite for hnybirs6215@outlook.com
+2025-11-01 16:23:13,633 - email_service - [INFO] - email_service.py:267 - Fetched 2 emails from IMAP for hnybirs6215@outlook.com (3739ms)
+2025-11-01 16:23:13,633 - root - [INFO] - main.py:188 - [hnybirs6215@outlook.com] Successfully synced 2 emails (total: 2)
+2025-11-01 16:23:15,634 - root - [INFO] - main.py:201 - === Email sync completed. Success: 2/2, Errors: 0 ===
+2025-11-01 16:23:17,325 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:23:17,326 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:23:20,792 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:23:20,793 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:23:20,793 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:23:20,793 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4490ms)
+2025-11-01 16:23:27,276 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:23:27,277 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:23:30,751 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:23:30,751 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:23:30,751 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:23:30,751 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4451ms)
+2025-11-01 16:23:37,286 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:23:37,287 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:23:40,695 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:23:40,696 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:23:40,696 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:23:40,696 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4391ms)
+2025-11-01 16:23:47,268 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:23:47,271 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:23:50,886 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:23:50,886 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:23:50,886 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:23:50,887 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4582ms)
+2025-11-01 16:23:57,102 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:23:57,104 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:24:00,562 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:24:00,563 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:24:00,563 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:24:00,563 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4265ms)
+2025-11-01 16:24:07,348 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:24:07,348 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:24:10,836 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:24:10,836 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:24:10,836 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:24:10,836 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4530ms)
+2025-11-01 16:24:17,270 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:24:17,273 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:24:20,668 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:24:20,669 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:24:20,669 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:24:20,669 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4363ms)
+2025-11-01 16:24:27,384 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:24:27,385 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:24:31,071 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:24:31,071 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:24:31,071 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:24:31,071 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4771ms)
+2025-11-01 16:24:37,108 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:24:37,110 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:24:40,638 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:24:40,638 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:24:40,638 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:24:40,638 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4335ms)
+2025-11-01 16:24:47,367 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:24:47,368 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:24:50,798 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:24:50,798 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:24:50,798 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:24:50,799 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4497ms)
+2025-11-01 16:24:57,159 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:24:57,160 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:24:58,206 - routes.account_routes - [INFO] - account_routes.py:108 - [API] GET /accounts 收到请求:
+2025-11-01 16:24:58,206 - routes.account_routes - [INFO] - account_routes.py:109 -   page=1, page_size=10
+2025-11-01 16:24:58,207 - routes.account_routes - [INFO] - account_routes.py:110 -   email_search=None, tag_search=None
+2025-11-01 16:24:58,207 - routes.account_routes - [INFO] - account_routes.py:111 -   refresh_status=None, time_filter=None
+2025-11-01 16:24:58,207 - routes.account_routes - [INFO] - account_routes.py:112 -   after_date=None
+2025-11-01 16:24:58,207 - routes.account_routes - [INFO] - account_routes.py:113 -   refresh_start_date=None
+2025-11-01 16:24:58,207 - routes.account_routes - [INFO] - account_routes.py:114 -   refresh_end_date=None
+2025-11-01 16:24:58,207 - database - [INFO] - database.py:433 - [筛选] SQL WHERE子句: 1=1
+2025-11-01 16:24:58,207 - database - [INFO] - database.py:434 - [筛选] SQL参数: []
+2025-11-01 16:24:58,208 - database - [INFO] - database.py:440 - [筛选] 符合条件的总数: 2
+2025-11-01 16:24:58,208 - routes.account_routes - [INFO] - account_routes.py:129 - [API] 查询结果: 总数=2, 返回=2条
+2025-11-01 16:25:00,529 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:25:00,529 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:25:00,529 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:25:00,530 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4229ms)
+2025-11-01 16:25:00,625 - email_service - [INFO] - email_service.py:64 - Returning 6 cached emails from SQLite for hprjiocj465@outlook.com (2ms)
+2025-11-01 16:26:07,074 - email_service - [INFO] - email_service.py:64 - Returning 6 cached emails from SQLite for hprjiocj465@outlook.com (1ms)
+2025-11-01 16:26:11,733 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:26:11,735 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:26:15,338 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:26:15,339 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:26:15,339 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:26:15,339 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4717ms)
+2025-11-01 16:26:22,124 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 16:26:22,124 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 16:26:23,350 - root - [INFO] - main.py:210 - Email sync task cancelled
+2025-11-01 16:26:25,545 - database - [ERROR] - database.py:88 - Database error: object of type 'NoneType' has no len()
+2025-11-01 16:26:25,546 - database - [ERROR] - database.py:1109 - Error caching emails: object of type 'NoneType' has no len()
+2025-11-01 16:26:25,546 - email_service - [INFO] - email_service.py:246 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 16:26:25,546 - email_service - [INFO] - email_service.py:267 - Fetched 6 emails from IMAP for hprjiocj465@outlook.com (4920ms)

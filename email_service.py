@@ -39,6 +39,10 @@ async def list_emails(
     sort_order: str = "desc",
 ) -> EmailListResponse:
     """获取邮件列表 - 优化版本（支持SQLite缓存、搜索、排序）"""
+    
+    import time
+    start_time = time.time()
+    from_cache = False
 
     # 优先从 SQLite 缓存获取
     if not force_refresh:
@@ -55,7 +59,9 @@ async def list_emails(
             )
             
             if cached_emails:
-                logger.info(f"Returning {len(cached_emails)} cached emails from SQLite for {credentials.email}")
+                from_cache = True
+                fetch_time_ms = int((time.time() - start_time) * 1000)
+                logger.info(f"Returning {len(cached_emails)} cached emails from SQLite for {credentials.email} ({fetch_time_ms}ms)")
                 email_items = [
                     EmailItem(**email) for email in cached_emails
                 ]
@@ -66,6 +72,8 @@ async def list_emails(
                     page_size=page_size,
                     total_emails=total,
                     emails=email_items,
+                    from_cache=from_cache,
+                    fetch_time_ms=fetch_time_ms
                 )
         except Exception as e:
             logger.warning(f"Failed to load from cache, fetching from IMAP: {e}")
@@ -239,6 +247,8 @@ async def list_emails(
             except Exception as e:
                 logger.warning(f"Failed to cache emails to SQLite: {e}")
 
+            fetch_time_ms = int((time.time() - start_time) * 1000)
+            
             result = EmailListResponse(
                 email_id=credentials.email,
                 folder_view=folder,
@@ -246,11 +256,15 @@ async def list_emails(
                 page_size=page_size,
                 total_emails=total_emails,
                 emails=email_items,
+                from_cache=False,
+                fetch_time_ms=fetch_time_ms
             )
 
             # 保留内存缓存（用于向后兼容）
             cache_key = get_cache_key(credentials.email, folder, page, page_size)
             set_cached_emails(cache_key, result)
+            
+            logger.info(f"Fetched {len(email_items)} emails from IMAP for {credentials.email} ({fetch_time_ms}ms)")
 
             return result
 

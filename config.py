@@ -33,7 +33,21 @@ SOCKET_TIMEOUT = 15
 # 缓存配置
 # ============================================================================
 
-CACHE_EXPIRE_TIME = 60  # 缓存过期时间（秒）
+CACHE_EXPIRE_TIME = 60  # 内存缓存过期时间（秒）
+
+# LRU 缓存配置
+MAX_CACHE_SIZE_MB = 500  # 最大缓存大小（MB）
+MAX_EMAILS_CACHE_COUNT = 10000  # 最大邮件列表缓存数量
+MAX_EMAIL_DETAILS_CACHE_COUNT = 5000  # 最大邮件详情缓存数量
+LRU_CLEANUP_THRESHOLD = 0.9  # LRU清理阈值（90%时触发）
+
+# 缓存预热配置
+CACHE_WARMUP_ENABLED = True  # 是否启用缓存预热
+CACHE_WARMUP_ACCOUNTS = 5  # 预热账户数量
+CACHE_WARMUP_EMAILS_PER_ACCOUNT = 100  # 每个账户预热邮件数
+
+# 正文压缩配置
+COMPRESS_BODY_THRESHOLD = 1024  # 超过1KB的正文才压缩（字节）
 
 # ============================================================================
 # 日志配置

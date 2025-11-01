@@ -441,9 +441,14 @@
 /* 数据表列表表格 */
 .admin-data-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
   background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .admin-data-table thead {
@@ -452,15 +457,22 @@
 }
 
 .admin-data-table thead th {
-  padding: 14px 16px;
+  padding: 12px 12px;
   text-align: left;
   font-weight: 600;
-  font-size: 0.875rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-size: 0.8125rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.admin-data-table thead th:not(:last-child) {
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .admin-data-table tbody tr {
-  border: 1px solid #e2e8f0;
   transition: all 0.2s ease;
 }
 
@@ -474,14 +486,137 @@
 
 .admin-data-table tbody tr:hover {
   background: #eff6ff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: scale(1.01);
 }
 
 .admin-data-table tbody td {
-  padding: 12px 16px;
-  border: 1px solid #e2e8f0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
   vertical-align: middle;
+  font-size: 0.8125rem;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-data-table tbody td:not(:last-child) {
+  border-right: 1px solid #f1f5f9;
+}
+
+/* 特定列的样式 */
+.admin-data-table tbody td:first-child {
+  font-weight: 500;
+  color: #334155;
+  max-width: 50px;
+  text-align: center;
+}
+
+.admin-data-table tbody td:nth-child(2) {
+  font-family: 'Courier New', monospace;
+  color: #475569;
+  max-width: 180px;
+}
+
+.admin-data-table tbody td:nth-child(3) {
+  max-width: 120px;
+}
+
+/* NULL 值样式 */
+.admin-data-table tbody td:contains("NULL") {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* 数字列右对齐 */
+.admin-data-table tbody td[data-type="number"] {
+  text-align: right;
+  font-family: 'Courier New', monospace;
+}
+
+/* 日期时间列 */
+.admin-data-table tbody td[data-type="date"] {
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+/* 表格容器 */
+.table-responsive {
+  overflow-x: auto;
+  margin: 0;
+  border-radius: 8px;
+}
+
+/* 操作列样式 */
+.data-table-actions {
+  white-space: nowrap;
+  text-align: center;
+  min-width: 120px;
+}
+
+.data-table-actions .btn {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.data-table-actions .btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* 表格滚动条样式 */
+.table-responsive::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 空状态和加载状态 */
+.admin-data-table tbody tr.empty-row td {
+  text-align: center;
+  padding: 40px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* 表格标题栏优化 */
+.admin-data-table thead th {
+  user-select: none;
+  cursor: default;
+}
+
+/* 长文本截断优化 */
+.admin-data-table tbody td[title] {
+  cursor: help;
+}
+
+.admin-data-table tbody td[title]:hover {
+  background: #f1f5f9;
+  position: relative;
+}
+
+/* NULL值特殊样式 */
+.admin-data-table tbody td[data-type="null"] {
+  text-align: center;
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 0.75rem;
 }
 
 /* 系统配置表格 */
@@ -626,5 +761,112 @@
   .admin-data-table thead th:first-child,
   .admin-config-table thead th:first-child {
     display: none;
+  }
+}
+
+/* ============================================================================
+   缓存统计样式
+   ============================================================================ */
+
+.cache-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.cache-stat-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.cache-stat-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.stat-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.stat-icon {
+  font-size: 1.5rem;
+}
+
+.stat-header h4 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 12px;
+}
+
+.stat-detail {
+  margin-bottom: 8px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #2563eb);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-fill.success {
+  background: linear-gradient(90deg, #10b981, #059669);
+}
+
+.progress-fill.warning {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.stat-meta {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin-top: 8px;
+}
+
+.cache-actions {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.cache-actions h4 {
+  margin: 0 0 16px 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+@media (max-width: 768px) {
+  .cache-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-value {
+    font-size: 1.5rem;
   }
 }

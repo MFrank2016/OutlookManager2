@@ -586,6 +586,9 @@ example3@outlook.com----password3----refresh_token3----client_id3"
                 <button class="tab" onclick="switchAdminTab('config', this)">
                   系统配置
                 </button>
+                <button class="tab" onclick="switchAdminTab('cache', this)">
+                  缓存统计
+                </button>
               </div>
 
               <!-- 数据表管理 -->
@@ -653,6 +656,37 @@ example3@outlook.com----password3----refresh_token3----client_id3"
                 </div>
                 <div id="configsList" class="configs-list loading">
                   正在加载配置...
+                </div>
+              </div>
+
+              <!-- 缓存统计管理 -->
+              <div id="cachePanel" class="admin-panel hidden">
+                <div class="mb-4">
+                  <h4 class="font-semibold mb-2">缓存统计信息</h4>
+                  <p class="text-sm" style="color: #64748b">
+                    查看缓存使用情况、命中率和管理缓存数据
+                  </p>
+                </div>
+                
+                <!-- 缓存统计卡片 -->
+                <div id="cacheStatistics" class="cache-statistics loading">
+                  正在加载缓存统计...
+                </div>
+                
+                <!-- 缓存管理操作 -->
+                <div class="cache-actions mt-4">
+                  <h4 class="font-semibold mb-2">缓存管理操作</h4>
+                  <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" onclick="triggerLRUCleanup()">
+                      🧹 执行LRU清理
+                    </button>
+                    <button class="btn btn-danger" onclick="clearAllCache()">
+                      🗑️ 清除所有缓存
+                    </button>
+                    <button class="btn btn-primary" onclick="loadCacheStatistics()">
+                      🔄 刷新统计
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

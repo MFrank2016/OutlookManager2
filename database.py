@@ -6,15 +6,69 @@ SQLite数据库管理模块
 
 import json
 import sqlite3
+import zlib
+import base64
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 
+from config import COMPRESS_BODY_THRESHOLD
+
 logger = logging.getLogger(__name__)
 
 # 数据库文件路径
 DB_FILE = "data.db"
+
+
+# ============================================================================
+# 压缩/解压缩工具函数
+# ============================================================================
+
+def compress_text(text: Optional[str]) -> Optional[str]:
+    """
+    压缩文本（超过阈值才压缩）
+    
+    Args:
+        text: 要压缩的文本
+        
+    Returns:
+        压缩后的base64编码字符串，或原文本
+    """
+    if not text or len(text) < COMPRESS_BODY_THRESHOLD:
+        return text
+    
+    try:
+        compressed = zlib.compress(text.encode('utf-8'))
+        encoded = base64.b64encode(compressed).decode('utf-8')
+        logger.debug(f"Compressed text from {len(text)} to {len(encoded)} bytes")
+        return encoded
+    except Exception as e:
+        logger.warning(f"Failed to compress text: {e}")
+        return text
+
+
+def decompress_text(text: Optional[str]) -> Optional[str]:
+    """
+    解压缩文本
+    
+    Args:
+        text: 压缩的base64编码字符串
+        
+    Returns:
+        解压缩后的文本，或原文本
+    """
+    if not text:
+        return text
+    
+    try:
+        # 尝试解压缩
+        decoded = base64.b64decode(text.encode('utf-8'))
+        decompressed = zlib.decompress(decoded).decode('utf-8')
+        return decompressed
+    except Exception:
+        # 如果解压失败，说明可能不是压缩的文本，直接返回
+        return text
 
 
 @contextmanager
@@ -138,6 +192,44 @@ def init_database() -> None:
             # 列已存在，忽略错误
             pass
         
+        # 添加 LRU 相关字段 - emails_cache
+        try:
+            cursor.execute("ALTER TABLE emails_cache ADD COLUMN access_count INTEGER DEFAULT 0")
+            logger.info("Added access_count column to emails_cache table")
+        except Exception:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE emails_cache ADD COLUMN last_accessed_at TEXT")
+            logger.info("Added last_accessed_at column to emails_cache table")
+        except Exception:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE emails_cache ADD COLUMN cache_size INTEGER DEFAULT 0")
+            logger.info("Added cache_size column to emails_cache table")
+        except Exception:
+            pass
+        
+        # 添加 LRU 相关字段 - email_details_cache
+        try:
+            cursor.execute("ALTER TABLE email_details_cache ADD COLUMN access_count INTEGER DEFAULT 0")
+            logger.info("Added access_count column to email_details_cache table")
+        except Exception:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE email_details_cache ADD COLUMN last_accessed_at TEXT")
+            logger.info("Added last_accessed_at column to email_details_cache table")
+        except Exception:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE email_details_cache ADD COLUMN body_size INTEGER DEFAULT 0")
+            logger.info("Added body_size column to email_details_cache table")
+        except Exception:
+            pass
+        
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username)")
@@ -145,6 +237,19 @@ def init_database() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_account ON emails_cache(email_account)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_date ON emails_cache(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_email_details_cache_account ON email_details_cache(email_account)")
+        
+        # 性能优化索引 - emails_cache
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_folder ON emails_cache(folder)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_from_email ON emails_cache(from_email)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_subject ON emails_cache(subject)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_account_folder ON emails_cache(email_account, folder)")
+        
+        # 性能优化索引 - email_details_cache
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_email_details_cache_message ON email_details_cache(message_id)")
+        
+        # LRU 相关索引
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_last_accessed ON emails_cache(last_accessed_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_email_details_cache_last_accessed ON email_details_cache(last_accessed_at)")
         
         conn.commit()
         logger.info("Database initialized successfully")
@@ -948,7 +1053,7 @@ def delete_table_record(table_name: str, record_id: int) -> bool:
 
 def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
     """
-    批量缓存邮件列表
+    批量缓存邮件列表（带LRU清理）
     
     Args:
         email_account: 邮箱账号
@@ -962,11 +1067,18 @@ def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
             cursor = conn.cursor()
             
             for email in emails:
+                # 计算缓存大小（估算）
+                cache_size = (
+                    len(email.get('subject', '')) +
+                    len(email.get('from_email', '')) +
+                    len(email.get('verification_code', ''))
+                )
+                
                 cursor.execute("""
                     INSERT OR REPLACE INTO emails_cache 
                     (email_account, message_id, folder, subject, from_email, date, 
-                     is_read, has_attachments, sender_initial, verification_code, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                     is_read, has_attachments, sender_initial, verification_code, cache_size, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, (
                     email_account,
                     email.get('message_id'),
@@ -977,12 +1089,22 @@ def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
                     1 if email.get('is_read') else 0,
                     1 if email.get('has_attachments') else 0,
                     email.get('sender_initial', '?'),
-                    email.get('verification_code')
+                    email.get('verification_code'),
+                    cache_size
                 ))
             
             conn.commit()
             logger.info(f"Cached {len(emails)} emails for account {email_account}")
-            return True
+        
+        # 检查并触发LRU清理
+        cache_stats = check_cache_size()
+        if (cache_stats['emails_cache']['usage_percent'] > 90 or 
+            cache_stats['details_cache']['usage_percent'] > 90):
+            logger.info("Cache usage high, triggering LRU cleanup")
+            cleanup_result = cleanup_lru_cache()
+            logger.info(f"LRU cleanup completed: {cleanup_result}")
+        
+        return True
     except Exception as e:
         logger.error(f"Error caching emails: {e}")
         return False
@@ -1064,6 +1186,17 @@ def get_cached_emails(
         
         rows = cursor.fetchall()
         
+        # 更新访问统计（批量更新）
+        if rows:
+            message_ids = [row[0] for row in rows]
+            placeholders = ','.join(['?'] * len(message_ids))
+            cursor.execute(f"""
+                UPDATE emails_cache 
+                SET access_count = access_count + 1,
+                    last_accessed_at = CURRENT_TIMESTAMP
+                WHERE email_account = ? AND message_id IN ({placeholders})
+            """, [email_account] + message_ids)
+        
         emails = []
         for row in rows:
             emails.append({
@@ -1083,7 +1216,7 @@ def get_cached_emails(
 
 def cache_email_detail(email_account: str, email_detail: Dict[str, Any]) -> bool:
     """
-    缓存单封邮件详情
+    缓存单封邮件详情（带压缩）
     
     Args:
         email_account: 邮箱账号
@@ -1096,11 +1229,22 @@ def cache_email_detail(email_account: str, email_detail: Dict[str, Any]) -> bool
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
+            # 压缩邮件正文
+            body_plain = email_detail.get('body_plain')
+            body_html = email_detail.get('body_html')
+            
+            original_size = (len(body_plain) if body_plain else 0) + (len(body_html) if body_html else 0)
+            
+            compressed_plain = compress_text(body_plain)
+            compressed_html = compress_text(body_html)
+            
+            compressed_size = (len(compressed_plain) if compressed_plain else 0) + (len(compressed_html) if compressed_html else 0)
+            
             cursor.execute("""
                 INSERT OR REPLACE INTO email_details_cache 
                 (email_account, message_id, subject, from_email, to_email, 
-                 date, body_plain, body_html, verification_code, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                 date, body_plain, body_html, verification_code, body_size, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """, (
                 email_account,
                 email_detail.get('message_id'),
@@ -1108,13 +1252,21 @@ def cache_email_detail(email_account: str, email_detail: Dict[str, Any]) -> bool
                 email_detail.get('from_email'),
                 email_detail.get('to_email'),
                 email_detail.get('date'),
-                email_detail.get('body_plain'),
-                email_detail.get('body_html'),
-                email_detail.get('verification_code')
+                compressed_plain,
+                compressed_html,
+                email_detail.get('verification_code'),
+                compressed_size
             ))
             
             conn.commit()
-            logger.info(f"Cached email detail for {email_account}: {email_detail.get('message_id')}")
+            
+            if original_size > 0:
+                compression_ratio = (1 - compressed_size / original_size) * 100
+                logger.info(f"Cached email detail for {email_account}: {email_detail.get('message_id')} "
+                           f"(compressed {original_size} -> {compressed_size} bytes, {compression_ratio:.1f}% reduction)")
+            else:
+                logger.info(f"Cached email detail for {email_account}: {email_detail.get('message_id')}")
+            
             return True
     except Exception as e:
         logger.error(f"Error caching email detail: {e}")
@@ -1123,7 +1275,7 @@ def cache_email_detail(email_account: str, email_detail: Dict[str, Any]) -> bool
 
 def get_cached_email_detail(email_account: str, message_id: str) -> Optional[Dict[str, Any]]:
     """
-    获取缓存的邮件详情
+    获取缓存的邮件详情（自动解压缩）
     
     Args:
         email_account: 邮箱账号
@@ -1134,6 +1286,15 @@ def get_cached_email_detail(email_account: str, message_id: str) -> Optional[Dic
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        
+        # 更新访问统计
+        cursor.execute("""
+            UPDATE email_details_cache 
+            SET access_count = access_count + 1,
+                last_accessed_at = CURRENT_TIMESTAMP
+            WHERE email_account = ? AND message_id = ?
+        """, (email_account, message_id))
+        
         cursor.execute("""
             SELECT message_id, subject, from_email, to_email, date, 
                    body_plain, body_html, verification_code
@@ -1150,11 +1311,135 @@ def get_cached_email_detail(email_account: str, message_id: str) -> Optional[Dic
                 'from_email': row[2],
                 'to_email': row[3],
                 'date': row[4],
-                'body_plain': row[5],
-                'body_html': row[6],
+                'body_plain': decompress_text(row[5]),
+                'body_html': decompress_text(row[6]),
                 'verification_code': row[7]
             }
         return None
+
+
+def check_cache_size() -> Dict[str, Any]:
+    """
+    检查缓存大小和记录数
+    
+    Returns:
+        缓存统计信息字典
+    """
+    from config import MAX_CACHE_SIZE_MB, MAX_EMAILS_CACHE_COUNT, MAX_EMAIL_DETAILS_CACHE_COUNT
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # 获取数据库文件大小
+        cursor.execute("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()")
+        db_size_bytes = cursor.fetchone()[0]
+        db_size_mb = db_size_bytes / (1024 * 1024)
+        
+        # 获取邮件列表缓存统计
+        cursor.execute("SELECT COUNT(*), COALESCE(SUM(cache_size), 0) FROM emails_cache")
+        emails_count, emails_size = cursor.fetchone()
+        
+        # 获取邮件详情缓存统计
+        cursor.execute("SELECT COUNT(*), COALESCE(SUM(body_size), 0) FROM email_details_cache")
+        details_count, details_size = cursor.fetchone()
+        
+        return {
+            'db_size_mb': round(db_size_mb, 2),
+            'max_size_mb': MAX_CACHE_SIZE_MB,
+            'size_usage_percent': round((db_size_mb / MAX_CACHE_SIZE_MB) * 100, 2),
+            'emails_cache': {
+                'count': emails_count,
+                'max_count': MAX_EMAILS_CACHE_COUNT,
+                'size_bytes': emails_size,
+                'usage_percent': round((emails_count / MAX_EMAILS_CACHE_COUNT) * 100, 2)
+            },
+            'details_cache': {
+                'count': details_count,
+                'max_count': MAX_EMAIL_DETAILS_CACHE_COUNT,
+                'size_bytes': details_size,
+                'usage_percent': round((details_count / MAX_EMAIL_DETAILS_CACHE_COUNT) * 100, 2)
+            }
+        }
+
+
+def cleanup_lru_cache() -> Dict[str, int]:
+    """
+    基于LRU策略清理缓存
+    
+    当缓存超过阈值时，删除最少访问的20%记录
+    保留 access_count 高和 last_accessed_at 新的记录
+    
+    Returns:
+        清理统计信息
+    """
+    from config import (
+        MAX_EMAILS_CACHE_COUNT, 
+        MAX_EMAIL_DETAILS_CACHE_COUNT,
+        LRU_CLEANUP_THRESHOLD
+    )
+    
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            deleted_emails = 0
+            deleted_details = 0
+            
+            # 检查邮件列表缓存是否需要清理
+            cursor.execute("SELECT COUNT(*) FROM emails_cache")
+            emails_count = cursor.fetchone()[0]
+            
+            if emails_count > MAX_EMAILS_CACHE_COUNT * LRU_CLEANUP_THRESHOLD:
+                # 删除最少访问的20%
+                delete_count = int(emails_count * 0.2)
+                cursor.execute("""
+                    DELETE FROM emails_cache 
+                    WHERE id IN (
+                        SELECT id FROM emails_cache 
+                        ORDER BY 
+                            COALESCE(access_count, 0) ASC,
+                            COALESCE(last_accessed_at, created_at) ASC
+                        LIMIT ?
+                    )
+                """, (delete_count,))
+                deleted_emails = cursor.rowcount
+                logger.info(f"LRU cleanup: deleted {deleted_emails} emails from cache")
+            
+            # 检查邮件详情缓存是否需要清理
+            cursor.execute("SELECT COUNT(*) FROM email_details_cache")
+            details_count = cursor.fetchone()[0]
+            
+            if details_count > MAX_EMAIL_DETAILS_CACHE_COUNT * LRU_CLEANUP_THRESHOLD:
+                # 删除最少访问的20%
+                delete_count = int(details_count * 0.2)
+                cursor.execute("""
+                    DELETE FROM email_details_cache 
+                    WHERE id IN (
+                        SELECT id FROM email_details_cache 
+                        ORDER BY 
+                            COALESCE(access_count, 0) ASC,
+                            COALESCE(last_accessed_at, created_at) ASC
+                        LIMIT ?
+                    )
+                """, (delete_count,))
+                deleted_details = cursor.rowcount
+                logger.info(f"LRU cleanup: deleted {deleted_details} email details from cache")
+            
+            conn.commit()
+            
+            return {
+                'deleted_emails': deleted_emails,
+                'deleted_details': deleted_details,
+                'remaining_emails': emails_count - deleted_emails,
+                'remaining_details': details_count - deleted_details
+            }
+    except Exception as e:
+        logger.error(f"Error during LRU cleanup: {e}")
+        return {
+            'deleted_emails': 0,
+            'deleted_details': 0,
+            'error': str(e)
+        }
 
 
 def clear_email_cache_db(email_account: str) -> bool:

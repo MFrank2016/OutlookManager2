@@ -157,6 +157,9 @@ async function loadEmails(forceRefresh = false, showLoading = true) {
     renderEmails(allEmails);
     updateEmailStats(allEmails);
     updateEmailPagination();
+    
+    // 显示缓存信息
+    displayCacheInfo(data.from_cache, data.fetch_time_ms);
 
     if (document.getElementById("lastUpdateTime")) {
       document.getElementById("lastUpdateTime").textContent =
@@ -547,6 +550,37 @@ function clearSearchFilters() {
 
   emailCurrentPage = 1;
   loadEmails();
+}
+
+/**
+ * 显示缓存信息
+ */
+function displayCacheInfo(fromCache, fetchTimeMs) {
+  // 查找或创建缓存信息容器
+  let cacheInfoContainer = document.getElementById("cacheInfoContainer");
+  
+  if (!cacheInfoContainer) {
+    // 在邮件列表上方创建缓存信息容器
+    const emailsTable = document.querySelector(".emails-table");
+    if (!emailsTable) return;
+    
+    cacheInfoContainer = document.createElement("div");
+    cacheInfoContainer.id = "cacheInfoContainer";
+    cacheInfoContainer.className = "cache-info-container";
+    emailsTable.parentNode.insertBefore(cacheInfoContainer, emailsTable);
+  }
+  
+  // 构建缓存信息HTML
+  const cacheSource = fromCache ? "📦 缓存" : "🌐 实时";
+  const cacheClass = fromCache ? "from-cache" : "from-server";
+  const timeDisplay = fetchTimeMs !== null && fetchTimeMs !== undefined ? `⏱️ ${fetchTimeMs}ms` : "";
+  
+  cacheInfoContainer.innerHTML = `
+    <div class="cache-info">
+      <span class="cache-badge ${cacheClass}">${cacheSource}</span>
+      ${timeDisplay ? `<span class="fetch-time">${timeDisplay}</span>` : ""}
+    </div>
+  `;
 }
 
 console.log("✅ [Emails] 邮件管理模块加载完成");

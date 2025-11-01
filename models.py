@@ -71,6 +71,8 @@ class EmailListResponse(BaseModel):
     page_size: int
     total_emails: int
     emails: List[EmailItem]
+    from_cache: bool = False  # 是否来自缓存
+    fetch_time_ms: Optional[int] = None  # 获取耗时（毫秒）
 
 
 class DualViewEmailResponse(BaseModel):

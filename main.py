@@ -217,6 +217,70 @@ async def email_sync_background_task():
 
 
 # ============================================================================
+# 缓存预热
+# ============================================================================
+
+
+async def warmup_cache():
+    """
+    缓存预热：启动时预加载活跃账户的邮件
+    """
+    from config import (
+        CACHE_WARMUP_ENABLED,
+        CACHE_WARMUP_ACCOUNTS,
+        CACHE_WARMUP_EMAILS_PER_ACCOUNT
+    )
+    
+    if not CACHE_WARMUP_ENABLED:
+        logger.info("Cache warmup is disabled")
+        return
+    
+    try:
+        logger.info("Starting cache warmup...")
+        
+        # 获取所有账户
+        accounts = db.get_all_accounts()
+        if not accounts:
+            logger.info("No accounts found for cache warmup")
+            return
+        
+        # 按最后刷新时间排序，选择最活跃的账户
+        active_accounts = sorted(
+            accounts,
+            key=lambda x: x.get('last_refresh_time', ''),
+            reverse=True
+        )[:CACHE_WARMUP_ACCOUNTS]
+        
+        logger.info(f"Warming up cache for {len(active_accounts)} accounts")
+        
+        for account in active_accounts:
+            try:
+                email_id = account['email']
+                logger.info(f"Warming up cache for account: {email_id}")
+                
+                # 预加载收件箱邮件（不强制刷新，优先使用缓存）
+                from email_service import list_emails
+                result = await list_emails(
+                    email_id=email_id,
+                    page=1,
+                    page_size=CACHE_WARMUP_EMAILS_PER_ACCOUNT,
+                    folder='INBOX',
+                    force_refresh=False
+                )
+                
+                logger.info(f"Warmed up {len(result.get('emails', []))} emails for {email_id}")
+                
+            except Exception as e:
+                logger.warning(f"Failed to warmup cache for {account['email']}: {e}")
+                continue
+        
+        logger.info("Cache warmup completed")
+        
+    except Exception as e:
+        logger.error(f"Error during cache warmup: {e}")
+
+
+# ============================================================================
 # FastAPI应用生命周期管理
 # ============================================================================
 
@@ -257,6 +321,9 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info(f"Auto sync interval: {EMAIL_SYNC_INTERVAL} seconds ({EMAIL_SYNC_INTERVAL // 60} minutes)")
     else:
         logger.info("Email auto sync is disabled")
+    
+    # 启动缓存预热（异步，不阻塞启动）
+    asyncio.create_task(warmup_cache())
 
     yield
 

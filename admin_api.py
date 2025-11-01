@@ -348,3 +348,175 @@ async def delete_config(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"删除配置失败: {str(e)}")
 
+
+# ============================================================================
+# 缓存管理API
+# ============================================================================
+
+
+class CacheStatistics(BaseModel):
+    """缓存统计信息模型"""
+    db_size_mb: float
+    max_size_mb: int
+    size_usage_percent: float
+    emails_cache: Dict[str, Any]
+    details_cache: Dict[str, Any]
+    hit_rate: Optional[float] = None
+
+
+class CacheManagementResponse(BaseModel):
+    """缓存管理响应模型"""
+    message: str
+    deleted_count: Optional[int] = None
+    details: Optional[Dict[str, Any]] = None
+
+
+@router.get("/cache/statistics", response_model=CacheStatistics)
+async def get_cache_statistics(admin: dict = Depends(auth.get_current_admin)):
+    """
+    获取缓存统计信息
+    
+    返回缓存大小、记录数、命中率等统计数据
+    """
+    try:
+        stats = db.check_cache_size()
+        
+        # 计算缓存命中率（基于access_count）
+        with db.get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 计算邮件列表缓存命中率
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN access_count > 0 THEN 1 ELSE 0 END) as accessed
+                FROM emails_cache
+            """)
+            row = cursor.fetchone()
+            emails_total = row[0] if row else 0
+            emails_accessed = row[1] if row else 0
+            
+            # 计算邮件详情缓存命中率
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN access_count > 0 THEN 1 ELSE 0 END) as accessed
+                FROM email_details_cache
+            """)
+            row = cursor.fetchone()
+            details_total = row[0] if row else 0
+            details_accessed = row[1] if row else 0
+            
+            # 综合命中率
+            total_records = emails_total + details_total
+            total_accessed = emails_accessed + details_accessed
+            hit_rate = (total_accessed / total_records * 100) if total_records > 0 else 0
+        
+        stats['hit_rate'] = round(hit_rate, 2)
+        
+        return CacheStatistics(**stats)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取缓存统计失败: {str(e)}")
+
+
+@router.delete("/cache/{email_id}", response_model=CacheManagementResponse)
+async def clear_account_cache(
+    email_id: str,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    清除指定邮箱的缓存
+    
+    删除该邮箱的所有邮件列表和详情缓存
+    """
+    try:
+        # 获取删除前的统计
+        with db.get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM emails_cache WHERE email_account = ?", (email_id,))
+            emails_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM email_details_cache WHERE email_account = ?", (email_id,))
+            details_count = cursor.fetchone()[0]
+        
+        # 清除缓存
+        success = db.clear_email_cache_db(email_id)
+        
+        if success:
+            return CacheManagementResponse(
+                message=f"已清除 {email_id} 的缓存",
+                deleted_count=emails_count + details_count,
+                details={
+                    'emails_deleted': emails_count,
+                    'details_deleted': details_count
+                }
+            )
+        else:
+            raise HTTPException(status_code=500, detail="清除缓存失败")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"清除缓存失败: {str(e)}")
+
+
+@router.delete("/cache", response_model=CacheManagementResponse)
+async def clear_all_cache(admin: dict = Depends(auth.get_current_admin)):
+    """
+    清除所有缓存
+    
+    删除所有邮件列表和详情缓存
+    """
+    try:
+        # 获取删除前的统计
+        with db.get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM emails_cache")
+            emails_count = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM email_details_cache")
+            details_count = cursor.fetchone()[0]
+        
+        # 清除所有缓存
+        with db.get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM emails_cache")
+            cursor.execute("DELETE FROM email_details_cache")
+            conn.commit()
+        
+        return CacheManagementResponse(
+            message="已清除所有缓存",
+            deleted_count=emails_count + details_count,
+            details={
+                'emails_deleted': emails_count,
+                'details_deleted': details_count
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"清除所有缓存失败: {str(e)}")
+
+
+@router.post("/cache/cleanup", response_model=CacheManagementResponse)
+async def trigger_lru_cleanup(admin: dict = Depends(auth.get_current_admin)):
+    """
+    手动触发LRU缓存清理
+    
+    根据LRU策略清理最少访问的缓存记录
+    """
+    try:
+        result = db.cleanup_lru_cache()
+        
+        if 'error' in result:
+            raise HTTPException(status_code=500, detail=result['error'])
+        
+        return CacheManagementResponse(
+            message="LRU清理完成",
+            deleted_count=result['deleted_emails'] + result['deleted_details'],
+            details=result
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LRU清理失败: {str(e)}")
+

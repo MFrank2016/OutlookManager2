@@ -17,18 +17,25 @@ function switchAdminTab(tabName, tabElement) {
   }
 
   // 切换面板显示
+  const tablesPanel = document.getElementById("tablesPanel");
+  const configPanel = document.getElementById("configPanel");
+  const cachePanel = document.getElementById("cachePanel");
+  
   if (tabName === "tables") {
-    const tablesPanel = document.getElementById("tablesPanel");
-    const configPanel = document.getElementById("configPanel");
     if (tablesPanel) tablesPanel.classList.remove("hidden");
     if (configPanel) configPanel.classList.add("hidden");
+    if (cachePanel) cachePanel.classList.add("hidden");
     loadTablesList();
   } else if (tabName === "config") {
-    const tablesPanel = document.getElementById("tablesPanel");
-    const configPanel = document.getElementById("configPanel");
     if (tablesPanel) tablesPanel.classList.add("hidden");
     if (configPanel) configPanel.classList.remove("hidden");
+    if (cachePanel) cachePanel.classList.add("hidden");
     loadSystemConfigs();
+  } else if (tabName === "cache") {
+    if (tablesPanel) tablesPanel.classList.add("hidden");
+    if (configPanel) configPanel.classList.add("hidden");
+    if (cachePanel) cachePanel.classList.remove("hidden");
+    loadCacheStatistics();
   }
 }
 
@@ -158,10 +165,21 @@ function renderTableData() {
 
   const columns = Object.keys(currentTableData[0]);
 
-  let html = '<div class="table-responsive"><table class="data-table">';
+  // 智能检测列类型
+  function detectColumnType(col, value) {
+    if (value === null || value === undefined) return 'null';
+    if (col.toLowerCase().includes('date') || col.toLowerCase().includes('time') || col.toLowerCase().includes('at')) return 'date';
+    if (col.toLowerCase().includes('count') || col.toLowerCase().includes('size') || col.toLowerCase().includes('id')) return 'number';
+    if (typeof value === 'number') return 'number';
+    return 'text';
+  }
+
+  let html = '<div class="table-responsive"><table class="admin-data-table">';
   html += "<thead><tr>";
   columns.forEach((col) => {
-    html += `<th>${col}</th>`;
+    // 格式化列名显示
+    let displayName = col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    html += `<th title="${col}">${displayName}</th>`;
   });
   html += "<th>操作</th></tr></thead><tbody>";
 
@@ -169,18 +187,44 @@ function renderTableData() {
     html += "<tr>";
     columns.forEach((col) => {
       let value = row[col];
+      let dataType = detectColumnType(col, value);
+      let displayValue = value;
+      
       if (value === null || value === undefined) {
-        value = '<span style="color: #cbd5e1;">NULL</span>';
-      } else if (col.includes("password")) {
-        value = "********";
-      } else if (typeof value === "string" && value.length > 50) {
-        value = value.substring(0, 50) + "...";
+        displayValue = '<span style="color: #94a3b8; font-style: italic;">NULL</span>';
+        dataType = 'null';
+      } else if (col.includes("password") || col.includes("token")) {
+        displayValue = "••••••••";
+      } else if (dataType === 'date') {
+        // 格式化日期显示
+        try {
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            displayValue = date.toLocaleString('zh-CN', { 
+              year: 'numeric', 
+              month: '2-digit', 
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+          }
+        } catch (e) {
+          // 保持原值
+        }
+      } else if (typeof value === "string" && value.length > 100) {
+        displayValue = `<span title="${value.replace(/"/g, '&quot;')}">${value.substring(0, 100)}...</span>`;
+      } else if (dataType === 'number') {
+        // 数字格式化（添加千分位）
+        if (typeof value === 'number' && value > 999) {
+          displayValue = value.toLocaleString('zh-CN');
+        }
       }
-      html += `<td>${value}</td>`;
+      
+      html += `<td data-type="${dataType}" title="${value !== null && value !== undefined ? String(value).replace(/"/g, '&quot;') : 'NULL'}">${displayValue}</td>`;
     });
-    html += `<td class="data-table-actions">
-            <button class="btn btn-sm btn-secondary" onclick="editTableRow(${index})">✏️ 编辑</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteTableRow(${index})">🗑️ 删除</button>
+    html += `<td class="data-table-actions" style="white-space: nowrap;">
+            <button class="btn btn-sm btn-secondary" onclick="editTableRow(${index})" style="margin-right: 4px;">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteTableRow(${index})">🗑️</button>
         </td>`;
     html += "</tr>";
   });
@@ -676,6 +720,155 @@ async function saveConfigEdit() {
 async function editConfig(key, currentValue) {
   // 直接调用新的模态框函数
   openConfigEditModal(key, currentValue, "", null);
+}
+
+// ============================================================================
+// 缓存统计管理
+// ============================================================================
+
+/**
+ * 加载缓存统计信息
+ */
+async function loadCacheStatistics() {
+  const cacheStatistics = document.getElementById("cacheStatistics");
+  if (!cacheStatistics) return;
+
+  cacheStatistics.innerHTML = '<div class="loading">正在加载缓存统计...</div>';
+
+  try {
+    const stats = await apiRequest("/admin/cache/statistics");
+
+    // 渲染缓存统计卡片
+    cacheStatistics.innerHTML = `
+      <div class="cache-stats-grid">
+        <!-- 总体统计 -->
+        <div class="cache-stat-card">
+          <div class="stat-header">
+            <span class="stat-icon">💾</span>
+            <h4>数据库大小</h4>
+          </div>
+          <div class="stat-value">${stats.db_size_mb} MB</div>
+          <div class="stat-detail">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${stats.size_usage_percent}%"></div>
+            </div>
+            <span class="text-sm" style="color: #64748b">
+              ${stats.size_usage_percent}% / ${stats.max_size_mb} MB
+            </span>
+          </div>
+        </div>
+
+        <!-- 缓存命中率 -->
+        <div class="cache-stat-card">
+          <div class="stat-header">
+            <span class="stat-icon">🎯</span>
+            <h4>缓存命中率</h4>
+          </div>
+          <div class="stat-value">${stats.hit_rate}%</div>
+          <div class="stat-detail">
+            <div class="progress-bar">
+              <div class="progress-fill ${stats.hit_rate > 70 ? 'success' : 'warning'}" 
+                   style="width: ${stats.hit_rate}%"></div>
+            </div>
+            <span class="text-sm" style="color: #64748b">
+              ${stats.hit_rate > 70 ? '✅ 良好' : '⚠️ 需优化'}
+            </span>
+          </div>
+        </div>
+
+        <!-- 邮件列表缓存 -->
+        <div class="cache-stat-card">
+          <div class="stat-header">
+            <span class="stat-icon">📧</span>
+            <h4>邮件列表缓存</h4>
+          </div>
+          <div class="stat-value">${stats.emails_cache.count}</div>
+          <div class="stat-detail">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${stats.emails_cache.usage_percent}%"></div>
+            </div>
+            <span class="text-sm" style="color: #64748b">
+              ${stats.emails_cache.usage_percent}% / ${stats.emails_cache.max_count} 条
+            </span>
+          </div>
+          <div class="stat-meta">
+            <span>大小: ${(stats.emails_cache.size_bytes / 1024).toFixed(2)} KB</span>
+          </div>
+        </div>
+
+        <!-- 邮件详情缓存 -->
+        <div class="cache-stat-card">
+          <div class="stat-header">
+            <span class="stat-icon">📨</span>
+            <h4>邮件详情缓存</h4>
+          </div>
+          <div class="stat-value">${stats.details_cache.count}</div>
+          <div class="stat-detail">
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${stats.details_cache.usage_percent}%"></div>
+            </div>
+            <span class="text-sm" style="color: #64748b">
+              ${stats.details_cache.usage_percent}% / ${stats.details_cache.max_count} 条
+            </span>
+          </div>
+          <div class="stat-meta">
+            <span>大小: ${(stats.details_cache.size_bytes / 1024).toFixed(2)} KB</span>
+          </div>
+        </div>
+      </div>
+    `;
+  } catch (error) {
+    console.error("加载缓存统计失败:", error);
+    cacheStatistics.innerHTML = `
+      <div class="error">
+        ❌ 加载失败: ${error.message}
+      </div>
+    `;
+  }
+}
+
+/**
+ * 触发LRU清理
+ */
+async function triggerLRUCleanup() {
+  if (!confirm("确定要执行LRU缓存清理吗？\n\n这将删除最少访问的缓存记录。")) {
+    return;
+  }
+
+  try {
+    const result = await apiRequest("/admin/cache/cleanup", { method: "POST" });
+    showNotification(
+      `${result.message}\n删除了 ${result.deleted_count} 条记录`,
+      "success",
+      "✅ 清理完成"
+    );
+    loadCacheStatistics();
+  } catch (error) {
+    console.error("LRU清理失败:", error);
+    showNotification("LRU清理失败: " + error.message, "error", "❌ 错误");
+  }
+}
+
+/**
+ * 清除所有缓存
+ */
+async function clearAllCache() {
+  if (!confirm("⚠️ 确定要清除所有缓存吗？\n\n这将删除所有邮件列表和详情缓存！")) {
+    return;
+  }
+
+  try {
+    const result = await apiRequest("/admin/cache", { method: "DELETE" });
+    showNotification(
+      `${result.message}\n删除了 ${result.deleted_count} 条记录`,
+      "success",
+      "✅ 清除完成"
+    );
+    loadCacheStatistics();
+  } catch (error) {
+    console.error("清除缓存失败:", error);
+    showNotification("清除缓存失败: " + error.message, "error", "❌ 错误");
+  }
 }
 
 console.log("✅ [Admin] 管理面板模块加载完成");
