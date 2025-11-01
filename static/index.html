@@ -1,1626 +1,2185 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Outlook邮件管理系统</title>
     <!-- CSS 模块 -->
-    <link rel="stylesheet" href="/static/css/base.css">
-    <link rel="stylesheet" href="/static/css/layout.css">
-    <link rel="stylesheet" href="/static/css/components.css">
-    <link rel="stylesheet" href="/static/css/search-filter.css">
-    <link rel="stylesheet" href="/static/css/tags.css">
-    <link rel="stylesheet" href="/static/css/forms.css">
-    <link rel="stylesheet" href="/static/css/accounts.css">
-    <link rel="stylesheet" href="/static/css/emails.css">
-    <link rel="stylesheet" href="/static/css/admin.css">
-    <link rel="stylesheet" href="/static/css/apidocs.css">
-    <link rel="stylesheet" href="/static/css/context-menu.css">
-    <link rel="stylesheet" href="/static/css/responsive.css">
-</head>
-<body>
+    <link rel="stylesheet" href="/static/css/base.css" />
+    <link rel="stylesheet" href="/static/css/layout.css" />
+    <link rel="stylesheet" href="/static/css/components.css" />
+    <link rel="stylesheet" href="/static/css/search-filter.css" />
+    <link rel="stylesheet" href="/static/css/tags.css" />
+    <link rel="stylesheet" href="/static/css/forms.css" />
+    <link rel="stylesheet" href="/static/css/accounts.css" />
+    <link rel="stylesheet" href="/static/css/emails.css" />
+    <link rel="stylesheet" href="/static/css/admin.css" />
+    <link rel="stylesheet" href="/static/css/apidocs.css" />
+    <link rel="stylesheet" href="/static/css/context-menu.css" />
+    <link rel="stylesheet" href="/static/css/responsive.css" />
+  </head>
+  <body>
     <div class="app-container">
-        <!-- 左侧菜单 -->
-        <div class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <div>
-                    <h1>📧 邮件管理</h1>
-                    <p>Outlook邮件管理系统</p>
-                </div>
-                <button class="sidebar-toggle" onclick="toggleSidebar()" title="折叠/展开侧边栏">
-                    ◀
-                </button>
-            </div>
-            <nav class="sidebar-nav">
-                <button class="nav-item active" onclick="showPage('accounts', this)" data-tooltip="邮箱账户">
-                    <span class="icon">👥</span>
-                    <span class="nav-text">邮箱账户</span>
-                </button>
-                <button class="nav-item" onclick="showPage('addAccount', this)" data-tooltip="添加账户">
-                    <span class="icon">➕</span>
-                    <span class="nav-text">添加账户</span>
-                </button>
-                <button class="nav-item" onclick="showPage('batchAdd', this)" data-tooltip="批量添加">
-                    <span class="icon">📦</span>
-                    <span class="nav-text">批量添加</span>
-                </button>
-                <button class="nav-item" onclick="showPage('adminPanel', this)" data-tooltip="管理面板">
-                    <span class="icon">⚙️</span>
-                    <span class="nav-text">管理面板</span>
-                </button>
-                <button class="nav-item" onclick="showPage('apiDocs', this)" data-tooltip="API管理">
-                    <span class="icon">📖</span>
-                    <span class="nav-text">API管理</span>
-                </button>
-                <button class="nav-item" onclick="showPage('emails', this)" oncontextmenu="showEmailsContextMenu(event)" id="emailsNav" style="display: none;" data-tooltip="邮件列表">
-                    <span class="icon">📧</span>
-                    <span class="nav-text">邮件列表</span>
-                </button>
-            </nav>
+      <!-- 左侧菜单 -->
+      <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div>
+            <h1>📧 邮件管理</h1>
+            <p>Outlook邮件管理系统</p>
+          </div>
+          <button
+            class="sidebar-toggle"
+            onclick="toggleSidebar()"
+            title="折叠/展开侧边栏"
+          >
+            ◀
+          </button>
         </div>
+        <nav class="sidebar-nav">
+          <button
+            class="nav-item active"
+            onclick="showPage('accounts', this)"
+            data-tooltip="邮箱账户"
+          >
+            <span class="icon">👥</span>
+            <span class="nav-text">邮箱账户</span>
+          </button>
+          <button
+            class="nav-item"
+            onclick="showPage('addAccount', this)"
+            data-tooltip="添加账户"
+          >
+            <span class="icon">➕</span>
+            <span class="nav-text">添加账户</span>
+          </button>
+          <button
+            class="nav-item"
+            onclick="showPage('batchAdd', this)"
+            data-tooltip="批量添加"
+          >
+            <span class="icon">📦</span>
+            <span class="nav-text">批量添加</span>
+          </button>
+          <button
+            class="nav-item"
+            onclick="showPage('adminPanel', this)"
+            data-tooltip="管理面板"
+          >
+            <span class="icon">⚙️</span>
+            <span class="nav-text">管理面板</span>
+          </button>
+          <button
+            class="nav-item"
+            onclick="showPage('apiDocs', this)"
+            data-tooltip="API管理"
+          >
+            <span class="icon">📖</span>
+            <span class="nav-text">API管理</span>
+          </button>
+          <button
+            class="nav-item"
+            onclick="showPage('emails', this)"
+            oncontextmenu="showEmailsContextMenu(event)"
+            id="emailsNav"
+            style="display: none"
+            data-tooltip="邮件列表"
+          >
+            <span class="icon">📧</span>
+            <span class="nav-text">邮件列表</span>
+          </button>
+        </nav>
+      </div>
 
-        <!-- 主内容区域 -->
-        <div class="main-content">
-            <div class="main-body">
-                <!-- 邮箱账户列表页面 -->
-                <div id="accountsPage" class="page">
-                    <div class="card">
-                        <div class="flex items-center justify-between mb-4">
-                            <div>
-                                <h3 class="font-semibold">邮箱账户管理</h3>
-                                <p class="text-sm" style="color: #64748b;">管理所有已添加的邮箱账户</p>
-                            </div>
-                            <div class="flex gap-2">
-                                <button class="btn btn-primary btn-sm" onclick="showPage('addAccount')">
-                                    <span>➕</span>
-                                    添加账户
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="showPage('batchAdd')">
-                                    <span>📦</span>
-                                    批量添加
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="loadAccountsSmart(true)">
-                                    <span>🔄</span>
-                                    刷新列表
-                                </button>
-                                <button class="btn btn-primary btn-sm" onclick="showBatchRefreshDialog()">
-                                    <span>🔄</span>
-                                    批量刷新Token
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- 搜索和过滤区域 -->
-                        <div class="search-container">
-                            <div class="flex gap-3 mb-4">
-                                <div class="flex-1">
-                                    <input type="text" id="emailSearch" class="form-control" placeholder="按邮箱账号搜索..." onkeypress="handleSearchKeyPress(event)">
-                                </div>
-                                <div class="flex-1">
-                                    <input type="text" id="tagSearch" class="form-control" placeholder="按标签搜索..." onkeypress="handleSearchKeyPress(event)">
-                                </div>
-                                <div class="flex-1">
-                                    <select id="refreshStatusFilter" class="form-control" onchange="handleRefreshStatusChange()">
-                                        <option value="all">全部状态</option>
-                                        <option value="never_refreshed">从未刷新</option>
-                                        <option value="failed">刷新失败</option>
-                                        <option value="success">刷新成功</option>
-                                        <option value="custom">指定刷新条件</option>
-                                    </select>
-                                </div>
-                                <button class="btn btn-primary" onclick="searchAccounts()">
-                                    <span>🔍</span>
-                                    搜索
-                                </button>
-                                <button class="btn btn-secondary" onclick="clearSearch()">
-                                    <span>🗑️</span>
-                                    清除
-                                </button>
-                            </div>
-                            
-                            <!-- 自定义日期范围选择 -->
-                            <div id="customDateRangeContainer" class="flex gap-3 mb-4" style="display: none;">
-                                <div class="flex-1">
-                                    <label class="text-sm text-gray-600 mb-1" style="display: block;">刷新起始时间</label>
-                                    <input type="datetime-local" id="refreshStartDate" class="form-control">
-                                </div>
-                                <div class="flex-1">
-                                    <label class="text-sm text-gray-600 mb-1" style="display: block;">刷新截止时间</label>
-                                    <input type="datetime-local" id="refreshEndDate" class="form-control">
-                                </div>
-                                <div style="display: flex; align-items: flex-end;">
-                                    <button class="btn btn-info" onclick="applyCustomDateFilter()">
-                                        <span>✓</span>
-                                        应用筛选
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- 统计信息 -->
-                        <div id="accountsStats" class="mb-4" style="display: none;">
-                            <div class="flex gap-4 text-sm">
-                                <span>总数：<strong id="totalAccounts">0</strong></span>
-                                <span>当前页：<strong id="currentPage">1</strong></span>
-                                <span>每页：<strong id="pageSize">10</strong></span>
-                            </div>
-                        </div>
+      <!-- 主内容区域 -->
+      <div class="main-content">
+        <div class="main-body">
+          <!-- 邮箱账户列表页面 -->
+          <div id="accountsPage" class="page">
+            <div class="card">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="font-semibold">邮箱账户管理</h3>
+                  <p class="text-sm" style="color: #64748b">
+                    管理所有已添加的邮箱账户
+                  </p>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    class="btn btn-primary btn-sm"
+                    onclick="showPage('addAccount')"
+                  >
+                    <span>➕</span>
+                    添加账户
+                  </button>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    onclick="showPage('batchAdd')"
+                  >
+                    <span>📦</span>
+                    批量添加
+                  </button>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    onclick="loadAccountsSmart(true)"
+                  >
+                    <span>🔄</span>
+                    刷新列表
+                  </button>
+                  <button
+                    class="btn btn-primary btn-sm"
+                    onclick="showBatchRefreshDialog()"
+                  >
+                    <span>🔄</span>
+                    批量刷新Token
+                  </button>
+                </div>
+              </div>
 
-                        <div id="accountsList">
-                            <div class="loading">
-                                <div class="loading-spinner"></div>
-                                正在加载账户列表...
-                            </div>
-                        </div>
-                        
-                        <!-- 分页控件 -->
-                        <div id="accountsPagination" class="pagination" style="display: none;">
-                            <button class="btn btn-sm" id="prevPageBtn" onclick="changePage('prev')" disabled>
-                                <span>←</span>
-                                上一页
-                            </button>
-                            <div id="pageNumbers" class="flex gap-1"></div>
-                            <button class="btn btn-sm" id="nextPageBtn" onclick="changePage('next')">
-                                下一页
-                                <span>→</span>
-                            </button>
-                        </div>
-                    </div>
+              <!-- 搜索和过滤区域 -->
+              <div class="search-container">
+                <div class="flex gap-3 mb-4">
+                  <div class="flex-1">
+                    <input
+                      type="text"
+                      id="emailSearch"
+                      class="form-control"
+                      placeholder="按邮箱账号搜索..."
+                      onkeypress="handleSearchKeyPress(event)"
+                    />
+                  </div>
+                  <div class="flex-1">
+                    <input
+                      type="text"
+                      id="tagSearch"
+                      class="form-control"
+                      placeholder="按标签搜索..."
+                      onkeypress="handleSearchKeyPress(event)"
+                    />
+                  </div>
+                  <div class="flex-1">
+                    <select
+                      id="refreshStatusFilter"
+                      class="form-control"
+                      onchange="handleRefreshStatusChange()"
+                    >
+                      <option value="all">全部状态</option>
+                      <option value="never_refreshed">从未刷新</option>
+                      <option value="failed">刷新失败</option>
+                      <option value="success">刷新成功</option>
+                      <option value="custom">指定刷新条件</option>
+                    </select>
+                  </div>
+                  <button class="btn btn-primary" onclick="searchAccounts()">
+                    <span>🔍</span>
+                    搜索
+                  </button>
+                  <button class="btn btn-secondary" onclick="clearSearch()">
+                    <span>🗑️</span>
+                    清除
+                  </button>
                 </div>
 
-                <!-- 添加单个账户页面 -->
-                <div id="addAccountPage" class="page hidden">
-                    <div class="card">
-                        <div class="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 class="font-semibold">添加邮箱账户</h3>
-                                <p class="text-sm" style="color: #64748b;">添加单个Outlook邮箱账户到系统</p>
-                            </div>
-                            <button class="btn btn-secondary btn-sm" onclick="showPage('accounts')">
-                                <span>←</span>
-                                返回列表
-                            </button>
-                        </div>
+                <!-- 自定义日期范围选择 -->
+                <div
+                  id="customDateRangeContainer"
+                  class="flex gap-3 mb-4"
+                  style="display: none"
+                >
+                  <div class="flex-1">
+                    <label
+                      class="text-sm text-gray-600 mb-1"
+                      style="display: block"
+                      >刷新起始时间</label
+                    >
+                    <input
+                      type="datetime-local"
+                      id="refreshStartDate"
+                      class="form-control"
+                    />
+                  </div>
+                  <div class="flex-1">
+                    <label
+                      class="text-sm text-gray-600 mb-1"
+                      style="display: block"
+                      >刷新截止时间</label
+                    >
+                    <input
+                      type="datetime-local"
+                      id="refreshEndDate"
+                      class="form-control"
+                    />
+                  </div>
+                  <div style="display: flex; align-items: flex-end">
+                    <button
+                      class="btn btn-info"
+                      onclick="applyCustomDateFilter()"
+                    >
+                      <span>✓</span>
+                      应用筛选
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-                        <div style="max-width: 600px;">
-                            <div class="form-group">
-                                <label class="form-label">邮箱地址 *</label>
-                                <input type="email" id="email" class="form-input" placeholder="example@outlook.com" required>
-                                <p class="text-xs" style="color: #64748b; margin-top: 4px;">请输入有效的Outlook邮箱地址</p>
-                            </div>
+              <!-- 统计信息 -->
+              <div id="accountsStats" class="mb-4" style="display: none">
+                <div class="flex gap-4 text-sm">
+                  <span>总数：<strong id="totalAccounts">0</strong></span>
+                  <span>当前页：<strong id="currentPage">1</strong></span>
+                  <span>每页：<strong id="pageSize">10</strong></span>
+                </div>
+              </div>
 
-                            <div class="form-group">
-                                <label class="form-label">刷新令牌 (Refresh Token) *</label>
-                                <textarea id="refreshToken" class="form-input form-textarea" rows="4" placeholder="从Azure应用获取的refresh_token" required></textarea>
-                                <p class="text-xs" style="color: #64748b; margin-top: 4px;">
-                                    从Azure应用程序注册中获取的刷新令牌，用于OAuth2认证
-                                </p>
-                            </div>
+              <div id="accountsList">
+                <div class="loading">
+                  <div class="loading-spinner"></div>
+                  正在加载账户列表...
+                </div>
+              </div>
 
-                            <div class="form-group">
-                                <label class="form-label">客户端ID (Client ID) *</label>
-                                <input type="text" id="clientId" class="form-input" placeholder="Azure应用的client_id" required>
-                                <p class="text-xs" style="color: #64748b; margin-top: 4px;">
-                                    Azure应用程序的客户端标识符
-                                </p>
-                            </div>
+              <!-- 分页控件 -->
+              <div
+                id="accountsPagination"
+                class="pagination"
+                style="display: none"
+              >
+                <button
+                  class="btn btn-sm"
+                  id="prevPageBtn"
+                  onclick="changePage('prev')"
+                  disabled
+                >
+                  <span>←</span>
+                  上一页
+                </button>
+                <div id="pageNumbers" class="flex gap-1"></div>
+                <button
+                  class="btn btn-sm"
+                  id="nextPageBtn"
+                  onclick="changePage('next')"
+                >
+                  下一页
+                  <span>→</span>
+                </button>
+              </div>
+            </div>
+          </div>
 
-                            <div class="form-group">
-                                <div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
-                                    <h4 style="margin: 0 0 8px 0; font-size: 0.875rem; font-weight: 600; color: #374151;">📋 获取步骤：</h4>
-                                    <ol style="margin: 0; padding-left: 20px; font-size: 0.75rem; color: #6b7280; line-height: 1.5;">
-                                        <li>访问 <a href="https://portal.azure.com" target="_blank" style="color: #3b82f6;">Azure Portal</a></li>
-                                        <li>注册应用程序并配置权限</li>
-                                        <li>获取Client ID和Refresh Token</li>
-                                        <li>确保应用有邮件读取权限</li>
-                                    </ol>
-                                </div>
-                            </div>
+          <!-- 添加单个账户页面 -->
+          <div id="addAccountPage" class="page hidden">
+            <div class="card">
+              <div class="flex items-center justify-between mb-6">
+                <div>
+                  <h3 class="font-semibold">添加邮箱账户</h3>
+                  <p class="text-sm" style="color: #64748b">
+                    添加单个Outlook邮箱账户到系统
+                  </p>
+                </div>
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick="showPage('accounts')"
+                >
+                  <span>←</span>
+                  返回列表
+                </button>
+              </div>
 
-                            <div class="form-group">
-                                <label for="accountTags">标签 (可选，用逗号分隔)</label>
-                                <input type="text" id="accountTags" class="form-control" placeholder="工作,个人,重要">
-                            </div>
-
-                            <div class="flex gap-3">
-                                <button class="btn btn-primary" onclick="addAccount()" id="addAccountBtn">
-                                    <span>➕</span>
-                                    添加账户
-                                </button>
-                                <button class="btn btn-secondary" onclick="clearAddAccountForm()">
-                                    <span>🗑️</span>
-                                    清空表单
-                                </button>
-                                <button class="btn btn-secondary" onclick="testAccountConnection()" id="testBtn">
-                                    <span>🔍</span>
-                                    测试连接
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+              <div style="max-width: 600px">
+                <div class="form-group">
+                  <label class="form-label">邮箱地址 *</label>
+                  <input
+                    type="email"
+                    id="email"
+                    class="form-input"
+                    placeholder="example@outlook.com"
+                    required
+                  />
+                  <p class="text-xs" style="color: #64748b; margin-top: 4px">
+                    请输入有效的Outlook邮箱地址
+                  </p>
                 </div>
 
-                <!-- 批量添加账户页面 -->
-                <div id="batchAddPage" class="page hidden">
-                    <div class="card">
-                        <div class="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 class="font-semibold">批量添加邮箱账户</h3>
-                                <p class="text-sm" style="color: #64748b;">一次性添加多个邮箱账户到系统</p>
-                            </div>
-                            <button class="btn btn-secondary btn-sm" onclick="showPage('accounts')">
-                                <span>←</span>
-                                返回列表
-                            </button>
-                        </div>
+                <div class="form-group">
+                  <label class="form-label">刷新令牌 (Refresh Token) *</label>
+                  <textarea
+                    id="refreshToken"
+                    class="form-input form-textarea"
+                    rows="4"
+                    placeholder="从Azure应用获取的refresh_token"
+                    required
+                  ></textarea>
+                  <p class="text-xs" style="color: #64748b; margin-top: 4px">
+                    从Azure应用程序注册中获取的刷新令牌，用于OAuth2认证
+                  </p>
+                </div>
 
-                        <div style="max-width: 800px;">
-                            <div class="form-group">
-                                <label class="form-label">批量账户信息</label>
-                                <p class="text-sm" style="color: #64748b; margin-bottom: 8px;">
-                                    每行格式：<code>邮箱----密码----刷新令牌----客户端ID</code>
-                                </p>
-                                <p class="text-sm" style="color: #64748b; margin-bottom: 12px;">
-                                    📧 推荐购买地址（非广告，只是推荐）：
-                                    <a target="_blank" href="http://wmemail.com" style="color: #3b82f6; margin: 0 8px;">wmemail.com</a>
-                                </p>
-                                <textarea id="batchAccounts" class="form-input form-textarea" rows="12" placeholder="example1@outlook.com----password1----refresh_token1----client_id1
+                <div class="form-group">
+                  <label class="form-label">客户端ID (Client ID) *</label>
+                  <input
+                    type="text"
+                    id="clientId"
+                    class="form-input"
+                    placeholder="Azure应用的client_id"
+                    required
+                  />
+                  <p class="text-xs" style="color: #64748b; margin-top: 4px">
+                    Azure应用程序的客户端标识符
+                  </p>
+                </div>
+
+                <div class="form-group">
+                  <div
+                    style="
+                      background: #f8fafc;
+                      padding: 16px;
+                      border-radius: 8px;
+                      border: 1px solid #e2e8f0;
+                    "
+                  >
+                    <h4
+                      style="
+                        margin: 0 0 8px 0;
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        color: #374151;
+                      "
+                    >
+                      📋 获取步骤：
+                    </h4>
+                    <ol
+                      style="
+                        margin: 0;
+                        padding-left: 20px;
+                        font-size: 0.75rem;
+                        color: #6b7280;
+                        line-height: 1.5;
+                      "
+                    >
+                      <li>
+                        访问
+                        <a
+                          href="https://portal.azure.com"
+                          target="_blank"
+                          style="color: #3b82f6"
+                          >Azure Portal</a
+                        >
+                      </li>
+                      <li>注册应用程序并配置权限</li>
+                      <li>获取Client ID和Refresh Token</li>
+                      <li>确保应用有邮件读取权限</li>
+                    </ol>
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="accountTags">标签 (可选，用逗号分隔)</label>
+                  <input
+                    type="text"
+                    id="accountTags"
+                    class="form-control"
+                    placeholder="工作,个人,重要"
+                  />
+                </div>
+
+                <div class="flex gap-3">
+                  <button
+                    class="btn btn-primary"
+                    onclick="addAccount()"
+                    id="addAccountBtn"
+                  >
+                    <span>➕</span>
+                    添加账户
+                  </button>
+                  <button
+                    class="btn btn-secondary"
+                    onclick="clearAddAccountForm()"
+                  >
+                    <span>🗑️</span>
+                    清空表单
+                  </button>
+                  <button
+                    class="btn btn-secondary"
+                    onclick="testAccountConnection()"
+                    id="testBtn"
+                  >
+                    <span>🔍</span>
+                    测试连接
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 批量添加账户页面 -->
+          <div id="batchAddPage" class="page hidden">
+            <div class="card">
+              <div class="flex items-center justify-between mb-6">
+                <div>
+                  <h3 class="font-semibold">批量添加邮箱账户</h3>
+                  <p class="text-sm" style="color: #64748b">
+                    一次性添加多个邮箱账户到系统
+                  </p>
+                </div>
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick="showPage('accounts')"
+                >
+                  <span>←</span>
+                  返回列表
+                </button>
+              </div>
+
+              <div style="max-width: 800px">
+                <div class="form-group">
+                  <label class="form-label">批量账户信息</label>
+                  <p class="text-sm" style="color: #64748b; margin-bottom: 8px">
+                    每行格式：<code>邮箱----密码----刷新令牌----客户端ID</code>
+                  </p>
+                  <p
+                    class="text-sm"
+                    style="color: #64748b; margin-bottom: 12px"
+                  >
+                    📧 推荐购买地址（非广告，只是推荐）：
+                    <a
+                      target="_blank"
+                      href="http://wmemail.com"
+                      style="color: #3b82f6; margin: 0 8px"
+                      >wmemail.com</a
+                    >
+                  </p>
+                  <textarea
+                    id="batchAccounts"
+                    class="form-input form-textarea"
+                    rows="12"
+                    placeholder="example1@outlook.com----password1----refresh_token1----client_id1
 example2@outlook.com----password2----refresh_token2----client_id2
-example3@outlook.com----password3----refresh_token3----client_id3"></textarea>
-                                <p class="text-xs" style="color: #64748b; margin-top: 8px;">
-                                    💡 提示：每行一个账户，使用四个连字符(----)分隔字段
-                                </p>
-                            </div>
+example3@outlook.com----password3----refresh_token3----client_id3"
+                  ></textarea>
+                  <p class="text-xs" style="color: #64748b; margin-top: 8px">
+                    💡 提示：每行一个账户，使用四个连字符(----)分隔字段
+                  </p>
+                </div>
 
-                            <div class="form-group">
-                                <div style="background: #fef3c7; padding: 16px; border-radius: 8px; border: 1px solid #fbbf24;">
-                                    <h4 style="margin: 0 0 8px 0; font-size: 0.875rem; font-weight: 600; color: #92400e;">⚠️ 注意事项：</h4>
-                                    <ul style="margin: 0; padding-left: 20px; font-size: 0.75rem; color: #92400e; line-height: 1.5;">
-                                        <li>确保所有账户信息格式正确</li>
-                                        <li>建议先测试少量账户再批量添加</li>
-                                        <li>添加过程中请勿关闭页面</li>
-                                        <li>失败的账户会在结果中显示</li>
-                                    </ul>
-                                </div>
-                            </div>
+                <div class="form-group">
+                  <div
+                    style="
+                      background: #fef3c7;
+                      padding: 16px;
+                      border-radius: 8px;
+                      border: 1px solid #fbbf24;
+                    "
+                  >
+                    <h4
+                      style="
+                        margin: 0 0 8px 0;
+                        font-size: 0.875rem;
+                        font-weight: 600;
+                        color: #92400e;
+                      "
+                    >
+                      ⚠️ 注意事项：
+                    </h4>
+                    <ul
+                      style="
+                        margin: 0;
+                        padding-left: 20px;
+                        font-size: 0.75rem;
+                        color: #92400e;
+                        line-height: 1.5;
+                      "
+                    >
+                      <li>确保所有账户信息格式正确</li>
+                      <li>建议先测试少量账户再批量添加</li>
+                      <li>添加过程中请勿关闭页面</li>
+                      <li>失败的账户会在结果中显示</li>
+                    </ul>
+                  </div>
+                </div>
 
-                            <div class="flex gap-3">
-                                <button class="btn btn-primary" onclick="batchAddAccounts()" id="batchAddBtn">
-                                    <span>📦</span>
-                                    开始批量添加
-                                </button>
-                                <button class="btn btn-secondary" onclick="clearBatchForm()">
-                                    <span>🗑️</span>
-                                    清空表单
-                                </button>
-                                <button class="btn btn-secondary" onclick="validateBatchFormat()">
-                                    <span>✅</span>
-                                    验证格式
-                                </button>
-                                <button class="btn btn-secondary" onclick="loadSampleData()">
-                                    <span>📝</span>
-                                    加载示例
-                                </button>
-                            </div>
+                <div class="flex gap-3">
+                  <button
+                    class="btn btn-primary"
+                    onclick="batchAddAccounts()"
+                    id="batchAddBtn"
+                  >
+                    <span>📦</span>
+                    开始批量添加
+                  </button>
+                  <button class="btn btn-secondary" onclick="clearBatchForm()">
+                    <span>🗑️</span>
+                    清空表单
+                  </button>
+                  <button
+                    class="btn btn-secondary"
+                    onclick="validateBatchFormat()"
+                  >
+                    <span>✅</span>
+                    验证格式
+                  </button>
+                  <button class="btn btn-secondary" onclick="loadSampleData()">
+                    <span>📝</span>
+                    加载示例
+                  </button>
+                </div>
 
-                            <!-- 批量添加进度 -->
-                            <div id="batchProgress" class="hidden" style="margin-top: 24px;">
-                                <h4 style="margin-bottom: 12px; font-size: 0.875rem; font-weight: 600;">添加进度：</h4>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" id="batchProgressFill"></div>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: #64748b; margin-top: 8px;">
-                                    <span id="batchProgressText">准备中...</span>
-                                    <span id="batchProgressCount">0 / 0</span>
-                                </div>
-                            </div>
+                <!-- 批量添加进度 -->
+                <div id="batchProgress" class="hidden" style="margin-top: 24px">
+                  <h4
+                    style="
+                      margin-bottom: 12px;
+                      font-size: 0.875rem;
+                      font-weight: 600;
+                    "
+                  >
+                    添加进度：
+                  </h4>
+                  <div class="progress-bar">
+                    <div class="progress-fill" id="batchProgressFill"></div>
+                  </div>
+                  <div
+                    style="
+                      display: flex;
+                      justify-content: space-between;
+                      font-size: 0.75rem;
+                      color: #64748b;
+                      margin-top: 8px;
+                    "
+                  >
+                    <span id="batchProgressText">准备中...</span>
+                    <span id="batchProgressCount">0 / 0</span>
+                  </div>
+                </div>
 
-                            <!-- 批量添加结果 -->
-                            <div id="batchResults" class="hidden" style="margin-top: 24px;">
-                                <h4 style="margin-bottom: 12px; font-size: 0.875rem; font-weight: 600;">添加结果：</h4>
-                                <div id="batchResultsList"></div>
-                            </div>
+                <!-- 批量添加结果 -->
+                <div id="batchResults" class="hidden" style="margin-top: 24px">
+                  <h4
+                    style="
+                      margin-bottom: 12px;
+                      font-size: 0.875rem;
+                      font-weight: 600;
+                    "
+                  >
+                    添加结果：
+                  </h4>
+                  <div id="batchResultsList"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 管理面板页面 -->
+          <div id="adminPanelPage" class="page hidden">
+            <div class="card">
+              <h3 class="font-semibold mb-4">⚙️ 系统管理面板</h3>
+              <p class="text-sm mb-6" style="color: #64748b">
+                管理数据库表和系统配置
+              </p>
+
+              <!-- 标签页 -->
+              <div class="tabs mb-4">
+                <button
+                  class="tab active"
+                  onclick="switchAdminTab('tables', this)"
+                >
+                  数据表管理
+                </button>
+                <button class="tab" onclick="switchAdminTab('config', this)">
+                  系统配置
+                </button>
+              </div>
+
+              <!-- 数据表管理 -->
+              <div id="tablesPanel" class="admin-panel">
+                <div class="mb-4">
+                  <h4 class="font-semibold mb-2">数据库表列表</h4>
+                  <div id="tablesList" class="tables-list loading">
+                    正在加载表列表...
+                  </div>
+                </div>
+
+                <div id="tableDataPanel" class="hidden">
+                  <div class="flex items-center justify-between mb-4">
+                    <h4 class="font-semibold">
+                      表数据: <span id="currentTableName"></span>
+                    </h4>
+                    <div>
+                      <button
+                        class="btn btn-primary btn-sm"
+                        onclick="openAddRecordModal()"
+                      >
+                        <span>➕</span> 添加记录
+                      </button>
+                      <button
+                        class="btn btn-secondary btn-sm"
+                        onclick="refreshTableData()"
+                      >
+                        <span>🔄</span> 刷新
+                      </button>
+                      <button
+                        class="btn btn-secondary btn-sm"
+                        onclick="backToTablesList()"
+                      >
+                        <span>←</span> 返回
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="mb-4">
+                    <input
+                      type="text"
+                      id="tableSearch"
+                      class="form-control"
+                      placeholder="搜索表数据..."
+                      oninput="searchTableData()"
+                      style="max-width: 300px"
+                    />
+                  </div>
+
+                  <div id="tableDataContent" class="loading">
+                    正在加载数据...
+                  </div>
+
+                  <div id="tablePagination" class="pagination hidden"></div>
+                </div>
+              </div>
+
+              <!-- 系统配置管理 -->
+              <div id="configPanel" class="admin-panel hidden">
+                <div class="mb-4">
+                  <h4 class="font-semibold mb-2">系统配置项</h4>
+                  <p class="text-sm" style="color: #64748b">
+                    配置IMAP服务器、连接池、缓存等系统参数
+                  </p>
+                </div>
+                <div id="configsList" class="configs-list loading">
+                  正在加载配置...
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- API文档页面 -->
+          <div id="apiDocsPage" class="page hidden">
+            <div class="card">
+              <div class="flex items-center justify-between mb-6">
+                <div>
+                  <h3 class="font-semibold">API接口文档</h3>
+                  <p class="text-sm" style="color: #64748b">
+                    邮件管理系统的RESTful API接口说明
+                  </p>
+                </div>
+                <div class="flex gap-2">
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    onclick="copyApiBaseUrl()"
+                  >
+                    <span>📋</span>
+                    复制Base URL
+                  </button>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    onclick="downloadApiDocs()"
+                  >
+                    <span>📥</span>
+                    下载文档
+                  </button>
+                </div>
+              </div>
+
+              <div class="api-docs">
+                <!-- API基础信息 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div>
+                      <h3 style="margin: 0; color: #1f2937">📡 API基础信息</h3>
+                    </div>
+                  </div>
+                  <div class="api-body">
+                    <div class="api-section">
+                      <h4>Base URL</h4>
+                      <div class="api-example" id="baseUrlExample">
+                        http://localhost:8001
+                      </div>
+                    </div>
+                    <div class="api-section">
+                      <h4>认证方式</h4>
+                      <p class="api-description">
+                        ✅ JWT Token认证 - 所有API都需要在请求头中携带JWT Token
+                      </p>
+                      <div class="api-example">
+                        Authorization: Bearer &lt;your_jwt_token&gt;
+                      </div>
+                      <p
+                        class="api-description"
+                        style="margin-top: 8px; font-size: 0.75rem"
+                      >
+                        💡 通过
+                        <code>POST /auth/login</code>
+                        接口获取Token，Token有效期为24小时。
+                      </p>
+                    </div>
+                    <div class="api-section">
+                      <h4>响应格式</h4>
+                      <p class="api-description">
+                        所有接口返回JSON格式数据，HTTP状态码表示请求结果。
+                      </p>
+                      <ul
+                        style="
+                          margin: 8px 0;
+                          padding-left: 20px;
+                          font-size: 0.875rem;
+                          color: #64748b;
+                        "
+                      >
+                        <li>200: 成功</li>
+                        <li>401: 未认证或Token过期</li>
+                        <li>404: 资源不存在</li>
+                        <li>400/422: 请求参数错误</li>
+                        <li>500: 服务器内部错误</li>
+                      </ul>
+                    </div>
+                    <div class="api-section">
+                      <h4>版本信息</h4>
+                      <p class="api-description">
+                        当前版本: <strong>v2.0.0</strong>
+                      </p>
+                      <p
+                        class="api-description"
+                        style="font-size: 0.75rem; margin-top: 4px"
+                      >
+                        新增功能：JWT认证、日志系统、SQLite存储、管理面板
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 认证相关API -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div>
+                      <h3 style="margin: 0; color: #1f2937">🔐 认证管理</h3>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 登录接口 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method post">POST</span>
+                      <span class="api-path">/auth/login</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('login')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">管理员登录，返回JWT Token。</p>
+
+                    <div class="api-section">
+                      <h4>请求体</h4>
+                      <div class="api-example">
+                        { "username": "admin", "password": "admin123" }
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "access_token":
+                        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...", "token_type":
+                        "bearer" }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 获取当前用户信息 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method get">GET</span>
+                      <span class="api-path">/auth/me</span>
+                    </div>
+                    <button class="api-try-button" onclick="openApiTest('me')">
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      获取当前登录的管理员信息（需要JWT认证）。
+                    </p>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "id": 1, "username": "admin", "email": null,
+                        "is_active": true, "created_at": "2025-01-01 12:00:00",
+                        "last_login": "2025-01-15 14:30:00" }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 修改密码 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method post">POST</span>
+                      <span class="api-path">/auth/change-password</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('changePassword')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      修改当前管理员密码（需要JWT认证）。
+                    </p>
+
+                    <div class="api-section">
+                      <h4>请求体</h4>
+                      <div class="api-example">
+                        { "old_password": "old_password", "new_password":
+                        "new_password" }
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "message": "密码修改成功" }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 账户管理API -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div>
+                      <h3 style="margin: 0; color: #1f2937">👥 账户管理</h3>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 获取邮箱列表接口 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method get">GET</span>
+                      <span class="api-path">/accounts</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('accounts')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      获取系统中所有已添加的邮箱账户列表，支持分页和模糊搜索。
+                    </p>
+
+                    <div class="api-section">
+                      <h4>请求参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">page</span>
+                          <span class="api-param-type">integer</span>
+                          <span class="api-param-desc"
+                            >页码，从1开始，默认: 1</span
+                          >
                         </div>
-                    </div>
-                </div>
-
-                <!-- 管理面板页面 -->
-                <div id="adminPanelPage" class="page hidden">
-                    <div class="card">
-                        <h3 class="font-semibold mb-4">⚙️ 系统管理面板</h3>
-                        <p class="text-sm mb-6" style="color: #64748b;">管理数据库表和系统配置</p>
-                        
-                        <!-- 标签页 -->
-                        <div class="tabs mb-4">
-                            <button class="tab active" onclick="switchAdminTab('tables', this)">数据表管理</button>
-                            <button class="tab" onclick="switchAdminTab('config', this)">系统配置</button>
+                        <div class="api-param">
+                          <span class="api-param-name">page_size</span>
+                          <span class="api-param-type">integer</span>
+                          <span class="api-param-desc"
+                            >每页数量，范围1-100，默认: 10</span
+                          >
                         </div>
-
-                        <!-- 数据表管理 -->
-                        <div id="tablesPanel" class="admin-panel">
-                            <div class="mb-4">
-                                <h4 class="font-semibold mb-2">数据库表列表</h4>
-                                <div id="tablesList" class="tables-list loading">正在加载表列表...</div>
-                            </div>
-                            
-                            <div id="tableDataPanel" class="hidden">
-                                <div class="flex items-center justify-between mb-4">
-                                    <h4 class="font-semibold">表数据: <span id="currentTableName"></span></h4>
-                                    <div>
-                                        <button class="btn btn-primary btn-sm" onclick="openAddRecordModal()">
-                                            <span>➕</span> 添加记录
-                                        </button>
-                                        <button class="btn btn-secondary btn-sm" onclick="refreshTableData()">
-                                            <span>🔄</span> 刷新
-                                        </button>
-                                        <button class="btn btn-secondary btn-sm" onclick="backToTablesList()">
-                                            <span>←</span> 返回
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <div class="mb-4">
-                                    <input type="text" id="tableSearch" class="form-control" placeholder="搜索表数据..." 
-                                           oninput="searchTableData()" style="max-width: 300px;">
-                                </div>
-                                
-                                <div id="tableDataContent" class="loading">正在加载数据...</div>
-                                
-                                <div id="tablePagination" class="pagination hidden"></div>
-                            </div>
+                        <div class="api-param">
+                          <span class="api-param-name">email_search</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱账号模糊搜索，可选</span
+                          >
                         </div>
-
-                        <!-- 系统配置管理 -->
-                        <div id="configPanel" class="admin-panel hidden">
-                            <div class="mb-4">
-                                <h4 class="font-semibold mb-2">系统配置项</h4>
-                                <p class="text-sm" style="color: #64748b;">配置IMAP服务器、连接池、缓存等系统参数</p>
-                            </div>
-                            <div id="configsList" class="configs-list loading">正在加载配置...</div>
+                        <div class="api-param">
+                          <span class="api-param-name">tag_search</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc">标签模糊搜索，可选</span>
                         </div>
-                    </div>
-                </div>
-
-                <!-- API文档页面 -->
-                <div id="apiDocsPage" class="page hidden">
-                    <div class="card">
-                        <div class="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 class="font-semibold">API接口文档</h3>
-                                <p class="text-sm" style="color: #64748b;">邮件管理系统的RESTful API接口说明</p>
-                            </div>
-                            <div class="flex gap-2">
-                                <button class="btn btn-secondary btn-sm" onclick="copyApiBaseUrl()">
-                                    <span>📋</span>
-                                    复制Base URL
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="downloadApiDocs()">
-                                    <span>📥</span>
-                                    下载文档
-                                </button>
-                            </div>
+                        <div class="api-param">
+                          <span class="api-param-name">refresh_status</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >刷新状态筛选 (all, never_refreshed, success,
+                            failed, pending)，可选</span
+                          >
                         </div>
-
-                        <div class="api-docs">
-                            <!-- API基础信息 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div>
-                                        <h3 style="margin: 0; color: #1f2937;">📡 API基础信息</h3>
-                                    </div>
-                                </div>
-                                <div class="api-body">
-                                    <div class="api-section">
-                                        <h4>Base URL</h4>
-                                        <div class="api-example" id="baseUrlExample">http://localhost:8001</div>
-                                    </div>
-                                    <div class="api-section">
-                                        <h4>认证方式</h4>
-                                        <p class="api-description">✅ JWT Token认证 - 所有API都需要在请求头中携带JWT Token</p>
-                                        <div class="api-example">Authorization: Bearer &lt;your_jwt_token&gt;</div>
-                                        <p class="api-description" style="margin-top: 8px; font-size: 0.75rem;">
-                                            💡 通过 <code>POST /auth/login</code> 接口获取Token，Token有效期为24小时。
-                                        </p>
-                                    </div>
-                                    <div class="api-section">
-                                        <h4>响应格式</h4>
-                                        <p class="api-description">所有接口返回JSON格式数据，HTTP状态码表示请求结果。</p>
-                                        <ul style="margin: 8px 0; padding-left: 20px; font-size: 0.875rem; color: #64748b;">
-                                            <li>200: 成功</li>
-                                            <li>401: 未认证或Token过期</li>
-                                            <li>404: 资源不存在</li>
-                                            <li>400/422: 请求参数错误</li>
-                                            <li>500: 服务器内部错误</li>
-                                        </ul>
-                                    </div>
-                                    <div class="api-section">
-                                        <h4>版本信息</h4>
-                                        <p class="api-description">当前版本: <strong>v2.0.0</strong></p>
-                                        <p class="api-description" style="font-size: 0.75rem; margin-top: 4px;">
-                                            新增功能：JWT认证、日志系统、SQLite存储、管理面板
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 认证相关API -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div>
-                                        <h3 style="margin: 0; color: #1f2937;">🔐 认证管理</h3>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 登录接口 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method post">POST</span>
-                        <span class="api-path">/auth/login</span>
+                        <div class="api-param">
+                          <span class="api-param-name">time_filter</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >时间过滤器 (today, week, month, custom)，可选</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">after_date</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >自定义日期（ISO格式），与time_filter=custom配合使用，可选</span
+                          >
+                        </div>
+                      </div>
                     </div>
-                    <button class="api-try-button" onclick="openApiTest('login')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">管理员登录，返回JWT Token。</p>
 
-                                    <div class="api-section">
-                                        <h4>请求体</h4>
-                                        <div class="api-example">{
-  "username": "admin",
-  "password": "admin123"
-}</div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "token_type": "bearer"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 获取当前用户信息 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method get">GET</span>
-                        <span class="api-path">/auth/me</span>
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "total_accounts": 25, "page": 1, "page_size": 10,
+                        "total_pages": 3, "accounts": [ { "email_id":
+                        "example@outlook.com", "client_id": "your-client-id",
+                        "status": "active", "tags": ["工作", "个人"] } ] }
+                      </div>
                     </div>
-                    <button class="api-try-button" onclick="openApiTest('me')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">获取当前登录的管理员信息（需要JWT认证）。</p>
 
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "id": 1,
-  "username": "admin",
-  "email": null,
-  "is_active": true,
-  "created_at": "2025-01-01 12:00:00",
-  "last_login": "2025-01-15 14:30:00"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 修改密码 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method post">POST</span>
-                        <span class="api-path">/auth/change-password</span>
+                    <div class="api-response" id="accountsResponse">
+                      <h4 style="margin-bottom: 8px; color: #15803d">
+                        响应结果：
+                      </h4>
+                      <pre id="accountsResponseData"></pre>
                     </div>
-                    <button class="api-try-button" onclick="openApiTest('changePassword')">🚀 试用接口</button>
+                  </div>
                 </div>
-                                <div class="api-body">
-                                    <p class="api-description">修改当前管理员密码（需要JWT认证）。</p>
 
-                                    <div class="api-section">
-                                        <h4>请求体</h4>
-                                        <div class="api-example">{
-  "old_password": "old_password",
-  "new_password": "new_password"
-}</div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "message": "密码修改成功"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 账户管理API -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div>
-                                        <h3 style="margin: 0; color: #1f2937;">👥 账户管理</h3>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 获取邮箱列表接口 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div style="display: flex; align-items: center;">
-                                        <span class="api-method get">GET</span>
-                                        <span class="api-path">/accounts</span>
-                                    </div>
-                                    <button class="api-try-button" onclick="openApiTest('accounts')">🚀 试用接口</button>
-                                </div>
-                                <div class="api-body">
-                                    <p class="api-description">获取系统中所有已添加的邮箱账户列表，支持分页和模糊搜索。</p>
-
-                                    <div class="api-section">
-                                        <h4>请求参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">page</span>
-                                                <span class="api-param-type">integer</span>
-                                                <span class="api-param-desc">页码，从1开始，默认: 1</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">page_size</span>
-                                                <span class="api-param-type">integer</span>
-                                                <span class="api-param-desc">每页数量，范围1-100，默认: 10</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">email_search</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮箱账号模糊搜索，可选</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">tag_search</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">标签模糊搜索，可选</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">refresh_status</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">刷新状态筛选 (all, never_refreshed, success, failed, pending)，可选</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">time_filter</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">时间过滤器 (today, week, month, custom)，可选</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">after_date</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">自定义日期（ISO格式），与time_filter=custom配合使用，可选</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "total_accounts": 25,
-  "page": 1,
-  "page_size": 10,
-  "total_pages": 3,
-  "accounts": [
-    {
-      "email_id": "example@outlook.com",
-      "client_id": "your-client-id",
-      "status": "active",
-      "tags": ["工作", "个人"]
-    }
-  ]
-}</div>
-                                    </div>
-
-                                    <div class="api-response" id="accountsResponse">
-                                        <h4 style="margin-bottom: 8px; color: #15803d;">响应结果：</h4>
-                                        <pre id="accountsResponseData"></pre>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 单个账户刷新Token接口 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div style="display: flex; align-items: center;">
-                                        <span class="api-method post">POST</span>
-                                        <span class="api-path">/accounts/{email_id}/refresh-token</span>
-                                    </div>
-                                    <button class="api-try-button" onclick="openApiTest('singleRefreshToken')">🚀 试用接口</button>
-                                </div>
-                                <div class="api-body">
-                                    <p class="api-description">手动刷新指定账户的OAuth2 Token，用于验证账户凭证或更新过期的Token。</p>
-
-                                    <div class="api-section">
-                                        <h4>路径参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">email_id</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>请求示例</h4>
-                                        <div class="api-example">POST /accounts/example%40outlook.com/refresh-token</div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "email_id": "example@outlook.com",
-  "message": "Token refreshed successfully at 2024-01-01T12:00:00"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 批量刷新Token接口 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div style="display: flex; align-items: center;">
-                                        <span class="api-method post">POST</span>
-                                        <span class="api-path">/accounts/batch-refresh-tokens</span>
-                                    </div>
-                                    <button class="api-try-button" onclick="openApiTest('batchRefreshTokens')">🚀 试用接口</button>
-                                </div>
-                                <div class="api-body">
-                                    <p class="api-description">批量刷新符合筛选条件的账户Token，支持多维度筛选（邮箱、标签、刷新状态、时间范围）。</p>
-
-                                    <div class="api-section">
-                                        <h4>查询参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">email_search</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮箱账号模糊搜索，可选</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">tag_search</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">标签模糊搜索，可选</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">refresh_status</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">刷新状态筛选 (all, never_refreshed, success, failed, pending)，可选</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">time_filter</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">时间过滤器 (today, week, month, custom)，可选</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">after_date</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">自定义日期（ISO格式），与time_filter=custom配合使用，可选</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>请求示例</h4>
-                                        <div class="api-example">POST /accounts/batch-refresh-tokens?refresh_status=failed</div>
-                                        <div class="api-example">POST /accounts/batch-refresh-tokens?tag_search=工作&refresh_status=never_refreshed</div>
-                                        <div class="api-example">POST /accounts/batch-refresh-tokens?time_filter=week</div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "total_processed": 10,
-  "success_count": 8,
-  "failed_count": 2,
-  "details": [
-    {
-      "email": "user1@outlook.com",
-      "status": "success",
-      "message": "Token refreshed successfully"
-    },
-    {
-      "email": "user2@outlook.com",
-      "status": "failed",
-      "message": "HTTP 400 error refreshing token"
-    }
-  ]
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 获取邮件列表接口 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div style="display: flex; align-items: center;">
-                                        <span class="api-method get">GET</span>
-                                        <span class="api-path">/emails/{email_id}</span>
-                                    </div>
-                                    <button class="api-try-button" onclick="openApiTest('emails')">🚀 试用接口</button>
-                                </div>
-                                <div class="api-body">
-                                    <p class="api-description">获取指定邮箱的邮件列表，支持分页和过滤。</p>
-
-                                    <div class="api-section">
-                                        <h4>路径参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">email_id</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>查询参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">folder</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮件文件夹 (all, inbox, junk)，默认: all</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">page</span>
-                                                <span class="api-param-type">integer</span>
-                                                <span class="api-param-desc">页码，从1开始，默认: 1</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">page_size</span>
-                                                <span class="api-param-type">integer</span>
-                                                <span class="api-param-desc">每页数量，范围1-500，默认: 100</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">refresh</span>
-                                                <span class="api-param-type">boolean</span>
-                                                <span class="api-param-desc">是否强制刷新缓存，默认: false</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>请求示例</h4>
-                                        <div class="api-example">GET /emails/example%40outlook.com?folder=inbox&page=1&page_size=20&refresh=true</div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "email_id": "example@outlook.com",
-  "folder_view": "inbox",
-  "page": 1,
-  "page_size": 20,
-  "total_emails": 150,
-  "emails": [
-    {
-      "message_id": "INBOX-1",
-      "folder": "INBOX",
-      "subject": "邮件主题",
-      "from_email": "sender@example.com",
-      "date": "2024-01-01T12:00:00Z",
-      "is_read": false,
-      "has_attachments": true,
-      "sender_initial": "S"
-    }
-  ]
-}</div>
-                                    </div>
-
-                                    <div class="api-response" id="emailsResponse">
-                                        <h4 style="margin-bottom: 8px; color: #15803d;">响应结果：</h4>
-                                        <pre id="emailsResponseData"></pre>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 获取邮件详情接口 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div style="display: flex; align-items: center;">
-                                        <span class="api-method get">GET</span>
-                                        <span class="api-path">/emails/{email_id}/{message_id}</span>
-                                    </div>
-                                    <button class="api-try-button" onclick="openApiTest('emailDetail')">🚀 试用接口</button>
-                                </div>
-                                <div class="api-body">
-                                    <p class="api-description">获取指定邮件的详细内容，包括邮件正文。</p>
-
-                                    <div class="api-section">
-                                        <h4>路径参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">email_id</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">message_id</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮件ID，格式: {folder}-{id}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>请求示例</h4>
-                                        <div class="api-example">GET /emails/example%40outlook.com/INBOX-1</div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "message_id": "INBOX-1",
-  "subject": "邮件主题",
-  "from_email": "sender@example.com",
-  "to_email": "example@outlook.com",
-  "date": "2024-01-01T12:00:00Z",
-  "body_plain": "纯文本邮件内容",
-  "body_html": "&lt;html&gt;&lt;body&gt;HTML邮件内容&lt;/body&gt;&lt;/html&gt;"
-}</div>
-                                    </div>
-
-                                    <div class="api-response" id="emailDetailResponse">
-                                        <h4 style="margin-bottom: 8px; color: #15803d;">响应结果：</h4>
-                                        <pre id="emailDetailResponseData"></pre>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 获取双栏视图邮件 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div style="display: flex; align-items: center;">
-                                        <span class="api-method get">GET</span>
-                                        <span class="api-path">/emails/{email_id}/dual-view</span>
-                                    </div>
-                                    <button class="api-try-button" onclick="openApiTest('dualView')">🚀 试用接口</button>
-                                </div>
-                                <div class="api-body">
-                                    <p class="api-description">获取双栏视图邮件（同时返回收件箱和垃圾箱邮件）。</p>
-
-                                    <div class="api-section">
-                                        <h4>路径参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">email_id</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>查询参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">inbox_page</span>
-                                                <span class="api-param-type">integer</span>
-                                                <span class="api-param-desc">收件箱页码，默认: 1</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">junk_page</span>
-                                                <span class="api-param-type">integer</span>
-                                                <span class="api-param-desc">垃圾箱页码，默认: 1</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">page_size</span>
-                                                <span class="api-param-type">integer</span>
-                                                <span class="api-param-desc">每页数量，默认: 20</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "email_id": "example@outlook.com",
-  "inbox_emails": [...],
-  "junk_emails": [...],
-  "inbox_total": 100,
-  "junk_total": 20
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 添加账户 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method post">POST</span>
-                        <span class="api-path">/accounts</span>
+                <!-- 单个账户刷新Token接口 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method post">POST</span>
+                      <span class="api-path"
+                        >/accounts/{email_id}/refresh-token</span
+                      >
                     </div>
-                    <button class="api-try-button" onclick="openApiTest('addAccount')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">添加新的邮箱账户。</p>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('singleRefreshToken')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      手动刷新指定账户的OAuth2
+                      Token，用于验证账户凭证或更新过期的Token。
+                    </p>
 
-                                    <div class="api-section">
-                                        <h4>请求体</h4>
-                                        <div class="api-example">{
-  "email_id": "example@outlook.com",
-  "refresh_token": "your_refresh_token",
-  "client_id": "your_client_id",
-  "tags": ["工作", "个人"]
-}</div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "email_id": "example@outlook.com",
-  "client_id": "your_client_id",
-  "status": "pending",
-  "tags": ["工作", "个人"],
-  "message": "账户添加成功"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 删除账户 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method delete">DELETE</span>
-                        <span class="api-path">/accounts/{email_id}</span>
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">email_id</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱地址，需要URL编码</span
+                          >
+                        </div>
+                      </div>
                     </div>
-                    <button class="api-try-button" onclick="openApiTest('deleteAccount')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">删除指定的邮箱账户。</p>
 
-                                    <div class="api-section">
-                                        <h4>路径参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">email_id</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "email_id": "example@outlook.com",
-  "message": "账户删除成功"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 更新账户标签 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method put">PUT</span>
-                        <span class="api-path">/accounts/{email_id}/tags</span>
+                    <div class="api-section">
+                      <h4>请求示例</h4>
+                      <div class="api-example">
+                        POST /accounts/example%40outlook.com/refresh-token
+                      </div>
                     </div>
-                    <button class="api-try-button" onclick="openApiTest('updateTags')">🚀 试用接口</button>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "email_id": "example@outlook.com", "message": "Token
+                        refreshed successfully at 2024-01-01T12:00:00" }
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="api-body">
+
+                <!-- 批量刷新Token接口 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method post">POST</span>
+                      <span class="api-path"
+                        >/accounts/batch-refresh-tokens</span
+                      >
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('batchRefreshTokens')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      批量刷新符合筛选条件的账户Token，支持多维度筛选（邮箱、标签、刷新状态、时间范围）。
+                    </p>
+
+                    <div class="api-section">
+                      <h4>查询参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">email_search</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱账号模糊搜索，可选</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">tag_search</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc">标签模糊搜索，可选</span>
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">refresh_status</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >刷新状态筛选 (all, never_refreshed, success,
+                            failed, pending)，可选</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">time_filter</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >时间过滤器 (today, week, month, custom)，可选</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">after_date</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >自定义日期（ISO格式），与time_filter=custom配合使用，可选</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>请求示例</h4>
+                      <div class="api-example">
+                        POST
+                        /accounts/batch-refresh-tokens?refresh_status=failed
+                      </div>
+                      <div class="api-example">
+                        POST
+                        /accounts/batch-refresh-tokens?tag_search=工作&refresh_status=never_refreshed
+                      </div>
+                      <div class="api-example">
+                        POST /accounts/batch-refresh-tokens?time_filter=week
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "total_processed": 10, "success_count": 8,
+                        "failed_count": 2, "details": [ { "email":
+                        "user1@outlook.com", "status": "success", "message":
+                        "Token refreshed successfully" }, { "email":
+                        "user2@outlook.com", "status": "failed", "message":
+                        "HTTP 400 error refreshing token" } ] }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 获取邮件列表接口 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method get">GET</span>
+                      <span class="api-path">/emails/{email_id}</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('emails')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      获取指定邮箱的邮件列表，支持分页和过滤。
+                    </p>
+
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">email_id</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱地址，需要URL编码</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>查询参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">folder</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮件文件夹 (all, inbox, junk)，默认: all</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">page</span>
+                          <span class="api-param-type">integer</span>
+                          <span class="api-param-desc"
+                            >页码，从1开始，默认: 1</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">page_size</span>
+                          <span class="api-param-type">integer</span>
+                          <span class="api-param-desc"
+                            >每页数量，范围1-500，默认: 100</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">refresh</span>
+                          <span class="api-param-type">boolean</span>
+                          <span class="api-param-desc"
+                            >是否强制刷新缓存，默认: false</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>请求示例</h4>
+                      <div class="api-example">
+                        GET
+                        /emails/example%40outlook.com?folder=inbox&page=1&page_size=20&refresh=true
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "email_id": "example@outlook.com", "folder_view":
+                        "inbox", "page": 1, "page_size": 20, "total_emails":
+                        150, "emails": [ { "message_id": "INBOX-1", "folder":
+                        "INBOX", "subject": "邮件主题", "from_email":
+                        "sender@example.com", "date": "2024-01-01T12:00:00Z",
+                        "is_read": false, "has_attachments": true,
+                        "sender_initial": "S" } ] }
+                      </div>
+                    </div>
+
+                    <div class="api-response" id="emailsResponse">
+                      <h4 style="margin-bottom: 8px; color: #15803d">
+                        响应结果：
+                      </h4>
+                      <pre id="emailsResponseData"></pre>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 获取邮件详情接口 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method get">GET</span>
+                      <span class="api-path"
+                        >/emails/{email_id}/{message_id}</span
+                      >
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('emailDetail')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      获取指定邮件的详细内容，包括邮件正文。
+                    </p>
+
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">email_id</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱地址，需要URL编码</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">message_id</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮件ID，格式: {folder}-{id}</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>请求示例</h4>
+                      <div class="api-example">
+                        GET /emails/example%40outlook.com/INBOX-1
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "message_id": "INBOX-1", "subject": "邮件主题",
+                        "from_email": "sender@example.com", "to_email":
+                        "example@outlook.com", "date": "2024-01-01T12:00:00Z",
+                        "body_plain": "纯文本邮件内容", "body_html":
+                        "&lt;html&gt;&lt;body&gt;HTML邮件内容&lt;/body&gt;&lt;/html&gt;"
+                        }
+                      </div>
+                    </div>
+
+                    <div class="api-response" id="emailDetailResponse">
+                      <h4 style="margin-bottom: 8px; color: #15803d">
+                        响应结果：
+                      </h4>
+                      <pre id="emailDetailResponseData"></pre>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 获取双栏视图邮件 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method get">GET</span>
+                      <span class="api-path">/emails/{email_id}/dual-view</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('dualView')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      获取双栏视图邮件（同时返回收件箱和垃圾箱邮件）。
+                    </p>
+
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">email_id</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱地址，需要URL编码</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>查询参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">inbox_page</span>
+                          <span class="api-param-type">integer</span>
+                          <span class="api-param-desc"
+                            >收件箱页码，默认: 1</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">junk_page</span>
+                          <span class="api-param-type">integer</span>
+                          <span class="api-param-desc"
+                            >垃圾箱页码，默认: 1</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">page_size</span>
+                          <span class="api-param-type">integer</span>
+                          <span class="api-param-desc">每页数量，默认: 20</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "email_id": "example@outlook.com", "inbox_emails":
+                        [...], "junk_emails": [...], "inbox_total": 100,
+                        "junk_total": 20 }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 添加账户 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method post">POST</span>
+                      <span class="api-path">/accounts</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('addAccount')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">添加新的邮箱账户。</p>
+
+                    <div class="api-section">
+                      <h4>请求体</h4>
+                      <div class="api-example">
+                        { "email_id": "example@outlook.com", "refresh_token":
+                        "your_refresh_token", "client_id": "your_client_id",
+                        "tags": ["工作", "个人"] }
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "email_id": "example@outlook.com", "client_id":
+                        "your_client_id", "status": "pending", "tags": ["工作",
+                        "个人"], "message": "账户添加成功" }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 删除账户 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method delete">DELETE</span>
+                      <span class="api-path">/accounts/{email_id}</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('deleteAccount')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">删除指定的邮箱账户。</p>
+
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">email_id</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱地址，需要URL编码</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "email_id": "example@outlook.com", "message":
+                        "账户删除成功" }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 更新账户标签 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method put">PUT</span>
+                      <span class="api-path">/accounts/{email_id}/tags</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('updateTags')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
                     <p class="api-description">更新指定账户的标签列表。</p>
 
                     <div class="api-section">
-                        <h4>路径参数</h4>
-                        <div class="api-params">
-                            <div class="api-param">
-                                <span class="api-param-name">email_id</span>
-                                <span class="api-param-type">string</span>
-                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
-                            </div>
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">email_id</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱地址，需要URL编码</span
+                          >
                         </div>
+                      </div>
                     </div>
 
                     <div class="api-section">
-                        <h4>请求体</h4>
-                        <div class="api-example">{
-  "tags": ["工作", "个人", "重要"]
-}</div>
+                      <h4>请求体</h4>
+                      <div class="api-example">
+                        { "tags": ["工作", "个人", "重要"] }
+                      </div>
                     </div>
 
                     <div class="api-section">
-                        <h4>请求示例</h4>
-                        <div class="api-example">PUT /accounts/example%40outlook.com/tags</div>
+                      <h4>请求示例</h4>
+                      <div class="api-example">
+                        PUT /accounts/example%40outlook.com/tags
+                      </div>
                     </div>
 
                     <div class="api-section">
-                        <h4>响应示例</h4>
-                        <div class="api-example">{
-  "email_id": "example@outlook.com",
-  "message": "Account tags updated successfully."
-}</div>
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "email_id": "example@outlook.com", "message": "Account
+                        tags updated successfully." }
+                      </div>
                     </div>
+                  </div>
                 </div>
+
+                <!-- 添加账户标签 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method post">POST</span>
+                      <span class="api-path"
+                        >/accounts/{email_id}/tags/add</span
+                      >
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('addTag')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      为指定账户添加单个标签（如果标签已存在则不处理，幂等操作）。
+                    </p>
+
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">email_id</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱地址，需要URL编码</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>请求体</h4>
+                      <div class="api-example">{ "tag": "VIP" }</div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>请求示例</h4>
+                      <div class="api-example">
+                        POST /accounts/example%40outlook.com/tags/add
+                        Content-Type: application/json { "tag": "VIP" }
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "email_id": "example@outlook.com", "message": "Tag
+                        'VIP' added successfully." }
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>特性说明</h4>
+                      <ul style="margin: 0; padding-left: 20px; color: #6b7280">
+                        <li>幂等操作：重复添加相同标签不会报错</li>
+                        <li>标签添加到现有标签列表末尾，不会覆盖现有标签</li>
+                        <li>账户不存在时返回404错误</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 随机获取邮箱 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method get">GET</span>
+                      <span class="api-path">/accounts/random</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('randomAccounts')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      随机获取邮箱账户列表，支持标签筛选和分页。每次请求返回的顺序都是随机的。
+                    </p>
+
+                    <div class="api-section">
+                      <h4>请求参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">include_tags</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >必须包含的标签，多个用逗号分隔，可选</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">exclude_tags</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >必须不包含的标签，多个用逗号分隔，可选</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">page</span>
+                          <span class="api-param-type">integer</span>
+                          <span class="api-param-desc"
+                            >页码，从1开始，默认: 1</span
+                          >
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">page_size</span>
+                          <span class="api-param-type">integer</span>
+                          <span class="api-param-desc"
+                            >每页数量，范围1-100，默认: 10</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>请求示例</h4>
+                      <div class="api-example">
+                        GET /accounts/random?exclude_tags=禁用&page_size=5
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "total_accounts": 20, "page": 1, "page_size": 5,
+                        "total_pages": 4, "accounts": [ { "email_id":
+                        "user1@outlook.com", "client_id": "client-id", "status":
+                        "active", "tags": ["工作", "重要"], "last_refresh_time":
+                        "2025-10-30T12:00:00", "next_refresh_time":
+                        "2025-11-02T12:00:00", "refresh_status": "success" } ] }
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>使用场景</h4>
+                      <ul style="margin: 0; padding-left: 20px; color: #6b7280">
+                        <li>随机分配邮箱给任务</li>
+                        <li>按标签随机抽取邮箱进行测试</li>
+                        <li>避免重复使用同一批邮箱</li>
+                        <li>实现邮箱池的随机轮换</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 刷新Token -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method post">POST</span>
+                      <span class="api-path"
+                        >/accounts/{email_id}/refresh-token</span
+                      >
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('refreshToken')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">手动刷新指定账户的访问Token。</p>
+
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">email_id</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱地址，需要URL编码</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "email_id": "example@outlook.com", "status":
+                        "success", "refresh_time": "2025-01-15 14:30:00",
+                        "message": "Token刷新成功" }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 管理面板API -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div>
+                      <h3 style="margin: 0; color: #1f2937">⚙️ 管理面板</h3>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 获取表记录数 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method get">GET</span>
+                      <span class="api-path"
+                        >/admin/tables/{table_name}/count</span
+                      >
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('tableCount')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">获取指定数据表的记录数。</p>
+
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">table_name</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >表名 (accounts, admins, system_config)</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">{ "count": 25 }</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 获取表数据 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method get">GET</span>
+                      <span class="api-path">/admin/tables/{table_name}</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('tableData')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">获取指定数据表的所有记录。</p>
+
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">table_name</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >表名 (accounts, admins, system_config)</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "table_name": "accounts", "page": 1, "page_size":
+                        1000, "total_records": 25, "records": [ { "id": 1,
+                        "email": "example@outlook.com", "client_id": "xxx",
+                        "tags": "[\"工作\"]", "created_at": "2025-01-01
+                        12:00:00" } ] }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 删除表记录 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method delete">DELETE</span>
+                      <span class="api-path"
+                        >/admin/tables/{table_name}/{record_id}</span
+                      >
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('deleteTableRecord')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">删除指定表中的记录。</p>
+
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">table_name</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc">表名</span>
+                        </div>
+                        <div class="api-param">
+                          <span class="api-param-name">record_id</span>
+                          <span class="api-param-type">integer</span>
+                          <span class="api-param-desc">记录ID</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "message": "记录 1 删除成功" }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 获取系统配置 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method get">GET</span>
+                      <span class="api-path">/admin/config</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('getConfig')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">获取所有系统配置项。</p>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "configs": [ { "id": 1, "key": "imap_server", "value":
+                        "outlook.office365.com", "description":
+                        "IMAP服务器地址", "updated_at": "2025-01-01 12:00:00" }
+                        ] }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 更新系统配置 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method post">POST</span>
+                      <span class="api-path">/admin/config</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('updateConfig')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">创建或更新系统配置项。</p>
+
+                    <div class="api-section">
+                      <h4>请求体</h4>
+                      <div class="api-example">
+                        { "key": "imap_server", "value":
+                        "outlook.office365.com", "description": "IMAP服务器地址"
+                        }
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "message": "配置 imap_server 更新成功" }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 系统状态 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div>
+                      <h3 style="margin: 0; color: #1f2937">📊 系统信息</h3>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 获取系统状态 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method get">GET</span>
+                      <span class="api-path">/api</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('systemInfo')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">
+                      获取系统版本和状态信息（无需认证）。
+                    </p>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "name": "Outlook Email Management System", "version":
+                        "2.0.0", "status": "running", "features": [
+                        "JWT认证系统", "SQLite数据存储", "滚动日志记录",
+                        "管理面板" ] }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 缓存管理 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div>
+                      <h3 style="margin: 0; color: #1f2937">🗑️ 缓存管理</h3>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 清除指定邮箱缓存 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method delete">DELETE</span>
+                      <span class="api-path">/cache/{email_id}</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('clearCache')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">清除指定邮箱的邮件列表缓存。</p>
+
+                    <div class="api-section">
+                      <h4>路径参数</h4>
+                      <div class="api-params">
+                        <div class="api-param">
+                          <span class="api-param-name">email_id</span>
+                          <span class="api-param-type">string</span>
+                          <span class="api-param-desc"
+                            >邮箱地址，需要URL编码</span
+                          >
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "message": "Cache cleared for example@outlook.com" }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 清除所有缓存 -->
+                <div class="api-endpoint">
+                  <div class="api-header">
+                    <div style="display: flex; align-items: center">
+                      <span class="api-method delete">DELETE</span>
+                      <span class="api-path">/cache</span>
+                    </div>
+                    <button
+                      class="api-try-button"
+                      onclick="openApiTest('clearAllCache')"
+                    >
+                      🚀 试用接口
+                    </button>
+                  </div>
+                  <div class="api-body">
+                    <p class="api-description">清除所有邮箱的邮件列表缓存。</p>
+
+                    <div class="api-section">
+                      <h4>响应示例</h4>
+                      <div class="api-example">
+                        { "message": "All cache cleared" }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
 
-            <!-- 添加账户标签 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method post">POST</span>
-                        <span class="api-path">/accounts/{email_id}/tags/add</span>
-                    </div>
-                    <button class="api-try-button" onclick="openApiTest('addTag')">🚀 试用接口</button>
+          <!-- 邮件列表页面 -->
+          <div id="emailsPage" class="page hidden">
+            <div class="card">
+              <!-- 账户信息和操作按钮 -->
+              <div class="email-compact-header">
+                <div class="email-header-left">
+                  <span class="email-current-account">
+                    <span
+                      id="currentAccountEmail"
+                      onclick="copyEmailAddress(this.textContent)"
+                      title="点击复制"
+                      >-</span
+                    >
+                  </span>
+                  <span class="email-stats-compact">
+                    <span id="totalEmailCount">0</span>封 ·
+                    <span id="unreadEmailCount">0</span>未读 ·
+                    <span id="todayEmailCount">0</span>今日
+                  </span>
                 </div>
-                <div class="api-body">
-                    <p class="api-description">为指定账户添加单个标签（如果标签已存在则不处理，幂等操作）。</p>
+                <div class="email-header-right">
+                  <button
+                    class="btn btn-primary btn-sm"
+                    onclick="refreshEmails()"
+                    id="refreshBtn"
+                    title="刷新邮件列表"
+                  >
+                    <span>🔄</span>
+                  </button>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    onclick="clearCache()"
+                    title="清除缓存"
+                  >
+                    <span>🗑️</span>
+                  </button>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    onclick="exportEmails()"
+                    title="导出邮件"
+                  >
+                    <span>📤</span>
+                  </button>
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    onclick="backToAccounts()"
+                    title="返回账户列表"
+                  >
+                    <span>←</span>
+                  </button>
+                </div>
+              </div>
+              <!-- 隐藏的统计元素（保持兼容性） -->
+              <div style="display: none">
+                <span id="attachmentEmailCount">0</span>
+                <span id="lastUpdateTime">-</span>
+              </div>
 
-                    <div class="api-section">
-                        <h4>路径参数</h4>
-                        <div class="api-params">
-                            <div class="api-param">
-                                <span class="api-param-name">email_id</span>
-                                <span class="api-param-type">string</span>
-                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
-                            </div>
+              <!-- 搜索和过滤 -->
+              <div
+                style="
+                  display: grid;
+                  grid-template-columns: 1fr 1fr;
+                  gap: 12px;
+                  margin-bottom: 16px;
+                "
+              >
+                <div class="search-container">
+                  <span class="search-icon">👤</span>
+                  <input
+                    type="text"
+                    class="search-input"
+                    id="senderSearch"
+                    placeholder="搜索发件人..."
+                    onkeyup="searchAndLoadEmails()"
+                  />
+                </div>
+                <div class="search-container">
+                  <span class="search-icon">📧</span>
+                  <input
+                    type="text"
+                    class="search-input"
+                    id="subjectSearch"
+                    placeholder="搜索主题..."
+                    onkeyup="searchAndLoadEmails()"
+                  />
+                </div>
+              </div>
+
+              <div class="filter-container">
+                <div class="filter-group">
+                  <label class="filter-label">文件夹:</label>
+                  <select
+                    class="filter-select"
+                    id="folderFilter"
+                    onchange="loadEmails()"
+                  >
+                    <option value="all">全部邮件</option>
+                    <option value="inbox">收件箱</option>
+                    <option value="junk">垃圾邮件</option>
+                  </select>
+                </div>
+                <div class="filter-group">
+                  <label class="filter-label">排序:</label>
+                  <select
+                    class="filter-select"
+                    id="sortOrder"
+                    onchange="loadEmails()"
+                  >
+                    <option value="desc">日期倒序（最新在前）</option>
+                    <option value="asc">日期正序（最旧在前）</option>
+                  </select>
+                </div>
+                <div class="filter-group">
+                  <label class="filter-label">每页显示:</label>
+                  <select
+                    class="filter-select"
+                    id="emailPageSize"
+                    onchange="changeEmailPageSize()"
+                  >
+                    <option value="20">20条</option>
+                    <option value="50">50条</option>
+                    <option value="100" selected>100条</option>
+                  </select>
+                </div>
+                <button
+                  class="btn btn-primary btn-sm"
+                  onclick="loadEmails(true)"
+                >
+                  <span>🔍</span>
+                  搜索
+                </button>
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick="clearSearchFilters()"
+                >
+                  <span>🗑️</span>
+                  清除搜索
+                </button>
+              </div>
+
+              <!-- 分页控件 -->
+              <div
+                class="pagination-controls"
+                style="
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 16px;
+                  margin-bottom: 16px;
+                  padding: 12px;
+                  background: white;
+                  border-radius: 8px;
+                "
+              >
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick="emailPrevPage()"
+                  id="emailPrevBtn"
+                >
+                  <span>◀</span> 上一页
+                </button>
+                <span style="font-size: 0.875rem; color: #64748b">
+                  第 <strong id="emailCurrentPageDisplay">1</strong> 页
+                  <span id="emailTotalInfo"></span>
+                </span>
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick="emailNextPage()"
+                  id="emailNextBtn"
+                >
+                  下一页 <span>▶</span>
+                </button>
+              </div>
+
+              <!-- 邮件列表表格 -->
+              <div class="emails-table-container">
+                <table class="emails-table">
+                  <thead>
+                    <tr>
+                      <th style="width: 35%">发件人</th>
+                      <th style="width: 40%">主题</th>
+                      <th style="width: 15%">日期</th>
+                      <th style="width: 10%">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody id="emailsList">
+                    <tr>
+                      <td colspan="4" style="padding: 40px; text-align: center">
+                        <div class="loading">
+                          <div class="loading-spinner"></div>
+                          正在加载邮件...
                         </div>
-                    </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-                    <div class="api-section">
-                        <h4>请求体</h4>
-                        <div class="api-example">{
-  "tag": "VIP"
-}</div>
-                    </div>
-
-                    <div class="api-section">
-                        <h4>请求示例</h4>
-                        <div class="api-example">POST /accounts/example%40outlook.com/tags/add
-Content-Type: application/json
-
-{
-  "tag": "VIP"
-}</div>
-                    </div>
-
-                    <div class="api-section">
-                        <h4>响应示例</h4>
-                        <div class="api-example">{
-  "email_id": "example@outlook.com",
-  "message": "Tag 'VIP' added successfully."
-}</div>
-                    </div>
-
-                    <div class="api-section">
-                        <h4>特性说明</h4>
-                        <ul style="margin: 0; padding-left: 20px; color: #6b7280;">
-                            <li>幂等操作：重复添加相同标签不会报错</li>
-                            <li>标签添加到现有标签列表末尾，不会覆盖现有标签</li>
-                            <li>账户不存在时返回404错误</li>
-                        </ul>
-                    </div>
-                </div>
+              <div id="emailsPagination" class="pagination hidden"></div>
             </div>
-
-            <!-- 随机获取邮箱 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method get">GET</span>
-                        <span class="api-path">/accounts/random</span>
-                    </div>
-                    <button class="api-try-button" onclick="openApiTest('randomAccounts')">🚀 试用接口</button>
-                </div>
-                <div class="api-body">
-                    <p class="api-description">随机获取邮箱账户列表，支持标签筛选和分页。每次请求返回的顺序都是随机的。</p>
-
-                    <div class="api-section">
-                        <h4>请求参数</h4>
-                        <div class="api-params">
-                            <div class="api-param">
-                                <span class="api-param-name">include_tags</span>
-                                <span class="api-param-type">string</span>
-                                <span class="api-param-desc">必须包含的标签，多个用逗号分隔，可选</span>
-                            </div>
-                            <div class="api-param">
-                                <span class="api-param-name">exclude_tags</span>
-                                <span class="api-param-type">string</span>
-                                <span class="api-param-desc">必须不包含的标签，多个用逗号分隔，可选</span>
-                            </div>
-                            <div class="api-param">
-                                <span class="api-param-name">page</span>
-                                <span class="api-param-type">integer</span>
-                                <span class="api-param-desc">页码，从1开始，默认: 1</span>
-                            </div>
-                            <div class="api-param">
-                                <span class="api-param-name">page_size</span>
-                                <span class="api-param-type">integer</span>
-                                <span class="api-param-desc">每页数量，范围1-100，默认: 10</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="api-section">
-                        <h4>请求示例</h4>
-                        <div class="api-example">GET /accounts/random?exclude_tags=禁用&page_size=5</div>
-                    </div>
-
-                    <div class="api-section">
-                        <h4>响应示例</h4>
-                        <div class="api-example">{
-  "total_accounts": 20,
-  "page": 1,
-  "page_size": 5,
-  "total_pages": 4,
-  "accounts": [
-    {
-      "email_id": "user1@outlook.com",
-      "client_id": "client-id",
-      "status": "active",
-      "tags": ["工作", "重要"],
-      "last_refresh_time": "2025-10-30T12:00:00",
-      "next_refresh_time": "2025-11-02T12:00:00",
-      "refresh_status": "success"
-    }
-  ]
-}</div>
-                    </div>
-
-                    <div class="api-section">
-                        <h4>使用场景</h4>
-                        <ul style="margin: 0; padding-left: 20px; color: #6b7280;">
-                            <li>随机分配邮箱给任务</li>
-                            <li>按标签随机抽取邮箱进行测试</li>
-                            <li>避免重复使用同一批邮箱</li>
-                            <li>实现邮箱池的随机轮换</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 刷新Token -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method post">POST</span>
-                        <span class="api-path">/accounts/{email_id}/refresh-token</span>
-                    </div>
-                    <button class="api-try-button" onclick="openApiTest('refreshToken')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">手动刷新指定账户的访问Token。</p>
-
-                                    <div class="api-section">
-                                        <h4>路径参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">email_id</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "email_id": "example@outlook.com",
-  "status": "success",
-  "refresh_time": "2025-01-15 14:30:00",
-  "message": "Token刷新成功"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 管理面板API -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div>
-                                        <h3 style="margin: 0; color: #1f2937;">⚙️ 管理面板</h3>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 获取表记录数 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method get">GET</span>
-                        <span class="api-path">/admin/tables/{table_name}/count</span>
-                    </div>
-                    <button class="api-try-button" onclick="openApiTest('tableCount')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">获取指定数据表的记录数。</p>
-
-                                    <div class="api-section">
-                                        <h4>路径参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">table_name</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">表名 (accounts, admins, system_config)</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "count": 25
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 获取表数据 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method get">GET</span>
-                        <span class="api-path">/admin/tables/{table_name}</span>
-                    </div>
-                    <button class="api-try-button" onclick="openApiTest('tableData')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">获取指定数据表的所有记录。</p>
-
-                                    <div class="api-section">
-                                        <h4>路径参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">table_name</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">表名 (accounts, admins, system_config)</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "table_name": "accounts",
-  "page": 1,
-  "page_size": 1000,
-  "total_records": 25,
-  "records": [
-    {
-      "id": 1,
-      "email": "example@outlook.com",
-      "client_id": "xxx",
-      "tags": "[\"工作\"]",
-      "created_at": "2025-01-01 12:00:00"
-    }
-  ]
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 删除表记录 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method delete">DELETE</span>
-                        <span class="api-path">/admin/tables/{table_name}/{record_id}</span>
-                    </div>
-                    <button class="api-try-button" onclick="openApiTest('deleteTableRecord')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">删除指定表中的记录。</p>
-
-                                    <div class="api-section">
-                                        <h4>路径参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">table_name</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">表名</span>
-                                            </div>
-                                            <div class="api-param">
-                                                <span class="api-param-name">record_id</span>
-                                                <span class="api-param-type">integer</span>
-                                                <span class="api-param-desc">记录ID</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "message": "记录 1 删除成功"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 获取系统配置 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method get">GET</span>
-                        <span class="api-path">/admin/config</span>
-                    </div>
-                    <button class="api-try-button" onclick="openApiTest('getConfig')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">获取所有系统配置项。</p>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "configs": [
-    {
-      "id": 1,
-      "key": "imap_server",
-      "value": "outlook.office365.com",
-      "description": "IMAP服务器地址",
-      "updated_at": "2025-01-01 12:00:00"
-    }
-  ]
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 更新系统配置 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method post">POST</span>
-                        <span class="api-path">/admin/config</span>
-                    </div>
-                    <button class="api-try-button" onclick="openApiTest('updateConfig')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">创建或更新系统配置项。</p>
-
-                                    <div class="api-section">
-                                        <h4>请求体</h4>
-                                        <div class="api-example">{
-  "key": "imap_server",
-  "value": "outlook.office365.com",
-  "description": "IMAP服务器地址"
-}</div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "message": "配置 imap_server 更新成功"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 系统状态 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div>
-                                        <h3 style="margin: 0; color: #1f2937;">📊 系统信息</h3>
-                                    </div>
-                                </div>
-                            </div>
-
-            <!-- 获取系统状态 -->
-            <div class="api-endpoint">
-                <div class="api-header">
-                    <div style="display: flex; align-items: center;">
-                        <span class="api-method get">GET</span>
-                        <span class="api-path">/api</span>
-                    </div>
-                    <button class="api-try-button" onclick="openApiTest('systemInfo')">🚀 试用接口</button>
-                </div>
-                                <div class="api-body">
-                                    <p class="api-description">获取系统版本和状态信息（无需认证）。</p>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "name": "Outlook Email Management System",
-  "version": "2.0.0",
-  "status": "running",
-  "features": [
-    "JWT认证系统",
-    "SQLite数据存储",
-    "滚动日志记录",
-    "管理面板"
-  ]
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 缓存管理 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div>
-                                        <h3 style="margin: 0; color: #1f2937;">🗑️ 缓存管理</h3>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 清除指定邮箱缓存 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div style="display: flex; align-items: center;">
-                                        <span class="api-method delete">DELETE</span>
-                                        <span class="api-path">/cache/{email_id}</span>
-                                    </div>
-                                    <button class="api-try-button" onclick="openApiTest('clearCache')">🚀 试用接口</button>
-                                </div>
-                                <div class="api-body">
-                                    <p class="api-description">清除指定邮箱的邮件列表缓存。</p>
-
-                                    <div class="api-section">
-                                        <h4>路径参数</h4>
-                                        <div class="api-params">
-                                            <div class="api-param">
-                                                <span class="api-param-name">email_id</span>
-                                                <span class="api-param-type">string</span>
-                                                <span class="api-param-desc">邮箱地址，需要URL编码</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "message": "Cache cleared for example@outlook.com"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- 清除所有缓存 -->
-                            <div class="api-endpoint">
-                                <div class="api-header">
-                                    <div style="display: flex; align-items: center;">
-                                        <span class="api-method delete">DELETE</span>
-                                        <span class="api-path">/cache</span>
-                                    </div>
-                                    <button class="api-try-button" onclick="openApiTest('clearAllCache')">🚀 试用接口</button>
-                                </div>
-                                <div class="api-body">
-                                    <p class="api-description">清除所有邮箱的邮件列表缓存。</p>
-
-                                    <div class="api-section">
-                                        <h4>响应示例</h4>
-                                        <div class="api-example">{
-  "message": "All cache cleared"
-}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 邮件列表页面 -->
-                <div id="emailsPage" class="page hidden">
-                    <div class="card">
-                        <!-- 账户信息和操作按钮 -->
-                        <div class="email-compact-header">
-                            <div class="email-header-left">
-                                <span class="email-current-account">
-                                    <span id="currentAccountEmail" onclick="copyEmailAddress(this.textContent)" title="点击复制">-</span>
-                                </span>
-                                <span class="email-stats-compact">
-                                    <span id="totalEmailCount">0</span>封 · 
-                                    <span id="unreadEmailCount">0</span>未读 · 
-                                    <span id="todayEmailCount">0</span>今日
-                                </span>
-                            </div>
-                            <div class="email-header-right">
-                                <button class="btn btn-primary btn-sm" onclick="refreshEmails()" id="refreshBtn" title="刷新邮件列表">
-                                    <span>🔄</span>
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="clearCache()" title="清除缓存">
-                                    <span>🗑️</span>
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="exportEmails()" title="导出邮件">
-                                    <span>📤</span>
-                                </button>
-                                <button class="btn btn-secondary btn-sm" onclick="backToAccounts()" title="返回账户列表">
-                                    <span>←</span>
-                                </button>
-                            </div>
-                        </div>
-                        <!-- 隐藏的统计元素（保持兼容性） -->
-                        <div style="display: none;">
-                            <span id="attachmentEmailCount">0</span>
-                            <span id="lastUpdateTime">-</span>
-                        </div>
-
-                        <!-- 搜索和过滤 -->
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-                            <div class="search-container">
-                                <span class="search-icon">👤</span>
-                                <input type="text" class="search-input" id="senderSearch" placeholder="搜索发件人..." onkeyup="searchAndLoadEmails()">
-                            </div>
-                            <div class="search-container">
-                                <span class="search-icon">📧</span>
-                                <input type="text" class="search-input" id="subjectSearch" placeholder="搜索主题..." onkeyup="searchAndLoadEmails()">
-                            </div>
-                        </div>
-
-                        <div class="filter-container">
-                            <div class="filter-group">
-                                <label class="filter-label">文件夹:</label>
-                                <select class="filter-select" id="folderFilter" onchange="loadEmails()">
-                                    <option value="all">全部邮件</option>
-                                    <option value="inbox">收件箱</option>
-                                    <option value="junk">垃圾邮件</option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
-                                <label class="filter-label">排序:</label>
-                                <select class="filter-select" id="sortOrder" onchange="loadEmails()">
-                                    <option value="desc">日期倒序（最新在前）</option>
-                                    <option value="asc">日期正序（最旧在前）</option>
-                                </select>
-                            </div>
-                            <div class="filter-group">
-                                <label class="filter-label">每页显示:</label>
-                                <select class="filter-select" id="emailPageSize" onchange="changeEmailPageSize()">
-                                    <option value="20">20条</option>
-                                    <option value="50">50条</option>
-                                    <option value="100" selected>100条</option>
-                                </select>
-                            </div>
-                            <button class="btn btn-primary btn-sm" onclick="loadEmails(true)">
-                                <span>🔍</span>
-                                搜索
-                            </button>
-                            <button class="btn btn-secondary btn-sm" onclick="clearSearchFilters()">
-                                <span>🗑️</span>
-                                清除搜索
-                            </button>
-                        </div>
-
-                        <!-- 分页控件 -->
-                        <div class="pagination-controls" style="display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 16px; padding: 12px; background: white; border-radius: 8px;">
-                            <button class="btn btn-secondary btn-sm" onclick="emailPrevPage()" id="emailPrevBtn">
-                                <span>◀</span> 上一页
-                            </button>
-                            <span style="font-size: 0.875rem; color: #64748b;">
-                                第 <strong id="emailCurrentPageDisplay">1</strong> 页 
-                                <span id="emailTotalInfo"></span>
-                            </span>
-                            <button class="btn btn-secondary btn-sm" onclick="emailNextPage()" id="emailNextBtn">
-                                下一页 <span>▶</span>
-                            </button>
-                        </div>
-
-                        <!-- 邮件列表表格 -->
-                        <div class="emails-table-container">
-                            <table class="emails-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 35%;">发件人</th>
-                                        <th style="width: 40%;">主题</th>
-                                        <th style="width: 15%;">日期</th>
-                                        <th style="width: 10%;">操作</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="emailsList">
-                                    <tr>
-                                        <td colspan="4" style="padding: 40px; text-align: center;">
-                                            <div class="loading">
-                                                <div class="loading-spinner"></div>
-                                                正在加载邮件...
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div id="emailsPagination" class="pagination hidden"></div>
-                    </div>
-                </div>
-            </div>
+          </div>
         </div>
+      </div>
     </div>
 
     <!-- 通知容器 -->
@@ -1628,148 +2187,225 @@ Content-Type: application/json
 
     <!-- 邮件详情模态框 -->
     <div id="emailModal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="emailModalTitle">邮件详情</h3>
-                <button class="modal-close" onclick="closeEmailModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="emailModalContent">
-                    <div class="loading">正在加载邮件详情...</div>
-                </div>
-            </div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="emailModalTitle">邮件详情</h3>
+          <button class="modal-close" onclick="closeEmailModal()">
+            &times;
+          </button>
         </div>
+        <div class="modal-body">
+          <div id="emailModalContent">
+            <div class="loading">正在加载邮件详情...</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 标签管理模态框 -->
     <div id="tagsModal" class="modal">
-        <div class="modal-content" style="max-width: 500px;">
-            <div class="modal-header">
-                <h3>管理账户标签</h3>
-                <span class="close" onclick="closeTagsModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="currentTags">当前标签</label>
-                    <div id="currentTagsList" class="tags-list"></div>
-                </div>
-                <div class="form-group">
-                    <label for="newTag">添加新标签</label>
-                    <div class="input-group">
-                        <input type="text" id="newTag" class="form-control" placeholder="输入标签名称">
-                        <button class="btn btn-primary" onclick="addTag()">添加</button>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeTagsModal()">取消</button>
-                <button class="btn btn-primary" onclick="saveAccountTags()">保存</button>
-            </div>
+      <div class="modal-content" style="max-width: 500px">
+        <div class="modal-header">
+          <h3>管理账户标签</h3>
+          <span class="close" onclick="closeTagsModal()">&times;</span>
         </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="currentTags">当前标签</label>
+            <div id="currentTagsList" class="tags-list"></div>
+          </div>
+          <div class="form-group">
+            <label for="newTag">添加新标签</label>
+            <div class="input-group">
+              <input
+                type="text"
+                id="newTag"
+                class="form-control"
+                placeholder="输入标签名称"
+              />
+              <button class="btn btn-primary" onclick="addTag()">添加</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeTagsModal()">
+            取消
+          </button>
+          <button class="btn btn-primary" onclick="saveAccountTags()">
+            保存
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 表记录编辑模态框 -->
     <div id="recordModal" class="modal hidden">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3 id="recordModalTitle">编辑记录</h3>
-                <button class="modal-close" onclick="closeRecordModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div id="recordFormContent"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeRecordModal()">取消</button>
-                <button class="btn btn-primary" onclick="saveTableRecord()">保存</button>
-            </div>
+      <div class="modal-content" style="max-width: 600px">
+        <div class="modal-header">
+          <h3 id="recordModalTitle">编辑记录</h3>
+          <button class="modal-close" onclick="closeRecordModal()">
+            &times;
+          </button>
         </div>
+        <div class="modal-body">
+          <div id="recordFormContent"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeRecordModal()">
+            取消
+          </button>
+          <button class="btn btn-primary" onclick="saveTableRecord()">
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 配置编辑模态框 -->
+    <div id="configEditModal" class="modal hidden">
+      <div class="modal-content" style="max-width: 600px">
+        <div class="modal-header">
+          <h3 id="configModalTitle">编辑系统配置</h3>
+          <button class="modal-close" onclick="closeConfigEditModal()">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">配置键</label>
+            <input
+              type="text"
+              id="configKey"
+              class="form-control"
+              readonly
+              style="background-color: #f1f5f9"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">配置值 *</label>
+            <input
+              type="text"
+              id="configValue"
+              class="form-control"
+              placeholder="请输入配置值"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">描述</label>
+            <textarea
+              id="configDescription"
+              class="form-control"
+              rows="3"
+              placeholder="配置项描述（可选）"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeConfigEditModal()">
+            取消
+          </button>
+          <button class="btn btn-primary" onclick="saveConfigEdit()">
+            保存
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- API测试模态框 -->
-    <div id="apiTestModal" class="api-test-modal" onclick="closeApiTestModal(event)">
-        <div class="api-test-content" onclick="event.stopPropagation()">
-            <div class="api-test-header">
-                <h3 id="apiTestTitle">🚀 测试API接口</h3>
-                <button class="api-test-close" onclick="closeApiTestModal()">×</button>
-            </div>
-            <div class="api-test-body">
-                <div class="api-test-section">
-                    <h4>📋 请求信息</h4>
-                    <div class="api-test-info-grid">
-                        <div class="api-test-info-item">
-                            <label>方法</label>
-                            <span id="apiTestMethod" class="api-method-badge">GET</span>
-                        </div>
-                        <div class="api-test-info-item">
-                            <label>端点</label>
-                            <span id="apiTestEndpoint" class="api-endpoint-path">/api</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- 路径参数 -->
-                <div id="apiTestPathParams" class="api-test-section hidden">
-                    <h4>🔗 路径参数</h4>
-                    <div id="apiTestPathParamsList"></div>
-                </div>
-
-                <!-- 查询参数 -->
-                <div id="apiTestQueryParams" class="api-test-section hidden">
-                    <h4>🔍 查询参数</h4>
-                    <div id="apiTestQueryParamsList"></div>
-                </div>
-
-                <!-- 请求体 -->
-                <div id="apiTestBody" class="api-test-section hidden">
-                    <h4>📝 请求体 (JSON)</h4>
-                    <div class="api-test-param">
-                        <textarea id="apiTestBodyContent" placeholder='{"key": "value"}'></textarea>
-                    </div>
-                </div>
-
-                <!-- 响应结果 -->
-                <div id="apiTestResultSection" class="hidden">
-                    <div id="apiTestResult" class="api-test-result">
-                        <h4>响应结果</h4>
-                        <pre id="apiTestResultContent"></pre>
-                    </div>
-                </div>
-
-                <!-- 操作按钮 -->
-                <div class="api-test-actions">
-                    <button class="btn btn-primary" onclick="executeApiTest()">
-                        <span>▶️</span> 发送请求
-                    </button>
-                    <button class="btn btn-secondary" onclick="resetApiTestForm()">
-                        <span>🔄</span> 重置
-                    </button>
-                    <button class="btn btn-secondary" onclick="closeApiTestModal()">
-                        <span>✖️</span> 关闭
-                    </button>
-                </div>
-            </div>
+    <div
+      id="apiTestModal"
+      class="api-test-modal"
+      onclick="closeApiTestModal(event)"
+    >
+      <div class="api-test-content" onclick="event.stopPropagation()">
+        <div class="api-test-header">
+          <h3 id="apiTestTitle">🚀 测试API接口</h3>
+          <button class="api-test-close" onclick="closeApiTestModal()">
+            ×
+          </button>
         </div>
+        <div class="api-test-body">
+          <div class="api-test-section">
+            <h4>📋 请求信息</h4>
+            <div class="api-test-info-grid">
+              <div class="api-test-info-item">
+                <label>方法</label>
+                <span id="apiTestMethod" class="api-method-badge">GET</span>
+              </div>
+              <div class="api-test-info-item">
+                <label>端点</label>
+                <span id="apiTestEndpoint" class="api-endpoint-path">/api</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 路径参数 -->
+          <div id="apiTestPathParams" class="api-test-section hidden">
+            <h4>🔗 路径参数</h4>
+            <div id="apiTestPathParamsList"></div>
+          </div>
+
+          <!-- 查询参数 -->
+          <div id="apiTestQueryParams" class="api-test-section hidden">
+            <h4>🔍 查询参数</h4>
+            <div id="apiTestQueryParamsList"></div>
+          </div>
+
+          <!-- 请求体 -->
+          <div id="apiTestBody" class="api-test-section hidden">
+            <h4>📝 请求体 (JSON)</h4>
+            <div class="api-test-param">
+              <textarea
+                id="apiTestBodyContent"
+                placeholder='{"key": "value"}'
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- 响应结果 -->
+          <div id="apiTestResultSection" class="hidden">
+            <div id="apiTestResult" class="api-test-result">
+              <h4>响应结果</h4>
+              <pre id="apiTestResultContent"></pre>
+            </div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="api-test-actions">
+            <button class="btn btn-primary" onclick="executeApiTest()">
+              <span>▶️</span> 发送请求
+            </button>
+            <button class="btn btn-secondary" onclick="resetApiTestForm()">
+              <span>🔄</span> 重置
+            </button>
+            <button class="btn btn-secondary" onclick="closeApiTestModal()">
+              <span>✖️</span> 关闭
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 右键菜单 -->
     <div id="contextMenu" class="context-menu">
-        <div class="context-menu-item" onclick="openInNewTab()">
-            <span>🔗</span>
-            在新标签页中打开
-        </div>
-        <div class="context-menu-item" onclick="copyAccountLink()">
-            <span>📋</span>
-            复制链接
-        </div>
-        <div class="context-menu-divider"></div>
-        <div class="context-menu-item" onclick="contextEditTags()">
-            <span>🏷️</span>
-            管理标签
-        </div>
-        <div class="context-menu-item danger" onclick="contextDeleteAccount()">
-            <span>🗑️</span>
-            删除账户
-        </div>
+      <div class="context-menu-item" onclick="openInNewTab()">
+        <span>🔗</span>
+        在新标签页中打开
+      </div>
+      <div class="context-menu-item" onclick="copyAccountLink()">
+        <span>📋</span>
+        复制链接
+      </div>
+      <div class="context-menu-divider"></div>
+      <div class="context-menu-item" onclick="contextEditTags()">
+        <span>🏷️</span>
+        管理标签
+      </div>
+      <div class="context-menu-item danger" onclick="contextDeleteAccount()">
+        <span>🗑️</span>
+        删除账户
+      </div>
     </div>
 
     <!-- JavaScript 模块 -->
@@ -1785,5 +2421,5 @@ Content-Type: application/json
     <script src="/static/js/apitest.js"></script>
     <script src="/static/js/context-menu.js"></script>
     <script src="/static/js/main.js"></script>
-</body>
+  </body>
 </html>

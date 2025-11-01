@@ -2,286 +2,286 @@
 
 /* 账户表格容器 */
 .accounts-table-container {
-    background: white;
-    border-radius: 8px;
-    overflow: hidden;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 /* 账户表格 */
 .accounts-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.875rem;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
 }
 
 .accounts-table thead {
-    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-    border-bottom: 2px solid #e2e8f0;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-bottom: 2px solid #e2e8f0;
 }
 
 .accounts-table thead th {
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: 600;
-    color: #475569;
-    font-size: 0.8125rem;
-    white-space: nowrap;
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.8125rem;
+  white-space: nowrap;
 }
 
 .accounts-table tbody tr {
-    border-bottom: 1px solid #f1f5f9;
-    transition: all 0.2s;
+  border-bottom: 1px solid #f1f5f9;
+  transition: all 0.2s;
 }
 
 .accounts-table tbody tr:last-child {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 .accounts-table tbody tr:hover {
-    background: #f8fafc;
+  background: #f8fafc;
 }
 
 .accounts-table tbody tr.clickable {
-    cursor: pointer;
+  cursor: pointer;
 }
 
 .accounts-table tbody tr.clickable:hover {
-    background: #eff6ff;
-    box-shadow: inset 0 0 0 1px #bfdbfe;
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1px #bfdbfe;
 }
 
 .accounts-table tbody td {
-    padding: 10px 16px;
-    vertical-align: middle;
-    color: #334155;
+  padding: 10px 16px;
+  vertical-align: middle;
+  color: #334155;
 }
 
 /* 账户头像和信息列 */
 .account-cell {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .account-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 0.875rem;
-    flex-shrink: 0;
-    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
 }
 
 .account-email-info {
-    flex: 1;
-    min-width: 0;
+  flex: 1;
+  min-width: 0;
 }
 
 .account-email {
-    font-weight: 500;
-    color: #1e293b;
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  font-weight: 500;
+  color: #1e293b;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .account-client-id {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 标签 */
 .account-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .account-tag {
-    background-color: #e0e7ff;
-    color: #4338ca;
-    font-size: 0.6875rem;
-    padding: 2px 8px;
-    border-radius: 10px;
-    white-space: nowrap;
-    font-weight: 500;
+  background-color: #e0e7ff;
+  color: #4338ca;
+  font-size: 0.6875rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  font-weight: 500;
 }
 
 .account-tags.empty {
-    color: #cbd5e1;
-    font-size: 0.75rem;
+  color: #cbd5e1;
+  font-size: 0.75rem;
 }
 
 /* 状态指示器 */
 .status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
 .status-badge.active {
-    background: #dcfce7;
-    color: #166534;
+  background: #dcfce7;
+  color: #166534;
 }
 
 .status-badge.inactive {
-    background: #fee2e2;
-    color: #991b1b;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .status-indicator {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: currentColor;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 /* 刷新状态 */
 .refresh-status-cell {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .refresh-status-icon {
-    font-size: 1rem;
-    line-height: 1;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .refresh-status-icon.success {
-    color: #16a34a;
+  color: #16a34a;
 }
 
 .refresh-status-icon.failed {
-    color: #dc2626;
+  color: #dc2626;
 }
 
 .refresh-status-icon.pending {
-    color: #94a3b8;
+  color: #94a3b8;
 }
 
 .refresh-time-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .refresh-time {
-    font-size: 0.75rem;
-    color: #64748b;
-    white-space: nowrap;
+  font-size: 0.75rem;
+  color: #64748b;
+  white-space: nowrap;
 }
 
 .refresh-status-text {
-    font-size: 0.6875rem;
-    color: #94a3b8;
+  font-size: 0.6875rem;
+  color: #94a3b8;
 }
 
 /* 操作按钮 */
 .account-actions {
-    display: flex;
-    gap: 4px;
-    justify-content: flex-end;
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
 }
 
 .account-actions .btn {
-    padding: 4px 8px;
-    font-size: 0.75rem;
-    white-space: nowrap;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 .account-actions .btn span {
-    margin-right: 2px;
+  margin-right: 2px;
 }
 
 /* 空状态 */
 .empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: #94a3b8;
+  text-align: center;
+  padding: 60px 20px;
+  color: #94a3b8;
 }
 
 .empty-state-icon {
-    font-size: 3rem;
-    margin-bottom: 12px;
-    opacity: 0.5;
+  font-size: 3rem;
+  margin-bottom: 12px;
+  opacity: 0.5;
 }
 
 .empty-state-text {
-    font-size: 0.875rem;
-    margin-bottom: 8px;
+  font-size: 0.875rem;
+  margin-bottom: 8px;
 }
 
 .empty-state-hint {
-    font-size: 0.75rem;
-    color: #cbd5e1;
+  font-size: 0.75rem;
+  color: #cbd5e1;
 }
 
 /* 响应式设计 */
 @media (max-width: 1200px) {
-    .accounts-table {
-        font-size: 0.8125rem;
-    }
-    
-    .accounts-table thead th,
-    .accounts-table tbody td {
-        padding: 10px 12px;
-    }
-    
-    .account-actions {
-        flex-wrap: wrap;
-    }
+  .accounts-table {
+    font-size: 0.8125rem;
+  }
+
+  .accounts-table thead th,
+  .accounts-table tbody td {
+    padding: 10px 12px;
+  }
+
+  .account-actions {
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 768px) {
-    .accounts-table-container {
-        overflow-x: auto;
-    }
-    
-    .accounts-table {
-        min-width: 800px;
-    }
-    
-    .account-avatar {
-        width: 32px;
-        height: 32px;
-        font-size: 0.75rem;
-    }
-    
-    .account-cell {
-        gap: 8px;
-    }
+  .accounts-table-container {
+    overflow-x: auto;
+  }
+
+  .accounts-table {
+    min-width: 800px;
+  }
+
+  .account-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 0.75rem;
+  }
+
+  .account-cell {
+    gap: 8px;
+  }
 }
 
 /* 加载状态 */
 .accounts-table .loading {
-    padding: 40px;
-    text-align: center;
-    color: #94a3b8;
+  padding: 40px;
+  text-align: center;
+  color: #94a3b8;
 }
 
 /* 旧样式兼容（用于其他页面） */
 .account-status {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
 }

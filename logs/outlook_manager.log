@@ -2050,3 +2050,243 @@ AttributeError: module 'bcrypt' has no attribute '__about__'
 2025-10-31 18:09:24,253 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hprjiocj465@outlook.com
 2025-10-31 18:09:27,128 - database - [INFO] - database.py:984 - Cached 6 emails for account hprjiocj465@outlook.com
 2025-10-31 18:09:27,135 - email_service - [INFO] - email_service.py:238 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 15:13:14,874 - root - [INFO] - logger_config.py:49 - Logging system initialized
+2025-11-01 15:13:15,182 - root - [INFO] - main.py:367 - Starting Outlook邮件API服务 on 0.0.0.0:8000
+2025-11-01 15:13:15,182 - root - [INFO] - main.py:368 - Access the web interface at: http://localhost:8000
+2025-11-01 15:13:15,182 - root - [INFO] - main.py:369 - Access the API documentation at: http://localhost:8000/docs
+2025-11-01 15:13:15,951 - root - [INFO] - main.py:232 - Starting Outlook邮件API服务 v2.0.0...
+2025-11-01 15:13:15,951 - root - [INFO] - main.py:235 - Initializing database...
+2025-11-01 15:13:15,952 - database - [INFO] - database.py:150 - Database initialized successfully
+2025-11-01 15:13:15,952 - root - [INFO] - main.py:237 - Database initialized successfully
+2025-11-01 15:13:15,953 - database - [INFO] - database.py:777 - API Key already exists
+2025-11-01 15:13:15,953 - root - [INFO] - main.py:244 - API Key initialized
+2025-11-01 15:13:15,953 - root - [INFO] - main.py:250 - Token refresh background task scheduled
+2025-11-01 15:13:15,953 - root - [INFO] - main.py:256 - Email sync background task scheduled
+2025-11-01 15:13:15,953 - root - [INFO] - main.py:257 - Auto sync interval: 300 seconds (5 minutes)
+2025-11-01 15:13:15,954 - root - [INFO] - main.py:57 - Token refresh background task started
+2025-11-01 15:13:15,954 - root - [INFO] - main.py:61 - Starting scheduled token refresh for all accounts...
+2025-11-01 15:13:16,023 - root - [INFO] - main.py:143 - Email sync background task started
+2025-11-01 15:13:16,023 - root - [INFO] - main.py:144 - Sync interval: 300 seconds (5 minutes)
+2025-11-01 15:13:17,312 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:13:17,314 - oauth_service - [INFO] - oauth_service.py:128 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-11-01 15:13:17,323 - database - [INFO] - database.py:423 - Updated account: hprjiocj465@outlook.com
+2025-11-01 15:13:17,323 - root - [INFO] - main.py:107 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-11-01 15:13:18,192 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:13:18,193 - oauth_service - [INFO] - oauth_service.py:128 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-11-01 15:13:18,199 - database - [INFO] - database.py:423 - Updated account: hnybirs6215@outlook.com
+2025-11-01 15:13:18,200 - root - [INFO] - main.py:107 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-11-01 15:13:18,200 - root - [INFO] - main.py:126 - Token refresh completed: 2 succeeded, 0 failed
+2025-11-01 15:13:29,924 - passlib.handlers.bcrypt - [WARNING] - bcrypt.py:622 - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/Users/mfrank/Documents/programming/github/OutlookManager2/venv/lib/python3.12/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-11-01 15:13:30,187 - routes.auth_routes - [INFO] - auth_routes.py:39 - Admin admin logged in successfully
+2025-11-01 15:13:31,003 - routes.account_routes - [INFO] - account_routes.py:108 - [API] GET /accounts 收到请求:
+2025-11-01 15:13:31,003 - routes.account_routes - [INFO] - account_routes.py:109 -   page=1, page_size=10
+2025-11-01 15:13:31,003 - routes.account_routes - [INFO] - account_routes.py:110 -   email_search=None, tag_search=None
+2025-11-01 15:13:31,003 - routes.account_routes - [INFO] - account_routes.py:111 -   refresh_status=None, time_filter=None
+2025-11-01 15:13:31,003 - routes.account_routes - [INFO] - account_routes.py:112 -   after_date=None
+2025-11-01 15:13:31,003 - routes.account_routes - [INFO] - account_routes.py:113 -   refresh_start_date=None
+2025-11-01 15:13:31,003 - routes.account_routes - [INFO] - account_routes.py:114 -   refresh_end_date=None
+2025-11-01 15:13:31,003 - database - [INFO] - database.py:328 - [筛选] SQL WHERE子句: 1=1
+2025-11-01 15:13:31,003 - database - [INFO] - database.py:329 - [筛选] SQL参数: []
+2025-11-01 15:13:31,004 - database - [INFO] - database.py:335 - [筛选] 符合条件的总数: 2
+2025-11-01 15:13:31,004 - routes.account_routes - [INFO] - account_routes.py:129 - [API] 查询结果: 总数=2, 返回=2条
+2025-11-01 15:13:36,158 - email_service - [INFO] - email_service.py:58 - Returning 6 cached emails from SQLite for hprjiocj465@outlook.com
+2025-11-01 15:13:37,330 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for INBOX-5
+2025-11-01 15:13:38,934 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for INBOX-4
+2025-11-01 15:13:39,973 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for Junk-1
+2025-11-01 15:13:42,124 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for Junk-1
+2025-11-01 15:13:43,008 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for INBOX-1
+2025-11-01 15:13:44,732 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for INBOX-2
+2025-11-01 15:13:45,898 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for INBOX-1
+2025-11-01 15:13:46,023 - root - [INFO] - main.py:151 - === Running scheduled email sync ===
+2025-11-01 15:13:46,024 - root - [INFO] - main.py:161 - Found 2 accounts to sync
+2025-11-01 15:13:46,024 - root - [INFO] - main.py:169 - [hprjiocj465@outlook.com] Starting email sync...
+2025-11-01 15:13:46,867 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:13:46,868 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 15:13:47,662 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:13:47,663 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 15:13:57,447 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-11-01 15:13:59,633 - verification_code_detector - [INFO] - verification_code_detector.py:67 - 验证码检测器初始化完成
+2025-11-01 15:14:00,051 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-11-01 15:14:00,742 - database - [INFO] - database.py:984 - Cached 6 emails for account hprjiocj465@outlook.com
+2025-11-01 15:14:00,744 - email_service - [INFO] - email_service.py:238 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 15:14:03,084 - database - [INFO] - database.py:984 - Cached 6 emails for account hprjiocj465@outlook.com
+2025-11-01 15:14:03,085 - email_service - [INFO] - email_service.py:238 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 15:14:03,085 - root - [INFO] - main.py:188 - [hprjiocj465@outlook.com] Successfully synced 6 emails (total: 6)
+2025-11-01 15:14:05,086 - root - [INFO] - main.py:169 - [hnybirs6215@outlook.com] Starting email sync...
+2025-11-01 15:14:05,816 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:14:05,817 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hnybirs6215@outlook.com
+2025-11-01 15:14:08,758 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hnybirs6215@outlook.com
+2025-11-01 15:14:11,572 - database - [INFO] - database.py:984 - Cached 2 emails for account hnybirs6215@outlook.com
+2025-11-01 15:14:11,573 - email_service - [INFO] - email_service.py:238 - Cached 2 emails to SQLite for hnybirs6215@outlook.com
+2025-11-01 15:14:11,573 - root - [INFO] - main.py:188 - [hnybirs6215@outlook.com] Successfully synced 2 emails (total: 2)
+2025-11-01 15:14:13,575 - root - [INFO] - main.py:201 - === Email sync completed. Success: 2/2, Errors: 0 ===
+2025-11-01 15:19:13,576 - root - [INFO] - main.py:151 - === Running scheduled email sync ===
+2025-11-01 15:19:13,578 - root - [INFO] - main.py:161 - Found 2 accounts to sync
+2025-11-01 15:19:13,579 - root - [INFO] - main.py:169 - [hprjiocj465@outlook.com] Starting email sync...
+2025-11-01 15:19:14,787 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:19:14,788 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 15:19:18,294 - database - [INFO] - database.py:984 - Cached 6 emails for account hprjiocj465@outlook.com
+2025-11-01 15:19:18,295 - email_service - [INFO] - email_service.py:238 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 15:19:18,295 - root - [INFO] - main.py:188 - [hprjiocj465@outlook.com] Successfully synced 6 emails (total: 6)
+2025-11-01 15:19:20,296 - root - [INFO] - main.py:169 - [hnybirs6215@outlook.com] Starting email sync...
+2025-11-01 15:19:22,059 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:19:22,060 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hnybirs6215@outlook.com
+2025-11-01 15:19:24,989 - database - [INFO] - database.py:984 - Cached 2 emails for account hnybirs6215@outlook.com
+2025-11-01 15:19:24,989 - email_service - [INFO] - email_service.py:238 - Cached 2 emails to SQLite for hnybirs6215@outlook.com
+2025-11-01 15:19:24,989 - root - [INFO] - main.py:188 - [hnybirs6215@outlook.com] Successfully synced 2 emails (total: 2)
+2025-11-01 15:19:26,990 - root - [INFO] - main.py:201 - === Email sync completed. Success: 2/2, Errors: 0 ===
+2025-11-01 15:26:03,132 - root - [INFO] - logger_config.py:49 - Logging system initialized
+2025-11-01 15:26:03,197 - root - [INFO] - main.py:367 - Starting Outlook邮件API服务 on 0.0.0.0:8000
+2025-11-01 15:26:03,197 - root - [INFO] - main.py:368 - Access the web interface at: http://localhost:8000
+2025-11-01 15:26:03,197 - root - [INFO] - main.py:369 - Access the API documentation at: http://localhost:8000/docs
+2025-11-01 15:26:03,301 - root - [INFO] - main.py:232 - Starting Outlook邮件API服务 v2.0.0...
+2025-11-01 15:26:03,302 - root - [INFO] - main.py:235 - Initializing database...
+2025-11-01 15:26:03,302 - database - [INFO] - database.py:150 - Database initialized successfully
+2025-11-01 15:26:03,302 - root - [INFO] - main.py:237 - Database initialized successfully
+2025-11-01 15:26:03,302 - database - [INFO] - database.py:777 - API Key already exists
+2025-11-01 15:26:03,302 - root - [INFO] - main.py:244 - API Key initialized
+2025-11-01 15:26:03,303 - root - [INFO] - main.py:250 - Token refresh background task scheduled
+2025-11-01 15:26:03,303 - root - [INFO] - main.py:256 - Email sync background task scheduled
+2025-11-01 15:26:03,303 - root - [INFO] - main.py:257 - Auto sync interval: 300 seconds (5 minutes)
+2025-11-01 15:26:03,303 - root - [INFO] - main.py:57 - Token refresh background task started
+2025-11-01 15:26:03,303 - root - [INFO] - main.py:61 - Starting scheduled token refresh for all accounts...
+2025-11-01 15:26:03,356 - root - [INFO] - main.py:143 - Email sync background task started
+2025-11-01 15:26:03,356 - root - [INFO] - main.py:144 - Sync interval: 300 seconds (5 minutes)
+2025-11-01 15:26:04,443 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:26:04,444 - oauth_service - [INFO] - oauth_service.py:128 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-11-01 15:26:04,446 - database - [INFO] - database.py:423 - Updated account: hprjiocj465@outlook.com
+2025-11-01 15:26:04,446 - root - [INFO] - main.py:107 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-11-01 15:26:05,362 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:26:05,363 - oauth_service - [INFO] - oauth_service.py:128 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-11-01 15:26:05,366 - database - [INFO] - database.py:423 - Updated account: hnybirs6215@outlook.com
+2025-11-01 15:26:05,367 - root - [INFO] - main.py:107 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-11-01 15:26:05,367 - root - [INFO] - main.py:126 - Token refresh completed: 2 succeeded, 0 failed
+2025-11-01 15:26:14,343 - passlib.handlers.bcrypt - [WARNING] - bcrypt.py:622 - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-11-01 15:26:14,601 - routes.auth_routes - [INFO] - auth_routes.py:39 - Admin admin logged in successfully
+2025-11-01 15:26:15,461 - routes.account_routes - [INFO] - account_routes.py:108 - [API] GET /accounts 收到请求:
+2025-11-01 15:26:15,462 - routes.account_routes - [INFO] - account_routes.py:109 -   page=1, page_size=10
+2025-11-01 15:26:15,462 - routes.account_routes - [INFO] - account_routes.py:110 -   email_search=None, tag_search=None
+2025-11-01 15:26:15,462 - routes.account_routes - [INFO] - account_routes.py:111 -   refresh_status=None, time_filter=None
+2025-11-01 15:26:15,462 - routes.account_routes - [INFO] - account_routes.py:112 -   after_date=None
+2025-11-01 15:26:15,462 - routes.account_routes - [INFO] - account_routes.py:113 -   refresh_start_date=None
+2025-11-01 15:26:15,462 - routes.account_routes - [INFO] - account_routes.py:114 -   refresh_end_date=None
+2025-11-01 15:26:15,462 - database - [INFO] - database.py:328 - [筛选] SQL WHERE子句: 1=1
+2025-11-01 15:26:15,462 - database - [INFO] - database.py:329 - [筛选] SQL参数: []
+2025-11-01 15:26:15,462 - database - [INFO] - database.py:335 - [筛选] 符合条件的总数: 2
+2025-11-01 15:26:15,462 - routes.account_routes - [INFO] - account_routes.py:129 - [API] 查询结果: 总数=2, 返回=2条
+2025-11-01 15:26:33,358 - root - [INFO] - main.py:151 - === Running scheduled email sync ===
+2025-11-01 15:26:33,359 - root - [INFO] - main.py:161 - Found 2 accounts to sync
+2025-11-01 15:26:33,359 - root - [INFO] - main.py:169 - [hprjiocj465@outlook.com] Starting email sync...
+2025-11-01 15:26:33,975 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:26:33,976 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 15:26:36,840 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-11-01 15:26:38,936 - verification_code_detector - [INFO] - verification_code_detector.py:67 - 验证码检测器初始化完成
+2025-11-01 15:26:40,039 - database - [INFO] - database.py:984 - Cached 6 emails for account hprjiocj465@outlook.com
+2025-11-01 15:26:40,039 - email_service - [INFO] - email_service.py:238 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 15:26:40,039 - root - [INFO] - main.py:188 - [hprjiocj465@outlook.com] Successfully synced 6 emails (total: 6)
+2025-11-01 15:26:42,040 - root - [INFO] - main.py:169 - [hnybirs6215@outlook.com] Starting email sync...
+2025-11-01 15:26:43,164 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:26:43,165 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hnybirs6215@outlook.com
+2025-11-01 15:26:45,642 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hnybirs6215@outlook.com
+2025-11-01 15:26:47,709 - database - [INFO] - database.py:984 - Cached 2 emails for account hnybirs6215@outlook.com
+2025-11-01 15:26:47,709 - email_service - [INFO] - email_service.py:238 - Cached 2 emails to SQLite for hnybirs6215@outlook.com
+2025-11-01 15:26:47,710 - root - [INFO] - main.py:188 - [hnybirs6215@outlook.com] Successfully synced 2 emails (total: 2)
+2025-11-01 15:26:49,710 - root - [INFO] - main.py:201 - === Email sync completed. Success: 2/2, Errors: 0 ===
+2025-11-01 15:27:57,693 - root - [INFO] - main.py:264 - Shutting down Outlook邮件API服务...
+2025-11-01 15:27:57,694 - root - [INFO] - main.py:210 - Email sync task cancelled
+2025-11-01 15:27:57,694 - root - [INFO] - main.py:276 - All background tasks cancelled
+2025-11-01 15:27:57,694 - root - [INFO] - main.py:283 - Closing IMAP connection pool...
+2025-11-01 15:28:02,696 - root - [WARNING] - main.py:293 - IMAP connection pool close timeout, forcing shutdown
+2025-11-01 15:28:02,696 - root - [INFO] - main.py:297 - Application shutdown complete.
+2025-11-01 15:32:54,265 - root - [INFO] - logger_config.py:49 - Logging system initialized
+2025-11-01 15:32:54,292 - root - [INFO] - main.py:367 - Starting Outlook邮件API服务 on 0.0.0.0:8000
+2025-11-01 15:32:54,292 - root - [INFO] - main.py:368 - Access the web interface at: http://localhost:8000
+2025-11-01 15:32:54,292 - root - [INFO] - main.py:369 - Access the API documentation at: http://localhost:8000/docs
+2025-11-01 15:32:54,317 - root - [INFO] - main.py:232 - Starting Outlook邮件API服务 v2.0.0...
+2025-11-01 15:32:54,317 - root - [INFO] - main.py:235 - Initializing database...
+2025-11-01 15:32:54,318 - database - [INFO] - database.py:150 - Database initialized successfully
+2025-11-01 15:32:54,318 - root - [INFO] - main.py:237 - Database initialized successfully
+2025-11-01 15:32:54,318 - database - [INFO] - database.py:777 - API Key already exists
+2025-11-01 15:32:54,318 - root - [INFO] - main.py:244 - API Key initialized
+2025-11-01 15:32:54,318 - root - [INFO] - main.py:250 - Token refresh background task scheduled
+2025-11-01 15:32:54,318 - root - [INFO] - main.py:256 - Email sync background task scheduled
+2025-11-01 15:32:54,318 - root - [INFO] - main.py:257 - Auto sync interval: 300 seconds (5 minutes)
+2025-11-01 15:32:54,318 - root - [INFO] - main.py:57 - Token refresh background task started
+2025-11-01 15:32:54,318 - root - [INFO] - main.py:61 - Starting scheduled token refresh for all accounts...
+2025-11-01 15:32:54,369 - root - [INFO] - main.py:143 - Email sync background task started
+2025-11-01 15:32:54,369 - root - [INFO] - main.py:144 - Sync interval: 300 seconds (5 minutes)
+2025-11-01 15:32:55,688 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:32:55,689 - oauth_service - [INFO] - oauth_service.py:128 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-11-01 15:32:55,691 - database - [INFO] - database.py:423 - Updated account: hprjiocj465@outlook.com
+2025-11-01 15:32:55,691 - root - [INFO] - main.py:107 - Successfully refreshed token for hprjiocj465@outlook.com
+2025-11-01 15:32:56,464 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:32:56,465 - oauth_service - [INFO] - oauth_service.py:128 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-11-01 15:32:56,470 - database - [INFO] - database.py:423 - Updated account: hnybirs6215@outlook.com
+2025-11-01 15:32:56,471 - root - [INFO] - main.py:107 - Successfully refreshed token for hnybirs6215@outlook.com
+2025-11-01 15:32:56,471 - root - [INFO] - main.py:126 - Token refresh completed: 2 succeeded, 0 failed
+2025-11-01 15:33:03,555 - passlib.handlers.bcrypt - [WARNING] - bcrypt.py:622 - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "/Users/mfrank/Documents/programming/github/OutlookManager2/venv/lib/python3.12/site-packages/passlib/handlers/bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-11-01 15:33:03,810 - routes.auth_routes - [INFO] - auth_routes.py:39 - Admin admin logged in successfully
+2025-11-01 15:33:04,659 - routes.account_routes - [INFO] - account_routes.py:108 - [API] GET /accounts 收到请求:
+2025-11-01 15:33:04,659 - routes.account_routes - [INFO] - account_routes.py:109 -   page=1, page_size=10
+2025-11-01 15:33:04,659 - routes.account_routes - [INFO] - account_routes.py:110 -   email_search=None, tag_search=None
+2025-11-01 15:33:04,659 - routes.account_routes - [INFO] - account_routes.py:111 -   refresh_status=None, time_filter=None
+2025-11-01 15:33:04,659 - routes.account_routes - [INFO] - account_routes.py:112 -   after_date=None
+2025-11-01 15:33:04,659 - routes.account_routes - [INFO] - account_routes.py:113 -   refresh_start_date=None
+2025-11-01 15:33:04,659 - routes.account_routes - [INFO] - account_routes.py:114 -   refresh_end_date=None
+2025-11-01 15:33:04,660 - database - [INFO] - database.py:328 - [筛选] SQL WHERE子句: 1=1
+2025-11-01 15:33:04,660 - database - [INFO] - database.py:329 - [筛选] SQL参数: []
+2025-11-01 15:33:04,661 - database - [INFO] - database.py:335 - [筛选] 符合条件的总数: 2
+2025-11-01 15:33:04,661 - routes.account_routes - [INFO] - account_routes.py:129 - [API] 查询结果: 总数=2, 返回=2条
+2025-11-01 15:33:05,726 - email_service - [INFO] - email_service.py:58 - Returning 6 cached emails from SQLite for hprjiocj465@outlook.com
+2025-11-01 15:33:09,989 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for INBOX-5
+2025-11-01 15:33:13,348 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for INBOX-4
+2025-11-01 15:33:15,310 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for Junk-1
+2025-11-01 15:33:16,581 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:33:16,583 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 15:33:19,308 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-11-01 15:33:21,376 - verification_code_detector - [INFO] - verification_code_detector.py:67 - 验证码检测器初始化完成
+2025-11-01 15:33:22,490 - database - [INFO] - database.py:984 - Cached 6 emails for account hprjiocj465@outlook.com
+2025-11-01 15:33:22,491 - email_service - [INFO] - email_service.py:238 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 15:33:24,370 - root - [INFO] - main.py:151 - === Running scheduled email sync ===
+2025-11-01 15:33:24,371 - root - [INFO] - main.py:161 - Found 2 accounts to sync
+2025-11-01 15:33:24,371 - root - [INFO] - main.py:169 - [hprjiocj465@outlook.com] Starting email sync...
+2025-11-01 15:33:24,528 - email_service - [INFO] - email_service.py:284 - Returning cached email detail from SQLite for INBOX-5
+2025-11-01 15:33:26,234 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:33:26,235 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 15:33:27,356 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:33:27,357 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hprjiocj465@outlook.com
+2025-11-01 15:33:29,689 - database - [INFO] - database.py:984 - Cached 6 emails for account hprjiocj465@outlook.com
+2025-11-01 15:33:29,689 - email_service - [INFO] - email_service.py:238 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 15:33:29,690 - root - [INFO] - main.py:188 - [hprjiocj465@outlook.com] Successfully synced 6 emails (total: 6)
+2025-11-01 15:33:29,952 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hprjiocj465@outlook.com
+2025-11-01 15:33:31,691 - root - [INFO] - main.py:169 - [hnybirs6215@outlook.com] Starting email sync...
+2025-11-01 15:33:33,138 - database - [INFO] - database.py:984 - Cached 6 emails for account hprjiocj465@outlook.com
+2025-11-01 15:33:33,138 - email_service - [INFO] - email_service.py:238 - Cached 6 emails to SQLite for hprjiocj465@outlook.com
+2025-11-01 15:33:33,379 - httpx - [INFO] - _client.py:1773 - HTTP Request: POST https://login.microsoftonline.com/consumers/oauth2/v2.0/token "HTTP/1.1 200 OK"
+2025-11-01 15:33:33,380 - oauth_service - [INFO] - oauth_service.py:57 - Successfully obtained access token for hnybirs6215@outlook.com
+2025-11-01 15:33:36,240 - imap_pool - [INFO] - imap_pool.py:73 - Successfully created IMAP connection for hnybirs6215@outlook.com
+2025-11-01 15:33:39,019 - database - [INFO] - database.py:984 - Cached 2 emails for account hnybirs6215@outlook.com
+2025-11-01 15:33:39,019 - email_service - [INFO] - email_service.py:238 - Cached 2 emails to SQLite for hnybirs6215@outlook.com
+2025-11-01 15:33:39,019 - root - [INFO] - main.py:188 - [hnybirs6215@outlook.com] Successfully synced 2 emails (total: 2)
+2025-11-01 15:33:41,021 - root - [INFO] - main.py:201 - === Email sync completed. Success: 2/2, Errors: 0 ===
+2025-11-01 15:34:35,807 - root - [INFO] - main.py:264 - Shutting down Outlook邮件API服务...
+2025-11-01 15:34:35,807 - root - [INFO] - main.py:210 - Email sync task cancelled
+2025-11-01 15:34:35,808 - root - [INFO] - main.py:276 - All background tasks cancelled
+2025-11-01 15:34:35,808 - root - [INFO] - main.py:283 - Closing IMAP connection pool...
+2025-11-01 15:34:40,810 - root - [WARNING] - main.py:293 - IMAP connection pool close timeout, forcing shutdown
+2025-11-01 15:34:40,810 - root - [INFO] - main.py:297 - Application shutdown complete.
