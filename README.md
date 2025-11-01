@@ -199,15 +199,33 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ```bash
 # 使用Docker Compose（推荐）
-cd docker
 docker-compose up -d
 
 # 查看日志
 docker-compose logs -f
 
+# 验证时区配置
+bash scripts/verify_timezone.sh
+
 # 停止服务
 docker-compose down
 ```
+
+### ⏰ 时区配置
+
+容器已默认配置为**东8区（Asia/Shanghai）**时区。如遇时间显示问题：
+
+```bash
+# 一键修复时区
+bash scripts/fix_timezone.sh
+
+# 或手动修复
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+详细说明：[时区配置指南](docs/时区配置指南.md) | [快速修复](TIMEZONE_QUICKFIX.md)
 
 ### 手动部署
 

@@ -74,6 +74,7 @@ docker rm outlook-email-api
 - `HOST`: 监听主机地址（默认: 0.0.0.0）
 - `PORT`: 监听端口（默认: 8000）
 - `PYTHONUNBUFFERED`: Python输出缓冲（默认: 1）
+- `TZ`: 时区设置（默认: Asia/Shanghai）
 
 **docker-compose.yml示例：**
 
@@ -82,7 +83,54 @@ environment:
   - HOST=0.0.0.0
   - PORT=8000
   - PYTHONUNBUFFERED=1
+  - TZ=Asia/Shanghai
 ```
+
+## 时区配置
+
+容器已默认配置为**东8区（Asia/Shanghai）**时区，确保显示时间与中国时间一致。
+
+### 配置说明
+
+项目采用**双重时区配置**：
+
+1. **Dockerfile层面**：镜像构建时设置时区
+2. **docker-compose层面**：运行时挂载时区文件和环境变量
+
+### 验证时区
+
+```bash
+# 快速验证
+docker exec outlook-email-api date
+
+# 详细验证
+bash scripts/verify_timezone.sh
+```
+
+### 修改时区
+
+如需使用其他时区，修改 `docker-compose.yml` 和 `docker/Dockerfile` 中的 `TZ` 环境变量：
+
+- 北京时间（东8区）：`Asia/Shanghai`
+- 东京时间（东9区）：`Asia/Tokyo`
+- 纽约时间（西5区）：`America/New_York`
+- 伦敦时间（0时区）：`Europe/London`
+
+### 时区问题排查
+
+如果显示时间不正确：
+
+```bash
+# 方法1: 使用自动修复脚本
+bash scripts/fix_timezone.sh
+
+# 方法2: 手动修复
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+详细文档：[时区配置指南](./时区配置指南.md)
 
 ## 健康检查
 

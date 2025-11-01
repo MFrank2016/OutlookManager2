@@ -8,14 +8,14 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    TZ=Asia/Shanghai
 
-# 安装系统依赖（如果需要）
-# RUN apk add --no-cache \
-#     gcc \
-#     musl-dev \
-#     libffi-dev \
-#     openssl-dev
+# 安装系统依赖和时区数据
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
+    && apk del tzdata
 
 # 复制requirements文件并安装Python依赖
 COPY requirements.txt .
