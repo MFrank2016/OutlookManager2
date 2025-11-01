@@ -6,3 +6,4 @@ data.db
 venv/
 logs/
 *.log
+msOauth2api/
