@@ -5,3 +5,4 @@ accounts.json
 data.db
 venv/
 logs/
+*.log
