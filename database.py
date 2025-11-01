@@ -1138,9 +1138,9 @@ def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
             for email in emails:
                 # 计算缓存大小（估算）
                 cache_size = (
-                    len(email.get('subject', '')) +
-                    len(email.get('from_email', '')) +
-                    len(email.get('verification_code', ''))
+                    len(email.get('subject') or '') +
+                    len(email.get('from_email') or '') +
+                    len(email.get('verification_code') or '')
                 )
                 
                 cursor.execute("""
