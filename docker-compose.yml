@@ -10,7 +10,7 @@ services:
       - "8001:8000"
     volumes:
       # 数据持久化 - SQLite数据库文件
-      - ../data.db:/app/data.db
+      - ./data.db:/app/data.db
       # 日志持久化 - 保留30天日志
       - ./logs:/app/logs
       # 可选：旧版JSON文件（用于迁移）
