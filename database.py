@@ -230,6 +230,19 @@ def init_database() -> None:
         except Exception:
             pass
         
+        # 添加 Access Token 缓存字段 - accounts
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN access_token TEXT")
+            logger.info("Added access_token column to accounts table")
+        except Exception:
+            pass
+        
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN token_expires_at TEXT")
+            logger.info("Added token_expires_at column to accounts table")
+        except Exception:
+            pass
+        
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_admins_username ON admins(username)")
@@ -547,6 +560,62 @@ def delete_account(email: str) -> bool:
         success = cursor.rowcount > 0
         if success:
             logger.info(f"Deleted account: {email}")
+        return success
+
+
+def get_account_access_token(email: str) -> Optional[Dict[str, str]]:
+    """
+    获取账户的缓存 access token 信息
+    
+    Args:
+        email: 邮箱地址
+        
+    Returns:
+        包含 access_token 和 token_expires_at 的字典，如果不存在则返回 None
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT access_token, token_expires_at FROM accounts WHERE email = ?",
+            (email,)
+        )
+        row = cursor.fetchone()
+        
+        if row and row['access_token'] and row['token_expires_at']:
+            return {
+                'access_token': row['access_token'],
+                'token_expires_at': row['token_expires_at']
+            }
+        return None
+
+
+def update_account_access_token(email: str, access_token: str, expires_at: str) -> bool:
+    """
+    更新账户的 access token 和过期时间
+    
+    Args:
+        email: 邮箱地址
+        access_token: OAuth2 访问令牌
+        expires_at: 令牌过期时间（ISO格式字符串）
+        
+    Returns:
+        是否更新成功
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE accounts 
+            SET access_token = ?, token_expires_at = ?, updated_at = ?
+            WHERE email = ?
+            """,
+            (access_token, expires_at, datetime.now().isoformat(), email)
+        )
+        conn.commit()
+        
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"Updated access token for account: {email}, expires at: {expires_at}")
         return success
 
 

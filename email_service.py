@@ -20,7 +20,7 @@ from cache_service import get_cache_key, get_cached_emails, set_cached_emails
 from email_utils import decode_header_value, extract_email_content
 from imap_pool import imap_pool
 from models import AccountCredentials, EmailDetailsResponse, EmailItem, EmailListResponse
-from oauth_service import get_access_token
+from oauth_service import get_cached_access_token, clear_cached_access_token
 from verification_code_detector import detect_verification_code
 
 # 获取日志记录器
@@ -79,9 +79,12 @@ async def list_emails(
             logger.warning(f"Failed to load from cache, fetching from IMAP: {e}")
 
     # 如果没有缓存或强制刷新，从 IMAP 获取
-    access_token = await get_access_token(credentials)
+    access_token = await get_cached_access_token(credentials)
+    retry_count = 0
+    max_retries = 1
 
     def _sync_list_emails():
+        nonlocal access_token, retry_count
         imap_client = None
         try:
             # 从连接池获取连接
@@ -280,10 +283,30 @@ async def list_emails(
                         pass
                 except Exception:
                     pass
+            
+            # 检查是否是认证错误，如果是且未重试过，则清除缓存的 token 并重试
+            error_msg = str(e).lower()
+            if retry_count < max_retries and any(keyword in error_msg for keyword in ['auth', 'authentication', 'login', 'credential']):
+                logger.warning(f"Authentication error detected for {credentials.email}, clearing cached token and retrying...")
+                retry_count += 1
+                # 这里需要在异步上下文中清除 token，但我们在同步函数中，所以标记需要重试
+                raise Exception("AUTH_RETRY_NEEDED")
+            
             raise HTTPException(status_code=500, detail="Failed to retrieve emails")
 
-    # 在线程池中运行同步代码
-    return await asyncio.to_thread(_sync_list_emails)
+    # 在线程池中运行同步代码，添加重试逻辑
+    try:
+        return await asyncio.to_thread(_sync_list_emails)
+    except Exception as e:
+        if "AUTH_RETRY_NEEDED" in str(e):
+            # 清除缓存的 token
+            await clear_cached_access_token(credentials.email)
+            # 获取新 token
+            access_token = await get_cached_access_token(credentials)
+            # 重试
+            logger.info(f"Retrying with fresh token for {credentials.email}")
+            return await asyncio.to_thread(_sync_list_emails)
+        raise
 
 
 async def get_email_details(
@@ -306,9 +329,12 @@ async def get_email_details(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid message_id format")
 
-    access_token = await get_access_token(credentials)
+    access_token = await get_cached_access_token(credentials)
+    retry_count = 0
+    max_retries = 1
 
     def _sync_get_email_details():
+        nonlocal access_token, retry_count
         imap_client = None
         try:
             # 从连接池获取连接
@@ -392,10 +418,29 @@ async def get_email_details(
                         imap_pool.return_connection(credentials.email, imap_client)
                 except Exception:
                     pass
+            
+            # 检查是否是认证错误，如果是且未重试过，则清除缓存的 token 并重试
+            error_msg = str(e).lower()
+            if retry_count < max_retries and any(keyword in error_msg for keyword in ['auth', 'authentication', 'login', 'credential']):
+                logger.warning(f"Authentication error detected for {credentials.email}, clearing cached token and retrying...")
+                retry_count += 1
+                raise Exception("AUTH_RETRY_NEEDED")
+            
             raise HTTPException(
                 status_code=500, detail="Failed to retrieve email details"
             )
 
-    # 在线程池中运行同步代码
-    return await asyncio.to_thread(_sync_get_email_details)
+    # 在线程池中运行同步代码，添加重试逻辑
+    try:
+        return await asyncio.to_thread(_sync_get_email_details)
+    except Exception as e:
+        if "AUTH_RETRY_NEEDED" in str(e):
+            # 清除缓存的 token
+            await clear_cached_access_token(credentials.email)
+            # 获取新 token
+            access_token = await get_cached_access_token(credentials)
+            # 重试
+            logger.info(f"Retrying email details fetch with fresh token for {credentials.email}")
+            return await asyncio.to_thread(_sync_get_email_details)
+        raise
 

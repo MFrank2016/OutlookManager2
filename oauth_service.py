@@ -5,12 +5,14 @@ OAuth服务模块
 """
 
 import logging
+from datetime import datetime, timedelta
 
 import httpx
 from fastapi import HTTPException
 
 from config import TOKEN_URL, OAUTH_SCOPE
 from models import AccountCredentials
+import database as db
 
 # 获取日志记录器
 logger = logging.getLogger(__name__)
@@ -46,6 +48,7 @@ async def get_access_token(credentials: AccountCredentials) -> str:
             # 解析响应
             token_data = response.json()
             access_token = token_data.get("access_token")
+            expires_in = token_data.get("expires_in", 3600)  # 默认1小时
 
             if not access_token:
                 logger.error(f"No access token in response for {credentials.email}")
@@ -54,7 +57,17 @@ async def get_access_token(credentials: AccountCredentials) -> str:
                     detail="Failed to obtain access token from response",
                 )
 
-            logger.info(f"Successfully obtained access token for {credentials.email}")
+            # 计算过期时间（expires_in 是秒数）
+            expires_at = datetime.now() + timedelta(seconds=expires_in)
+            expires_at_str = expires_at.isoformat()
+            
+            # 保存 token 到数据库
+            db.update_account_access_token(credentials.email, access_token, expires_at_str)
+
+            logger.info(
+                f"Successfully obtained access token for {credentials.email}, "
+                f"expires in {expires_in}s at {expires_at_str}"
+            )
             return access_token
 
     except httpx.HTTPStatusError as e:
@@ -144,4 +157,72 @@ async def refresh_account_token(credentials: AccountCredentials) -> dict:
         error_msg = f"Unexpected error: {str(e)}"
         logger.error(f"{error_msg} for {credentials.email}")
         return {"success": False, "error": error_msg}
+
+
+async def get_cached_access_token(credentials: AccountCredentials) -> str:
+    """
+    获取缓存的 access token，如果不存在或即将过期则自动刷新
+    
+    Args:
+        credentials: 账户凭证信息
+        
+    Returns:
+        str: OAuth2访问令牌
+        
+    Raises:
+        HTTPException: 令牌获取失败
+    """
+    # 尝试从数据库获取缓存的 token
+    token_info = db.get_account_access_token(credentials.email)
+    
+    if token_info:
+        access_token = token_info['access_token']
+        expires_at_str = token_info['token_expires_at']
+        
+        try:
+            # 解析过期时间
+            expires_at = datetime.fromisoformat(expires_at_str)
+            now = datetime.now()
+            
+            # 检查 token 是否还有效（距离过期时间 > 10 分钟）
+            time_until_expiry = (expires_at - now).total_seconds()
+            
+            if time_until_expiry > 600:  # 10分钟 = 600秒
+                logger.info(
+                    f"Using cached access token for {credentials.email}, "
+                    f"expires in {int(time_until_expiry/60)} minutes"
+                )
+                return access_token
+            else:
+                logger.info(
+                    f"Cached token for {credentials.email} expires soon "
+                    f"(in {int(time_until_expiry/60)} minutes), refreshing..."
+                )
+        except Exception as e:
+            logger.warning(f"Error parsing token expiry time for {credentials.email}: {e}")
+    
+    # Token 不存在、即将过期或解析失败，获取新 token
+    logger.info(f"Fetching new access token for {credentials.email}")
+    return await get_access_token(credentials)
+
+
+async def clear_cached_access_token(email: str) -> bool:
+    """
+    清除账户的缓存 access token（用于容错重试）
+    
+    Args:
+        email: 邮箱地址
+        
+    Returns:
+        是否清除成功
+    """
+    try:
+        # 将 token 设置为 NULL
+        success = db.update_account_access_token(email, "", "")
+        if success:
+            logger.info(f"Cleared cached access token for {email}")
+        return success
+    except Exception as e:
+        logger.error(f"Error clearing cached token for {email}: {e}")
+        return False
 
