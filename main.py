@@ -262,17 +262,20 @@ async def warmup_cache():
                 email_id = account['email']
                 logger.info(f"Warming up cache for account: {email_id}")
                 
+                # 获取账户凭证
+                credentials = await get_account_credentials(email_id)
+                
                 # 预加载收件箱邮件（不强制刷新，优先使用缓存）
                 from email_service import list_emails
                 result = await list_emails(
-                    email_id=email_id,
+                    credentials=credentials,
+                    folder='INBOX',
                     page=1,
                     page_size=CACHE_WARMUP_EMAILS_PER_ACCOUNT,
-                    folder='INBOX',
                     force_refresh=False
                 )
                 
-                logger.info(f"Warmed up {len(result.get('emails', []))} emails for {email_id}")
+                logger.info(f"Warmed up {len(result.emails)} emails for {email_id}")
                 
             except Exception as e:
                 logger.warning(f"Failed to warmup cache for {account['email']}: {e}")
