@@ -177,18 +177,20 @@ async function loadAccounts(page = 1, resetSearch = false, showLoading = true) {
                             <input type="checkbox" class="account-checkbox" 
                                    data-email-id="${account.email_id}"
                                    ${isChecked ? "checked" : ""}
-                                   onchange="toggleAccountSelection('${account.email_id}')" />
-                            <div class="account-cell">
-                                <div class="account-avatar">${account.email_id
-                                  .charAt(0)
-                                  .toUpperCase()}</div>
-                                <div class="account-email-info">
-                                    <span class="account-email" title="${
-                                      account.email_id
-                                    }">${account.email_id}</span>
-                                    <span class="account-client-id" title="${
-                                      account.client_id
-                                    }">ID: ${clientIdShort}</span>
+                                   onchange="toggleAccountSelection('${
+                                     account.email_id
+                                   }')" />
+                        <div class="account-cell">
+                            <div class="account-avatar">${account.email_id
+                              .charAt(0)
+                              .toUpperCase()}</div>
+                            <div class="account-email-info">
+                                <span class="account-email" title="${
+                                  account.email_id
+                                }">${account.email_id}</span>
+                                <span class="account-client-id" title="${
+                                  account.client_id
+                                }">ID: ${clientIdShort}</span>
                                 </div>
                             </div>
                         </div>
@@ -362,20 +364,31 @@ async function refreshAccountToken(emailId) {
 // 更多账户管理函数...
 function updateAccountsStats() {
   const accountsStats = document.getElementById("accountsStats");
-  document.getElementById("totalAccounts").textContent = accountsTotalCount;
-  document.getElementById("currentPage").textContent = accountsCurrentPage;
-  
+  if (!accountsStats) return;
+
+  const totalAccountsEl = document.getElementById("totalAccounts");
+  const currentPageEl = document.getElementById("currentPage");
+
+  if (totalAccountsEl) {
+    totalAccountsEl.textContent = accountsTotalCount;
+  }
+  if (currentPageEl) {
+    currentPageEl.textContent = accountsCurrentPage;
+  }
+
   // 更新分页大小选择器
   const pageSizeSelect = document.getElementById("pageSizeSelect");
   if (pageSizeSelect) {
     pageSizeSelect.value = accountsPageSize.toString();
   }
-  
+
   accountsStats.style.display = accountsTotalCount > 0 ? "flex" : "none";
 }
 
 function updateAccountsPagination() {
   const accountsPagination = document.getElementById("accountsPagination");
+  if (!accountsPagination) return;
+
   const prevBtn = document.getElementById("prevPageBtn");
   const nextBtn = document.getElementById("nextPageBtn");
   const pageNumbers = document.getElementById("pageNumbers");
@@ -386,9 +399,16 @@ function updateAccountsPagination() {
   }
 
   accountsPagination.style.display = "flex";
-  prevBtn.disabled = accountsCurrentPage <= 1;
-  nextBtn.disabled = accountsCurrentPage >= accountsTotalPages;
-  pageNumbers.innerHTML = generatePageNumbers();
+
+  if (prevBtn) {
+    prevBtn.disabled = accountsCurrentPage <= 1;
+  }
+  if (nextBtn) {
+    nextBtn.disabled = accountsCurrentPage >= accountsTotalPages;
+  }
+  if (pageNumbers) {
+    pageNumbers.innerHTML = generatePageNumbers();
+  }
 }
 
 function generatePageNumbers() {
@@ -571,7 +591,11 @@ async function batchDeleteAccounts() {
   }
 
   const emailIds = Array.from(selectedAccounts);
-  const confirmMsg = `确定要删除选中的 ${emailIds.length} 个账户吗？\n\n${emailIds.slice(0, 5).join("\n")}${emailIds.length > 5 ? "\n..." : ""}`;
+  const confirmMsg = `确定要删除选中的 ${
+    emailIds.length
+  } 个账户吗？\n\n${emailIds.slice(0, 5).join("\n")}${
+    emailIds.length > 5 ? "\n..." : ""
+  }`;
 
   if (!confirm(confirmMsg)) {
     return;
@@ -580,7 +604,8 @@ async function batchDeleteAccounts() {
   const batchDeleteBtn = document.getElementById("batchDeleteBtn");
   const originalText = batchDeleteBtn.innerHTML;
   batchDeleteBtn.disabled = true;
-  batchDeleteBtn.innerHTML = "<span>⏳</span> <span class='btn-text'>删除中...</span>";
+  batchDeleteBtn.innerHTML =
+    "<span>⏳</span> <span class='btn-text'>删除中...</span>";
 
   try {
     showNotification(`正在批量删除 ${emailIds.length} 个账户...`, "info");
