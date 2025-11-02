@@ -243,14 +243,14 @@ async def warmup_cache():
         logger.info("Starting cache warmup...")
         
         # 获取所有账户
-        accounts = db.get_all_accounts()
-        if not accounts:
+        accounts_data, total_accounts = db.get_all_accounts_db(page=1, page_size=1000)
+        if not accounts_data:
             logger.info("No accounts found for cache warmup")
             return
         
         # 按最后刷新时间排序，选择最活跃的账户
         active_accounts = sorted(
-            accounts,
+            accounts_data,
             key=lambda x: x.get('last_refresh_time', ''),
             reverse=True
         )[:CACHE_WARMUP_ACCOUNTS]
@@ -413,6 +413,18 @@ async def root(request: Request):
         # 如果模板渲染失败，回退到静态文件
         logger.warning(f"Template rendering failed, falling back to static file: {e}")
     return FileResponse("static/index.html")
+
+
+@app.get("/favicon.ico")
+async def favicon():
+    """返回网站图标"""
+    import os
+    favicon_path = "static/favicon.png"
+    if os.path.exists(favicon_path):
+        return FileResponse(favicon_path, media_type="image/png")
+    # 如果没有favicon文件，返回204 No Content
+    from fastapi import Response
+    return Response(status_code=204)
 
 
 @app.get("/api")
