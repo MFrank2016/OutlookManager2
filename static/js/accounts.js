@@ -172,11 +172,12 @@ async function loadAccounts(page = 1, resetSearch = false, showLoading = true) {
                 }')" oncontextmenu="showAccountContextMenu(event, '${
           account.email_id
         }')">
-                    <td onclick="event.stopPropagation()">
+                    <td>
                         <div class="account-cell-with-checkbox">
                             <input type="checkbox" class="account-checkbox" 
                                    data-email-id="${account.email_id}"
                                    ${isChecked ? "checked" : ""}
+                                   onclick="event.stopPropagation()"
                                    onchange="toggleAccountSelection('${
                                      account.email_id
                                    }')" />
