@@ -141,6 +141,12 @@ async function batchAddAccounts() {
         message: "添加成功",
       });
     } catch (error) {
+      // 如果是登录过期错误，立即停止批量添加
+      if (error.message === "登录已过期") {
+        console.log("检测到登录过期，停止批量添加");
+        break;
+      }
+      
       failCount++;
       results.push({
         email: email,

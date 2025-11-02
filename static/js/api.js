@@ -71,13 +71,32 @@ async function apiRequest(url, options = {}) {
 
     // 如果返回401，说明token无效或过期
     if (response.status === 401) {
-      showNotification("登录已过期，请重新登录", "warning");
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("user_info");
-      setTimeout(() => {
-        window.location.href = "/static/login.html";
-      }, 1000);
-      return;
+      const errorData = await response
+        .json()
+        .catch(() => ({ detail: "Unauthorized" }));
+      
+      // 检查是否是账户凭证验证失败（而不是用户token过期）
+      const isAccountCredentialError = errorData.detail && 
+        (errorData.detail.includes("Account") || 
+         errorData.detail.includes("credentials") ||
+         errorData.detail.includes("refresh_token"));
+      
+      // 如果是账户凭证错误，不要清除用户登录状态
+      if (isAccountCredentialError) {
+        throw new Error(errorData.detail || "账户凭证验证失败");
+      }
+      
+      // 否则是用户token过期，需要重新登录
+      if (!window._isHandlingAuthExpired) {
+        window._isHandlingAuthExpired = true;
+        showNotification("登录已过期，请重新登录", "warning");
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("user_info");
+        setTimeout(() => {
+          window.location.href = "/static/login.html";
+        }, 1500);
+      }
+      throw new Error("登录已过期");
     }
 
     if (!response.ok) {
