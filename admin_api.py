@@ -11,6 +11,17 @@ from pydantic import BaseModel
 
 import auth
 import database as db
+from models import (
+    UserCreateRequest,
+    UserUpdateRequest,
+    UserInfo,
+    UserListResponse,
+    PermissionsUpdateRequest,
+    BindAccountsRequest,
+    RoleUpdateRequest,
+    UserResponse,
+    PasswordUpdateRequest
+)
 
 # 创建路由器
 router = APIRouter(prefix="/admin", tags=["管理面板"])
@@ -519,4 +530,436 @@ async def trigger_lru_cleanup(admin: dict = Depends(auth.get_current_admin)):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LRU清理失败: {str(e)}")
+
+
+# ============================================================================
+# 用户管理API（仅管理员可访问）
+# ============================================================================
+
+@router.get("/users", response_model=UserListResponse)
+async def get_users(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=200, description="每页数量"),
+    role_filter: Optional[str] = Query(None, description="角色筛选 (admin/user)"),
+    search: Optional[str] = Query(None, description="搜索关键词（用户名或邮箱）"),
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    获取所有用户列表（支持分页和筛选）
+    
+    仅管理员可访问
+    """
+    # 检查管理员权限
+    auth.require_admin(admin)
+    
+    try:
+        users, total = db.get_all_users(page, page_size, role_filter, search)
+        
+        total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+        
+        user_infos = [
+            UserInfo(
+                id=user['id'],
+                username=user['username'],
+                email=user.get('email'),
+                role=user.get('role', 'user'),
+                bound_accounts=user.get('bound_accounts', []),
+                permissions=user.get('permissions', []),
+                is_active=bool(user['is_active']),
+                created_at=user['created_at'],
+                last_login=user.get('last_login')
+            )
+            for user in users
+        ]
+        
+        return UserListResponse(
+            total_users=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            users=user_infos
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取用户列表失败: {str(e)}")
+
+
+@router.post("/users", response_model=UserResponse)
+async def create_user(
+    request: UserCreateRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    创建新用户
+    
+    仅管理员可访问
+    """
+    # 检查管理员权限
+    auth.require_admin(admin)
+    
+    try:
+        # 检查用户名是否已存在
+        existing_user = db.get_user_by_username(request.username)
+        if existing_user:
+            raise HTTPException(status_code=400, detail=f"用户名 {request.username} 已存在")
+        
+        # 创建用户
+        password_hash = auth.hash_password(request.password)
+        new_user = db.create_user(
+            username=request.username,
+            password_hash=password_hash,
+            email=request.email,
+            role=request.role,
+            bound_accounts=request.bound_accounts or [],
+            permissions=request.permissions or [],
+            is_active=request.is_active
+        )
+        
+        user_info = UserInfo(
+            id=new_user['id'],
+            username=new_user['username'],
+            email=new_user.get('email'),
+            role=new_user.get('role', 'user'),
+            bound_accounts=new_user.get('bound_accounts', []),
+            permissions=new_user.get('permissions', []),
+            is_active=bool(new_user['is_active']),
+            created_at=new_user['created_at'],
+            last_login=new_user.get('last_login')
+        )
+        
+        return UserResponse(
+            message=f"用户 {request.username} 创建成功",
+            user=user_info
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"创建用户失败: {str(e)}")
+
+
+@router.get("/users/{username}", response_model=UserInfo)
+async def get_user(
+    username: str,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    获取用户详情
+    
+    仅管理员可访问
+    """
+    # 检查管理员权限
+    auth.require_admin(admin)
+    
+    user = db.get_user_by_username(username)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail=f"用户 {username} 不存在")
+    
+    return UserInfo(
+        id=user['id'],
+        username=user['username'],
+        email=user.get('email'),
+        role=user.get('role', 'user'),
+        bound_accounts=user.get('bound_accounts', []),
+        permissions=user.get('permissions', []),
+        is_active=bool(user['is_active']),
+        created_at=user['created_at'],
+        last_login=user.get('last_login')
+    )
+
+
+@router.put("/users/{username}", response_model=UserResponse)
+async def update_user(
+    username: str,
+    request: UserUpdateRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    更新用户信息
+    
+    仅管理员可访问
+    """
+    # 检查管理员权限
+    auth.require_admin(admin)
+    
+    # 检查用户是否存在
+    user = db.get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=404, detail=f"用户 {username} 不存在")
+    
+    try:
+        # 构建更新数据
+        update_data = {}
+        if request.email is not None:
+            update_data['email'] = request.email
+        if request.role is not None:
+            update_data['role'] = request.role
+        if request.bound_accounts is not None:
+            update_data['bound_accounts'] = request.bound_accounts
+        if request.permissions is not None:
+            update_data['permissions'] = request.permissions
+        if request.is_active is not None:
+            update_data['is_active'] = 1 if request.is_active else 0
+        
+        # 更新用户
+        success = db.update_user(username, **update_data)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="更新用户失败")
+        
+        # 获取更新后的用户信息
+        updated_user = db.get_user_by_username(username)
+        
+        user_info = UserInfo(
+            id=updated_user['id'],
+            username=updated_user['username'],
+            email=updated_user.get('email'),
+            role=updated_user.get('role', 'user'),
+            bound_accounts=updated_user.get('bound_accounts', []),
+            permissions=updated_user.get('permissions', []),
+            is_active=bool(updated_user['is_active']),
+            created_at=updated_user['created_at'],
+            last_login=updated_user.get('last_login')
+        )
+        
+        return UserResponse(
+            message=f"用户 {username} 更新成功",
+            user=user_info
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新用户失败: {str(e)}")
+
+
+@router.delete("/users/{username}", response_model=MessageResponse)
+async def delete_user(
+    username: str,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    删除用户
+    
+    仅管理员可访问
+    """
+    # 检查管理员权限
+    auth.require_admin(admin)
+    
+    # 不能删除自己
+    if username == admin['username']:
+        raise HTTPException(status_code=400, detail="不能删除当前登录的管理员账户")
+    
+    # 检查用户是否存在
+    user = db.get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=404, detail=f"用户 {username} 不存在")
+    
+    try:
+        success = db.delete_user(username)
+        
+        if success:
+            return MessageResponse(message=f"用户 {username} 删除成功")
+        else:
+            raise HTTPException(status_code=500, detail="删除用户失败")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除用户失败: {str(e)}")
+
+
+@router.put("/users/{username}/permissions", response_model=UserResponse)
+async def update_user_permissions(
+    username: str,
+    request: PermissionsUpdateRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    更新用户权限
+    
+    仅管理员可访问
+    """
+    # 检查管理员权限
+    auth.require_admin(admin)
+    
+    # 检查用户是否存在
+    user = db.get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=404, detail=f"用户 {username} 不存在")
+    
+    try:
+        success = db.update_user_permissions(username, request.permissions)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="更新权限失败")
+        
+        # 获取更新后的用户信息
+        updated_user = db.get_user_by_username(username)
+        
+        user_info = UserInfo(
+            id=updated_user['id'],
+            username=updated_user['username'],
+            email=updated_user.get('email'),
+            role=updated_user.get('role', 'user'),
+            bound_accounts=updated_user.get('bound_accounts', []),
+            permissions=updated_user.get('permissions', []),
+            is_active=bool(updated_user['is_active']),
+            created_at=updated_user['created_at'],
+            last_login=updated_user.get('last_login')
+        )
+        
+        return UserResponse(
+            message=f"用户 {username} 权限更新成功",
+            user=user_info
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新权限失败: {str(e)}")
+
+
+@router.put("/users/{username}/bind-accounts", response_model=UserResponse)
+async def bind_accounts(
+    username: str,
+    request: BindAccountsRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    绑定邮箱账户到用户
+    
+    仅管理员可访问
+    """
+    # 检查管理员权限
+    auth.require_admin(admin)
+    
+    # 检查用户是否存在
+    user = db.get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=404, detail=f"用户 {username} 不存在")
+    
+    try:
+        success = db.bind_accounts_to_user(username, request.account_emails)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="绑定账户失败")
+        
+        # 获取更新后的用户信息
+        updated_user = db.get_user_by_username(username)
+        
+        user_info = UserInfo(
+            id=updated_user['id'],
+            username=updated_user['username'],
+            email=updated_user.get('email'),
+            role=updated_user.get('role', 'user'),
+            bound_accounts=updated_user.get('bound_accounts', []),
+            permissions=updated_user.get('permissions', []),
+            is_active=bool(updated_user['is_active']),
+            created_at=updated_user['created_at'],
+            last_login=updated_user.get('last_login')
+        )
+        
+        return UserResponse(
+            message=f"用户 {username} 账户绑定成功",
+            user=user_info
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"绑定账户失败: {str(e)}")
+
+
+@router.put("/users/{username}/role", response_model=UserResponse)
+async def update_user_role(
+    username: str,
+    request: RoleUpdateRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    修改用户角色
+    
+    仅管理员可访问
+    """
+    # 检查管理员权限
+    auth.require_admin(admin)
+    
+    # 不能修改自己的角色
+    if username == admin['username']:
+        raise HTTPException(status_code=400, detail="不能修改当前登录的管理员角色")
+    
+    # 检查用户是否存在
+    user = db.get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=404, detail=f"用户 {username} 不存在")
+    
+    try:
+        success = db.update_user(username, role=request.role)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="修改角色失败")
+        
+        # 获取更新后的用户信息
+        updated_user = db.get_user_by_username(username)
+        
+        user_info = UserInfo(
+            id=updated_user['id'],
+            username=updated_user['username'],
+            email=updated_user.get('email'),
+            role=updated_user.get('role', 'user'),
+            bound_accounts=updated_user.get('bound_accounts', []),
+            permissions=updated_user.get('permissions', []),
+            is_active=bool(updated_user['is_active']),
+            created_at=updated_user['created_at'],
+            last_login=updated_user.get('last_login')
+        )
+        
+        return UserResponse(
+            message=f"用户 {username} 角色修改成功",
+            user=user_info
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"修改角色失败: {str(e)}")
+
+
+@router.put("/users/{username}/password", response_model=MessageResponse)
+async def update_user_password(
+    username: str,
+    request: PasswordUpdateRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    修改用户密码
+    
+    仅管理员可访问
+    """
+    # 检查管理员权限
+    auth.require_admin(admin)
+    
+    # 检查用户是否存在
+    user = db.get_user_by_username(username)
+    if not user:
+        raise HTTPException(status_code=404, detail=f"用户 {username} 不存在")
+    
+    try:
+        # 哈希新密码
+        new_password_hash = auth.hash_password(request.new_password)
+        
+        # 更新密码
+        success = db.update_user_password(username, new_password_hash)
+        
+        if success:
+            return MessageResponse(message=f"用户 {username} 密码修改成功")
+        else:
+            raise HTTPException(status_code=500, detail="修改密码失败")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"修改密码失败: {str(e)}")
 

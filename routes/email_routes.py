@@ -20,6 +20,8 @@ from models import (
     SendEmailResponse,
     DeleteEmailResponse
 )
+from permissions import Permission
+from fastapi import HTTPException
 
 # 获取日志记录器
 logger = logging.getLogger(__name__)
@@ -39,9 +41,16 @@ async def get_emails(
     subject_search: Optional[str] = Query(None, description="主题模糊搜索"),
     sort_by: str = Query("date", description="排序字段（date/subject/from_email）"),
     sort_order: str = Query("desc", regex="^(asc|desc)$", description="排序方向"),
-    admin: dict = Depends(auth.get_current_admin),
+    user: dict = Depends(auth.get_current_user),
 ):
-    """获取邮件列表（支持搜索、排序、SQLite缓存）"""
+    """获取邮件列表（支持搜索、排序、SQLite缓存，根据用户权限控制）"""
+    # 检查账户访问权限
+    if not auth.check_account_access(user, email_id):
+        raise HTTPException(status_code=403, detail=f"无权访问账户 {email_id}")
+    
+    # 检查查看邮件权限
+    auth.require_permission(user, Permission.VIEW_EMAILS)
+    
     credentials = await get_account_credentials(email_id)
     return await list_emails(
         credentials, folder, page, page_size, refresh,
@@ -55,9 +64,16 @@ async def get_dual_view_emails(
     inbox_page: int = Query(1, ge=1),
     junk_page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    admin: dict = Depends(auth.get_current_admin),
+    user: dict = Depends(auth.get_current_user),
 ):
-    """获取双栏视图邮件（收件箱和垃圾箱）"""
+    """获取双栏视图邮件（收件箱和垃圾箱，根据用户权限控制）"""
+    # 检查账户访问权限
+    if not auth.check_account_access(user, email_id):
+        raise HTTPException(status_code=403, detail=f"无权访问账户 {email_id}")
+    
+    # 检查查看邮件权限
+    auth.require_permission(user, Permission.VIEW_EMAILS)
+    
     credentials = await get_account_credentials(email_id)
 
     # 并行获取收件箱和垃圾箱邮件
@@ -75,18 +91,32 @@ async def get_dual_view_emails(
 
 @router.get("/{email_id}/{message_id}", response_model=EmailDetailsResponse)
 async def get_email_detail(
-    email_id: str, message_id: str, admin: dict = Depends(auth.get_current_admin)
+    email_id: str, message_id: str, user: dict = Depends(auth.get_current_user)
 ):
-    """获取邮件详细内容"""
+    """获取邮件详细内容（根据用户权限控制）"""
+    # 检查账户访问权限
+    if not auth.check_account_access(user, email_id):
+        raise HTTPException(status_code=403, detail=f"无权访问账户 {email_id}")
+    
+    # 检查查看邮件权限
+    auth.require_permission(user, Permission.VIEW_EMAILS)
+    
     credentials = await get_account_credentials(email_id)
     return await get_email_details(credentials, message_id)
 
 
 @router.delete("/{email_id}/{message_id}", response_model=DeleteEmailResponse)
 async def delete_email_route(
-    email_id: str, message_id: str, admin: dict = Depends(auth.get_current_admin)
+    email_id: str, message_id: str, user: dict = Depends(auth.get_current_user)
 ):
-    """删除指定邮件"""
+    """删除指定邮件（需要删除邮件权限）"""
+    # 检查账户访问权限
+    if not auth.check_account_access(user, email_id):
+        raise HTTPException(status_code=403, detail=f"无权访问账户 {email_id}")
+    
+    # 检查删除邮件权限
+    auth.require_permission(user, Permission.DELETE_EMAILS)
+    
     credentials = await get_account_credentials(email_id)
     success = await delete_email(credentials, message_id)
     
@@ -101,9 +131,16 @@ async def delete_email_route(
 async def send_email_route(
     email_id: str,
     request: SendEmailRequest,
-    admin: dict = Depends(auth.get_current_admin)
+    user: dict = Depends(auth.get_current_user)
 ):
-    """发送邮件"""
+    """发送邮件（需要发送邮件权限）"""
+    # 检查账户访问权限
+    if not auth.check_account_access(user, email_id):
+        raise HTTPException(status_code=403, detail=f"无权访问账户 {email_id}")
+    
+    # 检查发送邮件权限
+    auth.require_permission(user, Permission.SEND_EMAILS)
+    
     credentials = await get_account_credentials(email_id)
     
     try:

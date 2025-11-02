@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>用户管理 - Outlook邮件管理系统</title>
+    <link rel="stylesheet" href="/static/css/user-management.css" />
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>👥 用户管理</h1>
+        <div class="header-actions">
+          <button class="btn btn-primary" onclick="showCreateUserModal()">
+            ➕ 创建用户
+          </button>
+          <button class="btn btn-secondary" onclick="window.location.href='/'">
+            ← 返回主页
+          </button>
+        </div>
+      </div>
+
+      <div class="content">
+        <!-- Filters -->
+        <div class="filters">
+          <div class="filter-group">
+            <label>搜索</label>
+            <input
+              type="text"
+              id="searchInput"
+              placeholder="用户名或邮箱..."
+              onkeyup="handleSearch()"
+            />
+          </div>
+          <div class="filter-group">
+            <label>角色筛选</label>
+            <select id="roleFilter" onchange="loadUsers()">
+              <option value="">全部角色</option>
+              <option value="admin">管理员</option>
+              <option value="user">普通用户</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>&nbsp;</label>
+            <button class="btn btn-secondary" onclick="resetFilters()">
+              重置筛选
+            </button>
+          </div>
+        </div>
+
+        <!-- Users Table -->
+        <div id="usersTableContainer">
+          <table class="users-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>用户名</th>
+                <th>邮箱</th>
+                <th>角色</th>
+                <th>绑定账户数</th>
+                <th>状态</th>
+                <th>创建时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <!-- Users will be loaded here -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+          <button onclick="previousPage()" id="prevBtn">上一页</button>
+          <span id="pageInfo">第 1 页 / 共 1 页</span>
+          <button onclick="nextPage()" id="nextBtn">下一页</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create/Edit User Modal -->
+    <div id="userModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="modalTitle">创建用户</h2>
+          <button class="close-btn" onclick="closeUserModal()">×</button>
+        </div>
+        <form id="userForm" onsubmit="handleUserSubmit(event)">
+          <div class="form-group">
+            <label>用户名 *</label>
+            <input
+              type="text"
+              id="username"
+              required
+              placeholder="请输入用户名"
+            />
+          </div>
+          <div class="form-group" id="passwordGroup">
+            <label>密码 *</label>
+            <input
+              type="password"
+              id="password"
+              placeholder="请输入密码（至少6位）"
+              minlength="6"
+            />
+          </div>
+          <div
+            class="form-group"
+            id="changePasswordGroup"
+            style="display: none"
+          >
+            <label>
+              <input
+                type="checkbox"
+                id="changePasswordCheckbox"
+                onchange="togglePasswordFields()"
+              />
+              修改密码
+            </label>
+            <div id="newPasswordFields" style="display: none; margin-top: 10px">
+              <div style="margin-bottom: 12px">
+                <label
+                  style="display: block; margin-bottom: 6px; font-size: 13px"
+                  >新密码 *</label
+                >
+                <input
+                  type="password"
+                  id="newPassword"
+                  placeholder="请输入新密码（至少6位）"
+                  minlength="6"
+                  style="
+                    width: 100%;
+                    padding: 10px 12px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                    font-size: 14px;
+                  "
+                />
+              </div>
+              <div>
+                <label
+                  style="display: block; margin-bottom: 6px; font-size: 13px"
+                  >确认新密码 *</label
+                >
+                <input
+                  type="password"
+                  id="confirmNewPassword"
+                  placeholder="请再次输入新密码"
+                  minlength="6"
+                  style="
+                    width: 100%;
+                    padding: 10px 12px;
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                    font-size: 14px;
+                  "
+                />
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>邮箱</label>
+            <input type="email" id="email" placeholder="请输入邮箱地址" />
+          </div>
+          <div class="form-group">
+            <label>角色 *</label>
+            <select id="role" required onchange="handleRoleChange()">
+              <option value="user">普通用户</option>
+              <option value="admin">管理员</option>
+            </select>
+          </div>
+          <div class="form-group" id="permissionsGroup">
+            <label>权限配置</label>
+            <div class="permissions-grid" id="permissionsGrid">
+              <!-- Permissions will be loaded here -->
+            </div>
+          </div>
+          <div class="form-group" id="accountsGroup">
+            <label>绑定账户</label>
+            <div class="accounts-container">
+              <div class="accounts-search">
+                <input
+                  type="text"
+                  id="accountsSearchInput"
+                  placeholder="🔍 搜索账户邮箱..."
+                  oninput="filterAccounts()"
+                />
+                <div class="accounts-stats">
+                  <span id="accountsSelectedCount">已选 0</span>
+                  <span class="divider">|</span>
+                  <span id="accountsDisplayCount">显示 0</span>
+                  <span class="divider">|</span>
+                  <span id="accountsTotalCount">共 0</span>
+                </div>
+              </div>
+              <div class="accounts-actions">
+                <button
+                  type="button"
+                  class="btn-link"
+                  onclick="selectAllVisibleAccounts()"
+                >
+                  全选当前页
+                </button>
+                <button
+                  type="button"
+                  class="btn-link"
+                  onclick="deselectAllAccounts()"
+                >
+                  清空选择
+                </button>
+              </div>
+              <div class="accounts-list" id="accountsList">
+                <!-- Accounts will be loaded here -->
+              </div>
+              <div
+                class="accounts-pagination"
+                id="accountsPagination"
+                style="display: none"
+              >
+                <button
+                  type="button"
+                  class="btn-page"
+                  onclick="prevAccountsPage()"
+                  id="prevAccountsBtn"
+                >
+                  ‹ 上一页
+                </button>
+                <span id="accountsPageInfo">1 / 1</span>
+                <button
+                  type="button"
+                  class="btn-page"
+                  onclick="nextAccountsPage()"
+                  id="nextAccountsBtn"
+                >
+                  下一页 ›
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="isActive" checked /> 账户启用
+            </label>
+          </div>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeUserModal()"
+            >
+              取消
+            </button>
+            <button type="submit" class="btn btn-success" id="submitBtn">
+              创建用户
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div id="passwordModal" class="modal">
+      <div class="modal-content" style="max-width: 400px">
+        <div class="modal-header">
+          <h2>修改密码</h2>
+          <button class="close-btn" onclick="closePasswordModal()">×</button>
+        </div>
+        <form id="passwordForm" onsubmit="handlePasswordSubmit(event)">
+          <div class="form-group">
+            <label>用户名</label>
+            <input
+              type="text"
+              id="passwordUsername"
+              readonly
+              style="background: #f3f4f6"
+            />
+          </div>
+          <div class="form-group">
+            <label>新密码 *</label>
+            <input
+              type="password"
+              id="newPassword"
+              required
+              placeholder="请输入新密码（至少6位）"
+              minlength="6"
+            />
+          </div>
+          <div class="form-group">
+            <label>确认密码 *</label>
+            <input
+              type="password"
+              id="confirmPassword"
+              required
+              placeholder="请再次输入新密码"
+              minlength="6"
+            />
+          </div>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closePasswordModal()"
+            >
+              取消
+            </button>
+            <button type="submit" class="btn btn-success">确认修改</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Notification -->
+    <div id="notification" class="notification"></div>
+
+    <!-- Scripts -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/user-management.js"></script>
+  </body>
+</html>

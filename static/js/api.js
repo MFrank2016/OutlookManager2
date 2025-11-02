@@ -1,6 +1,50 @@
 // API请求模块
 const API_BASE = "";
 
+// 获取当前用户信息
+function getCurrentUser() {
+  const userInfoStr = localStorage.getItem("user_info");
+  if (userInfoStr) {
+    try {
+      return JSON.parse(userInfoStr);
+    } catch (e) {
+      console.error("解析用户信息失败:", e);
+      return null;
+    }
+  }
+  return null;
+}
+
+// 检查用户是否是管理员
+function isAdmin() {
+  const user = getCurrentUser();
+  return user && user.role === "admin";
+}
+
+// 检查用户是否有特定权限
+function hasPermission(permission) {
+  const user = getCurrentUser();
+  if (!user) return false;
+  
+  // 管理员拥有所有权限
+  if (user.role === "admin") return true;
+  
+  // 检查用户权限列表
+  return user.permissions && user.permissions.includes(permission);
+}
+
+// 获取用户可访问的账户列表
+function getAccessibleAccounts() {
+  const user = getCurrentUser();
+  if (!user) return [];
+  
+  // 管理员可以访问所有账户
+  if (user.role === "admin") return null; // null 表示所有账户
+  
+  // 普通用户返回绑定的账户
+  return user.bound_accounts || [];
+}
+
 // API请求（支持JWT认证）
 async function apiRequest(url, options = {}) {
   try {
@@ -29,6 +73,7 @@ async function apiRequest(url, options = {}) {
     if (response.status === 401) {
       showNotification("登录已过期，请重新登录", "warning");
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("user_info");
       setTimeout(() => {
         window.location.href = "/static/login.html";
       }, 1000);
@@ -49,6 +94,31 @@ async function apiRequest(url, options = {}) {
     console.error("API请求失败:", error);
     throw error;
   }
+}
+
+// 登录后获取并存储用户信息
+async function fetchAndStoreUserInfo() {
+  try {
+    const userInfo = await apiRequest("/auth/me");
+    if (userInfo) {
+      localStorage.setItem("user_info", JSON.stringify(userInfo));
+      console.log("用户信息已更新:", userInfo);
+      return userInfo;
+    }
+  } catch (error) {
+    console.error("获取用户信息失败:", error);
+    return null;
+  }
+}
+
+// 退出登录
+function logout() {
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("user_info");
+  showNotification("已退出登录", "info");
+  setTimeout(() => {
+    window.location.href = "/static/login.html";
+  }, 500);
 }
 
 // API 配置已移至 apitest.js 模块

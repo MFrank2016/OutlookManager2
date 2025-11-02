@@ -18,21 +18,31 @@ function switchAdminTab(tabName, tabElement) {
 
   // 切换面板显示
   const tablesPanel = document.getElementById("tablesPanel");
+  const usersPanel = document.getElementById("usersPanel");
   const configPanel = document.getElementById("configPanel");
   const cachePanel = document.getElementById("cachePanel");
   
   if (tabName === "tables") {
     if (tablesPanel) tablesPanel.classList.remove("hidden");
+    if (usersPanel) usersPanel.classList.add("hidden");
     if (configPanel) configPanel.classList.add("hidden");
     if (cachePanel) cachePanel.classList.add("hidden");
     loadTablesList();
+  } else if (tabName === "users") {
+    if (tablesPanel) tablesPanel.classList.add("hidden");
+    if (usersPanel) usersPanel.classList.remove("hidden");
+    if (configPanel) configPanel.classList.add("hidden");
+    if (cachePanel) cachePanel.classList.add("hidden");
+    // 用户管理标签页内容在 HTML 中已定义，无需加载
   } else if (tabName === "config") {
     if (tablesPanel) tablesPanel.classList.add("hidden");
+    if (usersPanel) usersPanel.classList.add("hidden");
     if (configPanel) configPanel.classList.remove("hidden");
     if (cachePanel) cachePanel.classList.add("hidden");
     loadSystemConfigs();
   } else if (tabName === "cache") {
     if (tablesPanel) tablesPanel.classList.add("hidden");
+    if (usersPanel) usersPanel.classList.add("hidden");
     if (configPanel) configPanel.classList.add("hidden");
     if (cachePanel) cachePanel.classList.remove("hidden");
     loadCacheStatistics();
@@ -55,10 +65,10 @@ async function loadTablesList() {
         fields: "id, email, refresh_token, client_id, tags, last_refresh_time, next_refresh_time, refresh_status, refresh_error, created_at, updated_at, access_token, token_expires_at, api_method"
       },
       { 
-        name: "admins", 
-        description: "管理员账户表", 
+        name: "users", 
+        description: "用户账户表 (含角色和权限)", 
         count: "?",
-        fields: "id, username, password_hash, email, is_active, created_at, last_login"
+        fields: "id, username, password_hash, email, role, bound_accounts, permissions, is_active, created_at, last_login"
       },
       { 
         name: "system_config", 
@@ -93,7 +103,7 @@ async function loadTablesList() {
     // 生成表格HTML
     const iconMap = {
       accounts: "👥",
-      admins: "🔐",
+      users: "🔐",
       system_config: "⚙️",
       emails_cache: "📧",
       email_details_cache: "📨",

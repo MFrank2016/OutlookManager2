@@ -48,6 +48,7 @@
             class="nav-item"
             onclick="showPage('addAccount', this)"
             data-tooltip="添加账户"
+            id="addAccountNav"
           >
             <span class="icon">➕</span>
             <span class="nav-text">添加账户</span>
@@ -56,14 +57,25 @@
             class="nav-item"
             onclick="showPage('batchAdd', this)"
             data-tooltip="批量添加"
+            id="batchAddNav"
           >
             <span class="icon">📦</span>
             <span class="nav-text">批量添加</span>
           </button>
           <button
             class="nav-item"
+            onclick="window.location.href='/static/user-management.html'"
+            data-tooltip="用户管理"
+            id="userManagementNav"
+          >
+            <span class="icon">👤</span>
+            <span class="nav-text">用户管理</span>
+          </button>
+          <button
+            class="nav-item"
             onclick="showPage('adminPanel', this)"
             data-tooltip="管理面板"
+            id="adminPanelNav"
           >
             <span class="icon">⚙️</span>
             <span class="nav-text">管理面板</span>
@@ -72,6 +84,7 @@
             class="nav-item"
             onclick="showPage('apiDocs', this)"
             data-tooltip="API管理"
+            id="apiDocsNav"
           >
             <span class="icon">📖</span>
             <span class="nav-text">API管理</span>
@@ -88,6 +101,9 @@
             <span class="nav-text">邮件列表</span>
           </button>
         </nav>
+        <div class="sidebar-footer" id="sidebarFooter">
+          <!-- 用户信息和退出按钮将在这里动态添加 -->
+        </div>
       </div>
 
       <!-- 主内容区域 -->

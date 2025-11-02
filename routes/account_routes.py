@@ -101,11 +101,11 @@ async def get_accounts(
     after_date: Optional[str] = Query(None, description="自定义日期（ISO格式）"),
     refresh_start_date: Optional[str] = Query(None, description="刷新起始日期（ISO格式，用于自定义日期范围）"),
     refresh_end_date: Optional[str] = Query(None, description="刷新截止日期（ISO格式，用于自定义日期范围）"),
-    admin: dict = Depends(auth.get_current_admin),
+    user: dict = Depends(auth.get_current_user),
 ):
-    """获取所有已加载的邮箱账户列表，支持分页和多维度搜索"""
+    """获取已加载的邮箱账户列表，支持分页和多维度搜索（根据用户权限过滤）"""
     try:
-        logger.info(f"[API] GET /accounts 收到请求:")
+        logger.info(f"[API] GET /accounts 收到请求 (user: {user.get('username')}, role: {user.get('role')})")
         logger.info(f"  page={page}, page_size={page_size}")
         logger.info(f"  email_search={email_search}, tag_search={tag_search}")
         logger.info(f"  refresh_status={refresh_status}, time_filter={time_filter}")
@@ -126,7 +126,17 @@ async def get_accounts(
             refresh_end_date=refresh_end_date,
         )
         
-        logger.info(f"[API] 查询结果: 总数={total_accounts}, 返回={len(accounts_data)}条")
+        # 根据用户权限过滤账户
+        accessible_accounts = auth.get_accessible_accounts(user)
+        if accessible_accounts is not None:  # 普通用户，只能看到绑定的账户
+            accounts_data = [
+                acc for acc in accounts_data 
+                if acc['email'] in accessible_accounts
+            ]
+            total_accounts = len(accounts_data)
+            logger.info(f"[API] 普通用户过滤后: 返回={len(accounts_data)}条")
+        else:  # 管理员，可以看到所有账户
+            logger.info(f"[API] 管理员查询: 总数={total_accounts}, 返回={len(accounts_data)}条")
         
         # 转换为AccountInfo对象
         all_accounts = []

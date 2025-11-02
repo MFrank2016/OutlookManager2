@@ -14,6 +14,9 @@
       >
         数据表管理
       </button>
+      <button class="tab" onclick="switchAdminTab('users', this)">
+        用户管理
+      </button>
       <button class="tab" onclick="switchAdminTab('config', this)">
         系统配置
       </button>
@@ -74,6 +77,27 @@
         </div>
 
         <div id="tablePagination" class="pagination hidden"></div>
+      </div>
+    </div>
+
+    <!-- 用户管理 -->
+    <div id="usersPanel" class="admin-panel hidden">
+      <div class="mb-4">
+        <h4 class="font-semibold mb-2">用户管理</h4>
+        <p class="text-sm" style="color: #64748b">
+          管理系统用户、角色和权限
+        </p>
+      </div>
+      <div style="text-align: center; padding: 40px 20px;">
+        <p style="margin-bottom: 20px; color: #64748b;">
+          用户管理功能已独立为专门页面，提供更完善的管理体验
+        </p>
+        <button
+          class="btn btn-primary"
+          onclick="window.open('/static/user-management.html', '_blank')"
+        >
+          <span>👥</span> 打开用户管理页面
+        </button>
       </div>
     </div>
 

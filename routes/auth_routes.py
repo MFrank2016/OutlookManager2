@@ -21,58 +21,65 @@ router = APIRouter(prefix="/auth", tags=["认证"])
 @router.post("/login", response_model=auth.Token)
 async def login(request: auth.LoginRequest):
     """
-    管理员登录
+    用户登录（支持所有角色）
 
     返回JWT访问令牌
     """
-    admin = auth.authenticate_admin(request.username, request.password)
+    user = auth.authenticate_user(request.username, request.password)
 
-    if not admin:
+    if not user:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
 
     # 更新最后登录时间
-    db.update_admin_login_time(request.username)
+    db.update_user_login_time(request.username)
 
-    # 创建访问令牌
-    access_token = auth.create_access_token(data={"sub": admin["username"]})
+    # 创建访问令牌，包含角色和权限信息
+    access_token = auth.create_access_token(data={
+        "sub": user["username"],
+        "role": user.get("role", "user"),
+        "permissions": user.get("permissions", [])
+    })
 
-    logger.info(f"Admin {request.username} logged in successfully")
+    logger.info(f"User {request.username} (role: {user.get('role')}) logged in successfully")
 
     return auth.Token(access_token=access_token)
 
 
-@router.get("/me", response_model=auth.AdminInfo)
-async def get_current_user(admin: dict = Depends(auth.get_current_admin)):
+@router.get("/me", response_model=auth.UserInfo)
+async def get_current_user_info(user: dict = Depends(auth.get_current_user)):
     """
-    获取当前登录的管理员信息
+    获取当前登录的用户信息（含角色和权限）
     """
-    return auth.AdminInfo(
-        id=admin["id"],
-        username=admin["username"],
-        email=admin.get("email"),
-        is_active=bool(admin["is_active"]),
-        created_at=admin["created_at"],
-        last_login=admin.get("last_login"),
+    return auth.UserInfo(
+        id=user["id"],
+        username=user["username"],
+        email=user.get("email"),
+        role=user.get("role", "user"),
+        bound_accounts=user.get("bound_accounts", []),
+        permissions=user.get("permissions", []),
+        is_active=bool(user["is_active"]),
+        created_at=user["created_at"],
+        last_login=user.get("last_login"),
     )
 
 
 @router.post("/change-password")
 async def change_password(
-    request: auth.ChangePasswordRequest, admin: dict = Depends(auth.get_current_admin)
+    request: auth.ChangePasswordRequest, user: dict = Depends(auth.get_current_user)
 ):
     """
-    修改管理员密码
+    修改用户密码（所有角色均可使用）
     """
     # 验证旧密码
-    if not auth.verify_password(request.old_password, admin["password_hash"]):
+    if not auth.verify_password(request.old_password, user["password_hash"]):
         raise HTTPException(status_code=400, detail="旧密码错误")
 
     # 更新密码
     new_password_hash = auth.hash_password(request.new_password)
-    success = db.update_admin_password(admin["username"], new_password_hash)
+    success = db.update_user_password(user["username"], new_password_hash)
 
     if success:
-        logger.info(f"Admin {admin['username']} changed password")
+        logger.info(f"User {user['username']} changed password")
         return {"message": "密码修改成功"}
     else:
         raise HTTPException(status_code=500, detail="密码修改失败")

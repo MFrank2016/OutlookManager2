@@ -56,10 +56,23 @@ class ChangePasswordRequest(BaseModel):
 
 
 class AdminInfo(BaseModel):
-    """管理员信息模型"""
+    """管理员信息模型（向后兼容）"""
     id: int
     username: str
     email: Optional[str] = None
+    is_active: bool
+    created_at: str
+    last_login: Optional[str] = None
+
+
+class UserInfo(BaseModel):
+    """用户信息模型"""
+    id: int
+    username: str
+    email: Optional[str] = None
+    role: str  # admin or user
+    bound_accounts: list = []
+    permissions: list = []
     is_active: bool
     created_at: str
     last_login: Optional[str] = None
@@ -105,7 +118,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     创建JWT访问令牌
     
     Args:
-        data: 要编码的数据
+        data: 要编码的数据（应包含 sub, role, permissions）
         expires_delta: 过期时间增量
         
     Returns:
@@ -177,9 +190,35 @@ def verify_api_key(api_key: str) -> bool:
     return api_key == stored_key
 
 
+def authenticate_user(username: str, password: str) -> Optional[dict]:
+    """
+    验证用户名和密码
+    
+    Args:
+        username: 用户名
+        password: 密码
+        
+    Returns:
+        用户信息字典或None
+    """
+    user = db.get_user_by_username(username)
+    
+    if not user:
+        return None
+    
+    if not verify_password(password, user['password_hash']):
+        return None
+    
+    if not user['is_active']:
+        return None
+    
+    return user
+
+
+# 向后兼容的别名
 def authenticate_admin(username: str, password: str) -> Optional[dict]:
     """
-    验证管理员用户名和密码
+    验证管理员用户名和密码（向后兼容）
     
     Args:
         username: 用户名
@@ -188,26 +227,15 @@ def authenticate_admin(username: str, password: str) -> Optional[dict]:
     Returns:
         管理员信息字典或None
     """
-    admin = db.get_admin_by_username(username)
-    
-    if not admin:
-        return None
-    
-    if not verify_password(password, admin['password_hash']):
-        return None
-    
-    if not admin['is_active']:
-        return None
-    
-    return admin
+    return authenticate_user(username, password)
 
 
-async def get_current_admin(
+async def get_current_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> dict:
     """
-    获取当前已认证的管理员
+    获取当前已认证的用户
     
     支持两种认证方式：
     1. JWT Token (Authorization: Bearer <token>)
@@ -220,7 +248,7 @@ async def get_current_admin(
         credentials: HTTP Bearer凭据（可选）
         
     Returns:
-        管理员信息字典
+        用户信息字典
         
     Raises:
         HTTPException: 未认证或认证失败
@@ -230,11 +258,11 @@ async def get_current_admin(
     if api_key:
         if verify_api_key(api_key):
             # API Key认证成功，返回默认管理员（第一个管理员）
-            admins = db.get_all_admins()
+            admins = db.get_users_by_role("admin")
             if admins:
-                admin = admins[0]
-                if admin.get('is_active'):
-                    return admin
+                user = admins[0]
+                if user.get('is_active'):
+                    return user
         
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -245,11 +273,11 @@ async def get_current_admin(
     if credentials and credentials.scheme.lower() == "apikey":
         if verify_api_key(credentials.credentials):
             # API Key认证成功
-            admins = db.get_all_admins()
+            admins = db.get_users_by_role("admin")
             if admins:
-                admin = admins[0]
-                if admin.get('is_active'):
-                    return admin
+                user = admins[0]
+                if user.get('is_active'):
+                    return user
         
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -261,22 +289,22 @@ async def get_current_admin(
         token = credentials.credentials
         token_data = verify_token(token)
         
-        admin = db.get_admin_by_username(token_data.username)
+        user = db.get_user_by_username(token_data.username)
         
-        if admin is None:
+        if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="管理员不存在",
+                detail="用户不存在",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        if not admin['is_active']:
+        if not user['is_active']:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="管理员账户已被禁用"
+                detail="用户账户已被禁用"
             )
         
-        return admin
+        return user
     
     # 没有提供任何有效的认证信息
     raise HTTPException(
@@ -284,6 +312,117 @@ async def get_current_admin(
         detail="未提供认证信息或认证信息无效",
         headers={"WWW-Authenticate": "Bearer"}
     )
+
+
+# 向后兼容的别名
+async def get_current_admin(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> dict:
+    """
+    获取当前已认证的管理员（向后兼容）
+    
+    Args:
+        request: FastAPI请求对象
+        credentials: HTTP Bearer凭据（可选）
+        
+    Returns:
+        管理员信息字典
+        
+    Raises:
+        HTTPException: 未认证或认证失败
+    """
+    return await get_current_user(request, credentials)
+
+
+# ============================================================================
+# 权限检查函数
+# ============================================================================
+
+def require_admin(user: dict) -> None:
+    """
+    要求管理员权限
+    
+    Args:
+        user: 用户信息字典
+        
+    Raises:
+        HTTPException: 如果用户不是管理员
+    """
+    from permissions import Role
+    
+    if user.get('role') != Role.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限"
+        )
+
+
+def require_permission(user: dict, permission: str) -> None:
+    """
+    要求特定权限
+    
+    Args:
+        user: 用户信息字典
+        permission: 权限名称
+        
+    Raises:
+        HTTPException: 如果用户没有该权限
+    """
+    from permissions import Role
+    
+    # 管理员拥有所有权限
+    if user.get('role') == Role.ADMIN:
+        return
+    
+    user_permissions = user.get('permissions', [])
+    if permission not in user_permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"需要权限: {permission}"
+        )
+
+
+def check_account_access(user: dict, email_id: str) -> bool:
+    """
+    检查用户是否有权访问指定邮箱账户
+    
+    Args:
+        user: 用户信息字典
+        email_id: 邮箱账户
+        
+    Returns:
+        是否有权访问
+    """
+    from permissions import Role
+    
+    # 管理员可以访问所有账户
+    if user.get('role') == Role.ADMIN:
+        return True
+    
+    # 普通用户只能访问绑定的账户
+    bound_accounts = user.get('bound_accounts', [])
+    return email_id in bound_accounts
+
+
+def get_accessible_accounts(user: dict) -> list:
+    """
+    获取用户可访问的邮箱账户列表
+    
+    Args:
+        user: 用户信息字典
+        
+    Returns:
+        邮箱账户列表（管理员返回None表示所有账户）
+    """
+    from permissions import Role
+    
+    # 管理员可以访问所有账户
+    if user.get('role') == Role.ADMIN:
+        return None  # None 表示所有账户
+    
+    # 普通用户返回绑定的账户列表
+    return user.get('bound_accounts', [])
 
 
 # ============================================================================
@@ -298,16 +437,16 @@ def init_default_admin(username: str = "admin", password: str = "admin123") -> N
         username: 管理员用户名
         password: 管理员密码
     """
-    # 检查是否已存在管理员
-    existing_admin = db.get_admin_by_username(username)
+    # 检查是否已存在该用户
+    existing_user = db.get_user_by_username(username)
     
-    if existing_admin:
-        print(f"管理员 '{username}' 已存在，跳过创建")
+    if existing_user:
+        print(f"用户 '{username}' 已存在，跳过创建")
         return
     
     # 创建默认管理员
     password_hash = hash_password(password)
-    db.create_admin(username, password_hash)
+    db.create_user(username, password_hash, role="admin")
     
     print(f"默认管理员已创建:")
     print(f"  用户名: {username}")

@@ -184,3 +184,151 @@ class DeleteEmailResponse(BaseModel):
     message: str
     message_id: str
 
+
+# ============================================================================
+# 用户管理模型
+# ============================================================================
+
+class UserCreateRequest(BaseModel):
+    """创建用户请求模型"""
+    
+    username: str = Field(..., description="用户名")
+    password: str = Field(..., description="密码")
+    email: Optional[str] = Field(None, description="邮箱")
+    role: str = Field("user", description="角色 (admin/user)")
+    bound_accounts: Optional[List[str]] = Field(default=[], description="绑定的邮箱账户列表")
+    permissions: Optional[List[str]] = Field(default=[], description="权限列表")
+    is_active: bool = Field(True, description="账户是否启用")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "username": "testuser",
+                "password": "password123",
+                "email": "test@example.com",
+                "role": "user",
+                "bound_accounts": ["user1@outlook.com", "user2@outlook.com"],
+                "permissions": ["view_emails", "send_emails"],
+                "is_active": True
+            }
+        }
+
+
+class UserUpdateRequest(BaseModel):
+    """更新用户请求模型"""
+    
+    email: Optional[str] = Field(None, description="邮箱")
+    role: Optional[str] = Field(None, description="角色 (admin/user)")
+    bound_accounts: Optional[List[str]] = Field(None, description="绑定的邮箱账户列表")
+    permissions: Optional[List[str]] = Field(None, description="权限列表")
+    is_active: Optional[bool] = Field(None, description="是否激活")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "email": "newemail@example.com",
+                "role": "user",
+                "bound_accounts": ["user1@outlook.com"],
+                "permissions": ["view_emails", "send_emails", "delete_emails"],
+                "is_active": True
+            }
+        }
+
+
+class UserInfo(BaseModel):
+    """用户信息模型"""
+    
+    id: int
+    username: str
+    email: Optional[str] = None
+    role: str
+    bound_accounts: List[str] = []
+    permissions: List[str] = []
+    is_active: bool
+    created_at: str
+    last_login: Optional[str] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "id": 1,
+                "username": "testuser",
+                "email": "test@example.com",
+                "role": "user",
+                "bound_accounts": ["user1@outlook.com"],
+                "permissions": ["view_emails", "send_emails"],
+                "is_active": True,
+                "created_at": "2024-01-01T00:00:00",
+                "last_login": "2024-01-02T10:30:00"
+            }
+        }
+
+
+class UserListResponse(BaseModel):
+    """用户列表响应模型"""
+    
+    total_users: int
+    page: int
+    page_size: int
+    total_pages: int
+    users: List[UserInfo]
+
+
+class PermissionsUpdateRequest(BaseModel):
+    """权限更新请求模型"""
+    
+    permissions: List[str] = Field(..., description="权限列表")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "permissions": ["view_emails", "send_emails", "delete_emails"]
+            }
+        }
+
+
+class BindAccountsRequest(BaseModel):
+    """绑定账户请求模型"""
+    
+    account_emails: List[str] = Field(..., description="邮箱账户列表")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "account_emails": ["user1@outlook.com", "user2@outlook.com"]
+            }
+        }
+
+
+class RoleUpdateRequest(BaseModel):
+    """角色更新请求模型"""
+    
+    role: str = Field(..., description="角色 (admin/user)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "role": "admin"
+            }
+        }
+
+
+class UserResponse(BaseModel):
+    """用户操作响应模型"""
+    
+    message: str
+    user: Optional[UserInfo] = None
+
+
+class PasswordUpdateRequest(BaseModel):
+    """修改密码请求模型"""
+    
+    new_password: str = Field(..., min_length=6, description="新密码（至少6位）")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "new_password": "newpassword123"
+            }
+        }
+
