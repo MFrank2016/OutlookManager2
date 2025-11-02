@@ -20,6 +20,8 @@ from models import (
     AccountResponse,
     AddTagRequest,
     BatchRefreshResult,
+    BatchDeleteRequest,
+    BatchDeleteResult,
     UpdateTagsRequest,
 )
 from oauth_service import get_access_token, refresh_account_token
@@ -283,6 +285,74 @@ async def delete_account(email_id: str, admin: dict = Depends(auth.get_current_a
     except Exception as e:
         logger.error(f"Error deleting account: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete account")
+
+
+@router.post("/batch-delete", response_model=BatchDeleteResult)
+async def batch_delete_accounts(
+    request: BatchDeleteRequest,
+    admin: dict = Depends(auth.get_current_admin),
+):
+    """批量删除邮箱账户"""
+    try:
+        logger.info(f"Admin {admin['username']} initiated batch delete for {len(request.email_ids)} accounts")
+        
+        if not request.email_ids:
+            return BatchDeleteResult(
+                total_processed=0,
+                success_count=0,
+                failed_count=0,
+                details=[]
+            )
+        
+        success_count = 0
+        failed_count = 0
+        details = []
+        
+        for email_id in request.email_ids:
+            try:
+                # 从数据库删除账户
+                success = db.delete_account(email_id)
+                
+                if success:
+                    success_count += 1
+                    details.append({
+                        "email": email_id,
+                        "status": "success",
+                        "message": "Account deleted successfully"
+                    })
+                    logger.info(f"Successfully deleted account {email_id} in batch")
+                else:
+                    failed_count += 1
+                    details.append({
+                        "email": email_id,
+                        "status": "failed",
+                        "message": "Account not found"
+                    })
+                    logger.warning(f"Account {email_id} not found during batch delete")
+                    
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Error deleting account {email_id} in batch: {e}")
+                failed_count += 1
+                details.append({
+                    "email": email_id,
+                    "status": "failed",
+                    "message": error_msg
+                })
+        
+        logger.info(f"Batch delete completed by {admin['username']}: "
+                   f"{success_count} succeeded, {failed_count} failed out of {len(request.email_ids)}")
+        
+        return BatchDeleteResult(
+            total_processed=len(request.email_ids),
+            success_count=success_count,
+            failed_count=failed_count,
+            details=details
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in batch delete: {e}")
+        raise HTTPException(status_code=500, detail=f"Batch delete failed: {str(e)}")
 
 
 @router.post("/{email_id}/refresh-token", response_model=AccountResponse)

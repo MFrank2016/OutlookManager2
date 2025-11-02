@@ -150,6 +150,21 @@ class BatchRefreshResult(BaseModel):
     details: List[dict]
 
 
+class BatchDeleteRequest(BaseModel):
+    """批量删除账户请求模型"""
+    
+    email_ids: List[str] = Field(..., description="要删除的邮箱账户列表")
+
+
+class BatchDeleteResult(BaseModel):
+    """批量删除结果模型"""
+    
+    total_processed: int
+    success_count: int
+    failed_count: int
+    details: List[dict]
+
+
 class SendEmailRequest(BaseModel):
     """发送邮件请求模型"""
     

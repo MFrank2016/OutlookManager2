@@ -163,24 +163,33 @@ async function loadAccounts(page = 1, resetSearch = false, showLoading = true) {
             : account.client_id
           : "N/A";
 
+        // 检查是否已选中
+        const isChecked = selectedAccounts.has(account.email_id);
+
         return `
                 <tr class="clickable" onclick="viewAccountEmails('${
                   account.email_id
                 }')" oncontextmenu="showAccountContextMenu(event, '${
           account.email_id
         }')">
-                    <td>
-                        <div class="account-cell">
-                            <div class="account-avatar">${account.email_id
-                              .charAt(0)
-                              .toUpperCase()}</div>
-                            <div class="account-email-info">
-                                <span class="account-email" title="${
-                                  account.email_id
-                                }">${account.email_id}</span>
-                                <span class="account-client-id" title="${
-                                  account.client_id
-                                }">ID: ${clientIdShort}</span>
+                    <td onclick="event.stopPropagation()">
+                        <div class="account-cell-with-checkbox">
+                            <input type="checkbox" class="account-checkbox" 
+                                   data-email-id="${account.email_id}"
+                                   ${isChecked ? "checked" : ""}
+                                   onchange="toggleAccountSelection('${account.email_id}')" />
+                            <div class="account-cell">
+                                <div class="account-avatar">${account.email_id
+                                  .charAt(0)
+                                  .toUpperCase()}</div>
+                                <div class="account-email-info">
+                                    <span class="account-email" title="${
+                                      account.email_id
+                                    }">${account.email_id}</span>
+                                    <span class="account-client-id" title="${
+                                      account.client_id
+                                    }">ID: ${clientIdShort}</span>
+                                </div>
                             </div>
                         </div>
                     </td>
@@ -355,8 +364,14 @@ function updateAccountsStats() {
   const accountsStats = document.getElementById("accountsStats");
   document.getElementById("totalAccounts").textContent = accountsTotalCount;
   document.getElementById("currentPage").textContent = accountsCurrentPage;
-  document.getElementById("pageSize").textContent = accountsPageSize;
-  accountsStats.style.display = accountsTotalCount > 0 ? "block" : "none";
+  
+  // 更新分页大小选择器
+  const pageSizeSelect = document.getElementById("pageSizeSelect");
+  if (pageSizeSelect) {
+    pageSizeSelect.value = accountsPageSize.toString();
+  }
+  
+  accountsStats.style.display = accountsTotalCount > 0 ? "flex" : "none";
 }
 
 function updateAccountsPagination() {
@@ -484,4 +499,144 @@ function clearSearch() {
   currentRefreshStartDate = "";
   currentRefreshEndDate = "";
   loadAccounts(1);
+}
+
+// ============================================================================
+// 批量操作功能
+// ============================================================================
+
+let selectedAccounts = new Set();
+
+// 切换全选
+function toggleSelectAll() {
+  const selectAllCheckbox = document.getElementById("selectAllAccounts");
+  const checkboxes = document.querySelectorAll(".account-checkbox");
+
+  checkboxes.forEach((checkbox) => {
+    checkbox.checked = selectAllCheckbox.checked;
+    const emailId = checkbox.dataset.emailId;
+    if (selectAllCheckbox.checked) {
+      selectedAccounts.add(emailId);
+    } else {
+      selectedAccounts.delete(emailId);
+    }
+  });
+
+  updateBatchDeleteButton();
+}
+
+// 切换单个账户选择
+function toggleAccountSelection(emailId) {
+  const checkbox = document.querySelector(
+    `.account-checkbox[data-email-id="${emailId}"]`
+  );
+  if (checkbox.checked) {
+    selectedAccounts.add(emailId);
+  } else {
+    selectedAccounts.delete(emailId);
+  }
+
+  // 更新全选复选框状态
+  const selectAllCheckbox = document.getElementById("selectAllAccounts");
+  const checkboxes = document.querySelectorAll(".account-checkbox");
+  const allChecked = Array.from(checkboxes).every((cb) => cb.checked);
+  selectAllCheckbox.checked = allChecked && checkboxes.length > 0;
+
+  updateBatchDeleteButton();
+}
+
+// 更新批量删除按钮显示状态
+function updateBatchDeleteButton() {
+  const batchDeleteBtn = document.getElementById("batchDeleteBtn");
+  const selectedCountContainer = document.getElementById(
+    "selectedCountContainer"
+  );
+  const selectedCountSpan = document.getElementById("selectedCount");
+
+  if (selectedAccounts.size > 0) {
+    batchDeleteBtn.style.display = "inline-flex";
+    selectedCountContainer.style.display = "inline";
+    selectedCountSpan.textContent = selectedAccounts.size;
+  } else {
+    batchDeleteBtn.style.display = "none";
+    selectedCountContainer.style.display = "none";
+  }
+}
+
+// 批量删除账户
+async function batchDeleteAccounts() {
+  if (selectedAccounts.size === 0) {
+    showNotification("请先选择要删除的账户", "warning");
+    return;
+  }
+
+  const emailIds = Array.from(selectedAccounts);
+  const confirmMsg = `确定要删除选中的 ${emailIds.length} 个账户吗？\n\n${emailIds.slice(0, 5).join("\n")}${emailIds.length > 5 ? "\n..." : ""}`;
+
+  if (!confirm(confirmMsg)) {
+    return;
+  }
+
+  const batchDeleteBtn = document.getElementById("batchDeleteBtn");
+  const originalText = batchDeleteBtn.innerHTML;
+  batchDeleteBtn.disabled = true;
+  batchDeleteBtn.innerHTML = "<span>⏳</span> <span class='btn-text'>删除中...</span>";
+
+  try {
+    showNotification(`正在批量删除 ${emailIds.length} 个账户...`, "info");
+
+    const response = await apiRequest("/accounts/batch-delete", {
+      method: "POST",
+      body: JSON.stringify({ email_ids: emailIds }),
+    });
+
+    const successCount = response.success_count || 0;
+    const failedCount = response.failed_count || 0;
+
+    if (failedCount > 0) {
+      showNotification(
+        `批量删除完成：成功 ${successCount} 个，失败 ${failedCount} 个`,
+        "warning"
+      );
+    } else {
+      showSuccess(`成功删除 ${successCount} 个账户`);
+    }
+
+    // 清空选择
+    selectedAccounts.clear();
+    document.getElementById("selectAllAccounts").checked = false;
+    updateBatchDeleteButton();
+
+    // 刷新列表
+    loadAccounts(accountsCurrentPage);
+  } catch (error) {
+    showError("批量删除失败: " + error.message);
+  } finally {
+    batchDeleteBtn.disabled = false;
+    batchDeleteBtn.innerHTML = originalText;
+  }
+}
+
+// ============================================================================
+// 分页大小切换功能
+// ============================================================================
+
+// 切换分页大小
+function changePageSize() {
+  const pageSizeSelect = document.getElementById("pageSizeSelect");
+  const newPageSize = parseInt(pageSizeSelect.value);
+
+  if (newPageSize !== accountsPageSize) {
+    accountsPageSize = newPageSize;
+    accountsCache = null;
+    accountsLoaded = false;
+
+    // 清空选择
+    selectedAccounts.clear();
+    document.getElementById("selectAllAccounts").checked = false;
+    updateBatchDeleteButton();
+
+    // 重新加载第一页
+    loadAccounts(1);
+  }
 }

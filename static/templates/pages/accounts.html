@@ -40,6 +40,16 @@
           <span>🔄</span>
           <span class="btn-text">批量刷新Token</span>
         </button>
+        <button
+          id="batchDeleteBtn"
+          class="btn btn-danger btn-sm"
+          onclick="batchDeleteAccounts()"
+          title="批量删除"
+          style="display: none"
+        >
+          <span>🗑️</span>
+          <span class="btn-text">批量删除</span>
+        </button>
       </div>
     </div>
 
@@ -122,12 +132,37 @@
       </div>
     </div>
 
-    <!-- 统计信息 -->
-    <div id="accountsStats" class="mb-4" style="display: none">
-      <div class="flex gap-4 text-sm">
-        <span>总数：<strong id="totalAccounts">0</strong></span>
-        <span>当前页：<strong id="currentPage">1</strong></span>
-        <span>每页：<strong id="pageSize">10</strong></span>
+    <!-- 统计信息和批量操作栏 -->
+    <div id="accountsStats" class="accounts-stats-bar mb-4" style="display: none">
+      <div class="stats-left">
+        <label class="batch-select-container">
+          <input
+            type="checkbox"
+            id="selectAllAccounts"
+            onchange="toggleSelectAll()"
+          />
+          <span class="batch-select-label">全选</span>
+        </label>
+        <span class="stats-item"
+          >总数：<strong id="totalAccounts">0</strong></span
+        >
+        <span class="stats-item"
+          >当前页：<strong id="currentPage">1</strong></span
+        >
+        <span class="stats-item selected-count" id="selectedCountContainer" style="display: none"
+          >已选：<strong id="selectedCount">0</strong></span
+        >
+      </div>
+      <div class="stats-right">
+        <label class="page-size-selector">
+          <span>每页显示：</span>
+          <select id="pageSizeSelect" onchange="changePageSize()">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
       </div>
     </div>
 
