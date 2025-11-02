@@ -251,7 +251,7 @@ async def warmup_cache():
         # 按最后刷新时间排序，选择最活跃的账户
         active_accounts = sorted(
             accounts_data,
-            key=lambda x: x.get('last_refresh_time', ''),
+            key=lambda x: x.get('last_refresh_time') or '',
             reverse=True
         )[:CACHE_WARMUP_ACCOUNTS]
         
