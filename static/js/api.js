@@ -75,14 +75,14 @@ async function apiRequest(url, options = {}) {
         .json()
         .catch(() => ({ detail: "Unauthorized" }));
       
-      // 检查是否是账户凭证验证失败（而不是用户token过期）
-      const isAccountCredentialError = errorData.detail && 
-        (errorData.detail.includes("Account") || 
-         errorData.detail.includes("credentials") ||
-         errorData.detail.includes("refresh_token"));
+      // 检查是否是添加账户时的凭证验证失败
+      // 如果是 POST /accounts 请求且有详细错误信息，很可能是账户凭证问题
+      const isAddAccountRequest = options.method === "POST" && url.includes("/accounts");
+      const hasDetailedError = errorData.detail && errorData.detail !== "Unauthorized";
       
-      // 如果是账户凭证错误，不要清除用户登录状态
-      if (isAccountCredentialError) {
+      // 如果是添加账户请求且有具体错误信息，不要清除用户登录状态
+      if (isAddAccountRequest && hasDetailedError) {
+        console.log("账户凭证验证失败，但用户登录状态保持:", errorData.detail);
         throw new Error(errorData.detail || "账户凭证验证失败");
       }
       
