@@ -1,0 +1,75 @@
+<!-- API测试模态框 -->
+<div
+  id="apiTestModal"
+  class="api-test-modal"
+  onclick="closeApiTestModal(event)"
+>
+  <div class="api-test-content" onclick="event.stopPropagation()">
+    <div class="api-test-header">
+      <h3 id="apiTestTitle">🚀 测试API接口</h3>
+      <button class="api-test-close" onclick="closeApiTestModal()">
+        ×
+      </button>
+    </div>
+    <div class="api-test-body">
+      <div class="api-test-section">
+        <h4>📋 请求信息</h4>
+        <div class="api-test-info-grid">
+          <div class="api-test-info-item">
+            <label>方法</label>
+            <span id="apiTestMethod" class="api-method-badge">GET</span>
+          </div>
+          <div class="api-test-info-item">
+            <label>端点</label>
+            <span id="apiTestEndpoint" class="api-endpoint-path">/api</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 路径参数 -->
+      <div id="apiTestPathParams" class="api-test-section hidden">
+        <h4>🔗 路径参数</h4>
+        <div id="apiTestPathParamsList"></div>
+      </div>
+
+      <!-- 查询参数 -->
+      <div id="apiTestQueryParams" class="api-test-section hidden">
+        <h4>🔍 查询参数</h4>
+        <div id="apiTestQueryParamsList"></div>
+      </div>
+
+      <!-- 请求体 -->
+      <div id="apiTestBody" class="api-test-section hidden">
+        <h4>📝 请求体 (JSON)</h4>
+        <div class="api-test-param">
+          <textarea
+            id="apiTestBodyContent"
+            placeholder='{"key": "value"}'
+          ></textarea>
+        </div>
+      </div>
+
+      <!-- 响应结果 -->
+      <div id="apiTestResultSection" class="hidden">
+        <div id="apiTestResult" class="api-test-result">
+          <h4>响应结果</h4>
+          <pre id="apiTestResultContent"></pre>
+        </div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="api-test-actions">
+        <button class="btn btn-primary" onclick="executeApiTest()">
+          <span>▶️</span> 发送请求
+        </button>
+        <button class="btn btn-secondary" onclick="resetApiTestForm()">
+          <span>🔄</span> 重置
+        </button>
+        <button class="btn btn-secondary" onclick="closeApiTestModal()">
+          <span>✖️</span> 关闭
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+

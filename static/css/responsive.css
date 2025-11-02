@@ -46,11 +46,11 @@
   }
 
   .main-body {
-    padding: 12px;
+    padding: 10px;
   }
 
   .main-header {
-    padding: 12px 16px;
+    padding: 10px 12px;
   }
 
   .main-header h2 {
@@ -64,6 +64,117 @@
 
   .modal-body {
     padding: 16px;
+  }
+
+  /* 搜索和筛选区域优化 */
+  .search-container {
+    margin-bottom: 10px;
+  }
+
+  .search-input {
+    padding: 7px 10px 7px 30px;
+    font-size: 0.75rem;
+  }
+
+  .search-icon {
+    left: 8px;
+    font-size: 0.8125rem;
+  }
+
+  .filter-container {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .filter-group {
+    gap: 4px;
+  }
+
+  .filter-label {
+    font-size: 0.75rem;
+  }
+
+  .filter-select {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    min-width: 85px;
+  }
+
+  /* 分页控件优化 */
+  .pagination-controls {
+    gap: 8px !important;
+    margin-bottom: 10px !important;
+    padding: 6px !important;
+  }
+
+  .pagination-controls .btn {
+    padding: 5px 10px;
+    font-size: 0.75rem;
+  }
+
+  .pagination-controls span {
+    font-size: 0.75rem !important;
+  }
+
+  /* 账户页面搜索筛选优化 */
+  #accountsPage .search-container .flex {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #accountsPage .search-container .flex-1 {
+    width: 100%;
+  }
+
+  #accountsPage .search-container .form-control {
+    font-size: 0.8125rem;
+    padding: 8px 12px;
+  }
+
+  #accountsPage .search-container .btn {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 0.8125rem;
+    justify-content: center;
+  }
+
+  #accountsPage #customDateRangeContainer {
+    flex-direction: column;
+  }
+
+  #accountsPage #customDateRangeContainer .flex-1 {
+    width: 100%;
+  }
+
+  #accountsPage #customDateRangeContainer .btn {
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  /* 账户统计信息优化 */
+  #accountsStats {
+    font-size: 0.75rem;
+  }
+
+  #accountsStats .flex {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* 账户分页优化 */
+  #accountsPagination {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #accountsPagination .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  #accountsPagination #pageNumbers {
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   /* 账户列表优化 */
@@ -113,10 +224,6 @@
     flex: 1;
     padding: 8px 10px;
     font-size: 0.75rem;
-  }
-
-  .account-actions .btn span {
-    display: none;
   }
 
   /* 邮件列表优化 */
@@ -283,6 +390,53 @@
   /* 隐藏部分按钮文字，只显示图标 */
   .account-actions .btn-secondary {
     padding: 6px;
+  }
+
+  /* 邮件列表手机优化 */
+  .emails-table tbody tr {
+    padding: 10px;
+    margin-bottom: 10px;
+  }
+  
+  .email-sender-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 0.813rem;
+  }
+  
+  .email-sender-name {
+    font-size: 0.875rem;
+  }
+  
+  .email-sender-email {
+    font-size: 0.688rem;
+  }
+  
+  .email-subject {
+    font-size: 0.813rem;
+  }
+  
+  .email-actions-cell .btn {
+    padding: 7px 10px;
+    font-size: 0.75rem;
+  }
+  
+  /* 邮件头部优化 */
+  .email-compact-header {
+    padding: 10px;
+  }
+  
+  .email-current-account {
+    font-size: 0.813rem;
+  }
+  
+  .email-stats-compact {
+    font-size: 0.75rem;
+  }
+  
+  .email-header-right .btn-sm {
+    padding: 6px 10px;
+    font-size: 0.75rem;
   }
 
   /* 统计信息优化 */

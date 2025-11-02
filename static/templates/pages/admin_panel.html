@@ -1,0 +1,125 @@
+<!-- 管理面板页面 -->
+<div id="adminPanelPage" class="page hidden">
+  <div class="card">
+    <h3 class="font-semibold mb-4">⚙️ 系统管理面板</h3>
+    <p class="text-sm mb-6" style="color: #64748b">
+      管理数据库表和系统配置
+    </p>
+
+    <!-- 标签页 -->
+    <div class="tabs mb-4">
+      <button
+        class="tab active"
+        onclick="switchAdminTab('tables', this)"
+      >
+        数据表管理
+      </button>
+      <button class="tab" onclick="switchAdminTab('config', this)">
+        系统配置
+      </button>
+      <button class="tab" onclick="switchAdminTab('cache', this)">
+        缓存统计
+      </button>
+    </div>
+
+    <!-- 数据表管理 -->
+    <div id="tablesPanel" class="admin-panel">
+      <div class="mb-4">
+        <h4 class="font-semibold mb-2">数据库表列表</h4>
+        <div id="tablesList" class="tables-list loading">
+          正在加载表列表...
+        </div>
+      </div>
+
+      <div id="tableDataPanel" class="hidden">
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="font-semibold">
+            表数据: <span id="currentTableName"></span>
+          </h4>
+          <div>
+            <button
+              class="btn btn-primary btn-sm"
+              onclick="openAddRecordModal()"
+            >
+              <span>➕</span> 添加记录
+            </button>
+            <button
+              class="btn btn-secondary btn-sm"
+              onclick="refreshTableData()"
+            >
+              <span>🔄</span> 刷新
+            </button>
+            <button
+              class="btn btn-secondary btn-sm"
+              onclick="backToTablesList()"
+            >
+              <span>←</span> 返回
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <input
+            type="text"
+            id="tableSearch"
+            class="form-control"
+            placeholder="搜索表数据..."
+            oninput="searchTableData()"
+            style="max-width: 300px"
+          />
+        </div>
+
+        <div id="tableDataContent" class="loading">
+          正在加载数据...
+        </div>
+
+        <div id="tablePagination" class="pagination hidden"></div>
+      </div>
+    </div>
+
+    <!-- 系统配置管理 -->
+    <div id="configPanel" class="admin-panel hidden">
+      <div class="mb-4">
+        <h4 class="font-semibold mb-2">系统配置项</h4>
+        <p class="text-sm" style="color: #64748b">
+          配置IMAP服务器、连接池、缓存等系统参数
+        </p>
+      </div>
+      <div id="configsList" class="configs-list loading">
+        正在加载配置...
+      </div>
+    </div>
+
+    <!-- 缓存统计管理 -->
+    <div id="cachePanel" class="admin-panel hidden">
+      <div class="mb-4">
+        <h4 class="font-semibold mb-2">缓存统计信息</h4>
+        <p class="text-sm" style="color: #64748b">
+          查看缓存使用情况、命中率和管理缓存数据
+        </p>
+      </div>
+      
+      <!-- 缓存统计卡片 -->
+      <div id="cacheStatistics" class="cache-statistics loading">
+        正在加载缓存统计...
+      </div>
+      
+      <!-- 缓存管理操作 -->
+      <div class="cache-actions mt-4">
+        <h4 class="font-semibold mb-2">缓存管理操作</h4>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <button class="btn btn-secondary" onclick="triggerLRUCleanup()">
+            🧹 执行LRU清理
+          </button>
+          <button class="btn btn-danger" onclick="clearAllCache()">
+            🗑️ 清除所有缓存
+          </button>
+          <button class="btn btn-primary" onclick="loadCacheStatistics()">
+            🔄 刷新统计
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+

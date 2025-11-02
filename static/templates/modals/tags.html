@@ -1,0 +1,35 @@
+<!-- 标签管理模态框 -->
+<div id="tagsModal" class="modal">
+  <div class="modal-content" style="max-width: 500px">
+    <div class="modal-header">
+      <h3>管理账户标签</h3>
+      <span class="close" onclick="closeTagsModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="currentTags">当前标签</label>
+        <div id="currentTagsList" class="tags-list"></div>
+      </div>
+      <div class="form-group">
+        <label for="newTag">添加新标签</label>
+        <div class="input-group">
+          <input
+            type="text"
+            id="newTag"
+            class="form-control"
+            placeholder="输入标签名称"
+          />
+          <button class="btn btn-primary" onclick="addTag()">添加</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeTagsModal()">
+        取消
+      </button>
+      <button class="btn btn-primary" onclick="saveAccountTags()">
+        保存
+      </button>
+    </div>
+  </div>
+</div>

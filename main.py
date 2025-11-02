@@ -14,10 +14,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 # 导入配置和日志
 from config import (
@@ -45,6 +46,9 @@ from routes import main_router
 
 # 初始化日志系统
 logger = setup_logger()
+
+# 初始化Jinja2模板
+templates = Jinja2Templates(directory="static/templates")
 
 
 # ============================================================================
@@ -400,8 +404,14 @@ app.include_router(main_router)
 
 
 @app.get("/")
-async def root():
-    """根路径 - 返回前端页面"""
+async def root(request: Request):
+    """根路径 - 返回前端页面（使用Jinja2模板渲染）"""
+    try:
+        # 尝试使用Jinja2模板渲染
+        return templates.TemplateResponse("index.html", {"request": request})
+    except Exception as e:
+        # 如果模板渲染失败，回退到静态文件
+        logger.warning(f"Template rendering failed, falling back to static file: {e}")
     return FileResponse("static/index.html")
 
 

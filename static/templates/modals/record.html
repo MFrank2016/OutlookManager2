@@ -1,0 +1,23 @@
+<!-- 表记录编辑模态框 -->
+<div id="recordModal" class="modal hidden">
+  <div class="modal-content" style="max-width: 600px">
+    <div class="modal-header">
+      <h3 id="recordModalTitle">编辑记录</h3>
+      <button class="modal-close" onclick="closeRecordModal()">
+        &times;
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="recordFormContent"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeRecordModal()">
+        取消
+      </button>
+      <button class="btn btn-primary" onclick="saveTableRecord()">
+        保存
+      </button>
+    </div>
+  </div>
+</div>
+

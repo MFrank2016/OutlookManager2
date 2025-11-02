@@ -1,0 +1,34 @@
+<!-- API文档页面 -->
+<div id="apiDocsPage" class="page hidden">
+  <div class="card">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h3 class="font-semibold">API接口文档</h3>
+        <p class="text-sm" style="color: #64748b">
+          邮件管理系统的RESTful API接口说明
+        </p>
+      </div>
+      <div class="flex gap-2">
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick="copyApiBaseUrl()"
+        >
+          <span>📋</span>
+          复制Base URL
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick="downloadApiDocs()"
+        >
+          <span>📥</span>
+          下载文档
+        </button>
+      </div>
+    </div>
+
+    <div class="api-docs">
+      {% include 'components/api_docs_content.html' %}
+    </div>
+  </div>
+</div>
+

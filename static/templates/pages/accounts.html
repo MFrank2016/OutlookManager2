@@ -1,0 +1,159 @@
+<!-- 邮箱账户列表页面 -->
+<div id="accountsPage" class="page">
+  <div class="card">
+    <!-- 紧凑头部 -->
+    <div class="accounts-compact-header">
+      <div class="accounts-header-left">
+        <h3 class="accounts-title">邮箱账户管理</h3>
+        <p class="accounts-subtitle">管理所有已添加的邮箱账户</p>
+      </div>
+      <div class="accounts-header-right">
+        <button
+          class="btn btn-primary btn-sm"
+          onclick="showPage('addAccount')"
+          title="添加账户"
+        >
+          <span>➕</span>
+          <span class="btn-text">添加账户</span>
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick="showPage('batchAdd')"
+          title="批量添加"
+        >
+          <span>📦</span>
+          <span class="btn-text">批量添加</span>
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick="loadAccountsSmart(true)"
+          title="刷新列表"
+        >
+          <span>🔄</span>
+          <span class="btn-text">刷新列表</span>
+        </button>
+        <button
+          class="btn btn-primary btn-sm"
+          onclick="showBatchRefreshDialog()"
+          title="批量刷新Token"
+        >
+          <span>🔄</span>
+          <span class="btn-text">批量刷新Token</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 搜索和过滤区域 -->
+    <div class="search-container">
+      <div class="flex gap-3 mb-4">
+        <div class="flex-1">
+          <input
+            type="text"
+            id="emailSearch"
+            class="form-control"
+            placeholder="按邮箱账号搜索..."
+            onkeypress="handleSearchKeyPress(event)"
+          />
+        </div>
+        <div class="flex-1">
+          <input
+            type="text"
+            id="tagSearch"
+            class="form-control"
+            placeholder="按标签搜索..."
+            onkeypress="handleSearchKeyPress(event)"
+          />
+        </div>
+        <div class="flex-1">
+          <select
+            id="refreshStatusFilter"
+            class="form-control"
+            onchange="handleRefreshStatusChange()"
+          >
+            <option value="all">全部状态</option>
+            <option value="never_refreshed">从未刷新</option>
+            <option value="failed">刷新失败</option>
+            <option value="success">刷新成功</option>
+            <option value="custom">指定刷新条件</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="searchAccounts()">
+          <span>🔍</span>
+          搜索
+        </button>
+        <button class="btn btn-secondary" onclick="clearSearch()">
+          <span>🗑️</span>
+          清除
+        </button>
+      </div>
+
+      <!-- 自定义日期范围选择 -->
+      <div
+        id="customDateRangeContainer"
+        class="flex gap-3 mb-4"
+        style="display: none"
+      >
+        <div class="flex-1">
+          <label class="text-sm text-gray-600 mb-1" style="display: block"
+            >刷新起始时间</label
+          >
+          <input
+            type="datetime-local"
+            id="refreshStartDate"
+            class="form-control"
+          />
+        </div>
+        <div class="flex-1">
+          <label class="text-sm text-gray-600 mb-1" style="display: block"
+            >刷新截止时间</label
+          >
+          <input
+            type="datetime-local"
+            id="refreshEndDate"
+            class="form-control"
+          />
+        </div>
+        <div style="display: flex; align-items: flex-end">
+          <button class="btn btn-info" onclick="applyCustomDateFilter()">
+            <span>✓</span>
+            应用筛选
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 统计信息 -->
+    <div id="accountsStats" class="mb-4" style="display: none">
+      <div class="flex gap-4 text-sm">
+        <span>总数：<strong id="totalAccounts">0</strong></span>
+        <span>当前页：<strong id="currentPage">1</strong></span>
+        <span>每页：<strong id="pageSize">10</strong></span>
+      </div>
+    </div>
+
+    <div id="accountsList">
+      <div class="loading">
+        <div class="loading-spinner"></div>
+        正在加载账户列表...
+      </div>
+    </div>
+
+    <!-- 分页控件 -->
+    <div id="accountsPagination" class="pagination" style="display: none">
+      <button
+        class="btn btn-sm"
+        id="prevPageBtn"
+        onclick="changePage('prev')"
+        disabled
+      >
+        <span>←</span>
+        上一页
+      </button>
+      <div id="pageNumbers" class="flex gap-1"></div>
+      <button class="btn btn-sm" id="nextPageBtn" onclick="changePage('next')">
+        下一页
+        <span>→</span>
+      </button>
+    </div>
+  </div>
+</div>

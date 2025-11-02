@@ -5,20 +5,20 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 8px 12px;
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
-  margin: -24px -24px 16px -24px;
+  margin: -24px -24px 12px -24px;
 }
 
 .email-header-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .email-current-account {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   color: #3b82f6;
   font-weight: 500;
   cursor: pointer;
@@ -30,7 +30,7 @@
 }
 
 .email-stats-compact {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: #64748b;
   display: flex;
   align-items: center;
@@ -44,11 +44,22 @@
 
 .email-header-right {
   display: flex;
-  gap: 6px;
+  gap: 4px;
+}
+
+.email-header-right .btn {
+  padding: 5px 10px;
+  font-size: 0.8125rem;
+  min-height: 28px;
 }
 
 .email-header-right .btn span {
-  font-size: 1rem;
+  font-size: 0.875rem;
+}
+
+/* 桌面端隐藏按钮文字 */
+.email-header-right .btn .btn-text {
+  display: none;
 }
 
 /* 邮件表格容器 */
@@ -64,7 +75,7 @@
 .emails-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
 }
 
 .emails-table thead {
@@ -73,11 +84,11 @@
 }
 
 .emails-table thead th {
-  padding: 12px 16px;
+  padding: 8px 12px;
   text-align: left;
   font-weight: 600;
   color: #ffffff;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 
@@ -110,7 +121,7 @@
 }
 
 .emails-table tbody td {
-  padding: 12px 16px;
+  padding: 8px 12px;
   vertical-align: middle;
   color: #334155;
 }
@@ -119,12 +130,12 @@
 .email-sender-cell {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .email-sender-avatar {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
   color: white;
@@ -132,7 +143,7 @@
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   flex-shrink: 0;
   box-shadow: 0 2px 6px rgba(139, 92, 246, 0.4);
   text-transform: uppercase;
@@ -144,20 +155,20 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .email-sender-name {
   font-weight: 500;
   color: #1e293b;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .email-sender-email {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   color: #94a3b8;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -200,23 +211,24 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  font-size: 0.8125rem;
 }
 
 .email-icons {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
   flex-shrink: 0;
 }
 
 .email-icons span {
-  font-size: 1.1rem;
+  font-size: 0.9375rem;
   line-height: 1;
 }
 
 /* 日期单元格 */
 .email-date {
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   color: #64748b;
   white-space: nowrap;
   font-weight: 500;
@@ -225,14 +237,14 @@
 /* 操作按钮 */
 .email-actions-cell {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   justify-content: center;
 }
 
 .email-actions-cell .btn {
-  padding: 6px 10px;
-  font-size: 0.875rem;
-  min-width: 36px;
+  padding: 4px 8px;
+  font-size: 0.8125rem;
+  min-width: 32px;
   transition: all 0.2s ease;
 }
 
@@ -314,36 +326,157 @@
   .email-compact-header {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
   }
 
   .email-header-left {
     flex-direction: column;
     align-items: flex-start;
-    gap: 6px;
+    gap: 4px;
   }
 
   .email-header-right {
     justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .email-header-right .btn-sm {
+    flex: 1;
+    min-width: 65px;
+    padding: 6px 8px;
+    font-size: 0.75rem;
+  }
+  
+  .email-header-right .btn span {
+    font-size: 0.8125rem;
+  }
+  
+  /* 手机端显示按钮文字 */
+  .email-header-right .btn .btn-text {
+    display: inline;
+    margin-left: 3px;
   }
 
   .emails-table-container {
     overflow-x: auto;
+    border: none;
+    background: transparent;
+    box-shadow: none;
   }
 
   .emails-table {
-    min-width: 700px;
+    min-width: 100%;
+    display: block;
+  }
+  
+  .emails-table thead {
+    display: none;
+  }
+  
+  .emails-table tbody {
+    display: block;
+  }
+  
+  .emails-table tbody tr {
+    display: block;
+    margin-bottom: 8px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 10px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+  
+  .emails-table tbody tr:hover {
+    transform: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .emails-table tbody tr.unread {
+    border-left: 3px solid #3b82f6;
+  }
+  
+  .emails-table tbody td {
+    display: block;
+    padding: 0;
+    border: none;
+  }
+  
+  /* 发件人行 */
+  .emails-table tbody td:nth-child(1) {
+    margin-bottom: 6px;
+  }
+  
+  /* 主题行 */
+  .emails-table tbody td:nth-child(2) {
+    margin-bottom: 6px;
+  }
+  
+  /* 日期行 */
+  .emails-table tbody td:nth-child(3) {
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  
+  /* 操作行 */
+  .emails-table tbody td:nth-child(4) {
+    margin-top: 8px;
   }
 
   .email-sender-avatar {
-    width: 28px;
-    height: 28px;
-    font-size: 0.75rem;
+    width: 32px;
+    height: 32px;
+    font-size: 0.8125rem;
   }
 
   .email-sender-cell {
     gap: 8px;
+  }
+  
+  .email-sender-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+  
+  .email-subject {
+    font-size: 0.8125rem;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  
+  .email-date {
+    font-size: 0.6875rem;
+  }
+  
+  .email-actions-cell {
+    justify-content: stretch;
+    gap: 6px;
+  }
+  
+  .email-actions-cell .btn {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    min-width: 0;
+  }
+  
+  /* 为按钮添加文字标签 */
+  .email-actions-cell .btn::after {
+    margin-left: 3px;
+  }
+  
+  .email-actions-cell .btn-primary::after {
+    content: "查看";
+  }
+  
+  .email-actions-cell .btn-verification-code::after {
+    content: "复制";
   }
 }
 

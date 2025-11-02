@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Outlook邮件管理系统{% endblock %}</title>
+    
+    <!-- CSS 模块 -->
+    <link rel="stylesheet" href="/static/css/base.css" />
+    <link rel="stylesheet" href="/static/css/layout.css" />
+    <link rel="stylesheet" href="/static/css/components.css" />
+    <link rel="stylesheet" href="/static/css/search-filter.css" />
+    <link rel="stylesheet" href="/static/css/tags.css" />
+    <link rel="stylesheet" href="/static/css/forms.css" />
+    <link rel="stylesheet" href="/static/css/accounts.css" />
+    <link rel="stylesheet" href="/static/css/emails.css" />
+    <link rel="stylesheet" href="/static/css/admin.css" />
+    <link rel="stylesheet" href="/static/css/apidocs.css" />
+    <link rel="stylesheet" href="/static/css/context-menu.css" />
+    <link rel="stylesheet" href="/static/css/responsive.css" />
+    
+    {% block extra_css %}{% endblock %}
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- 侧边栏 -->
+      {% include 'components/sidebar.html' %}
+      
+      <!-- 主内容区域 -->
+      <div class="main-content">
+        <div class="main-body">
+          {% block content %}{% endblock %}
+        </div>
+      </div>
+    </div>
+
+    <!-- 通知容器 -->
+    <div id="notificationContainer" class="notification-container"></div>
+
+    <!-- 模态框 -->
+    {% include 'modals/email_detail.html' %}
+    {% include 'modals/tags.html' %}
+    {% include 'modals/record.html' %}
+    {% include 'modals/config_edit.html' %}
+    {% include 'modals/api_test.html' %}
+    
+    <!-- 右键菜单 -->
+    {% include 'components/context_menu.html' %}
+
+    <!-- JavaScript 模块 -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/ui.js"></script>
+    <script src="/static/js/accounts.js"></script>
+    <script src="/static/js/emails.js"></script>
+    <script src="/static/js/batch.js"></script>
+    <script src="/static/js/tags.js"></script>
+    <script src="/static/js/apidocs.js"></script>
+    <script src="/static/js/admin.js"></script>
+    <script src="/static/js/apitest.js"></script>
+    <script src="/static/js/context-menu.js"></script>
+    <script src="/static/js/main.js"></script>
+    
+    {% block extra_js %}{% endblock %}
+  </body>
+</html>
+

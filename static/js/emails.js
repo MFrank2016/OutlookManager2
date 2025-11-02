@@ -17,6 +17,7 @@ function startAutoRefresh() {
       !document.getElementById("emailsPage").classList.contains("hidden")
     ) {
       console.log("[自动刷新] 正在检查新邮件...");
+      // 自动刷新时保持当前搜索条件，不显示加载动画
       loadEmails(true, false);
     }
   }, 10000);
@@ -78,6 +79,9 @@ async function loadEmails(forceRefresh = false, showLoading = true) {
   const subjectSearch = document.getElementById("subjectSearch")?.value || "";
   const sortOrder = document.getElementById("sortOrder")?.value || "desc";
   const folder = document.getElementById("folderFilter")?.value || "all";
+  
+  // 检查是否有搜索条件
+  const hasSearchCondition = senderSearch || subjectSearch;
 
   isLoadingEmails = true;
 
@@ -89,7 +93,7 @@ async function loadEmails(forceRefresh = false, showLoading = true) {
   if (refreshBtn) {
     refreshBtn.disabled = true;
     refreshBtn.innerHTML =
-      '<span style="display:inline-block;animation:spin 1s linear infinite;">🔄</span> 加载中...';
+      '<span style="display:inline-block;animation:spin 1s linear infinite;">🔄</span><span class="btn-text">加载中...</span>';
     refreshBtn.style.opacity = "0.6";
   }
 
@@ -107,8 +111,8 @@ async function loadEmails(forceRefresh = false, showLoading = true) {
     const newEmails = data.emails || [];
     const newEmailTotalCount = data.total_emails || 0;
 
-    // 检测新邮件
-    if (oldEmails.length > 0) {
+    // 检测新邮件（仅在没有搜索条件时检测）
+    if (oldEmails.length > 0 && !hasSearchCondition && !forceRefresh) {
       const newEmailsList = newEmails.filter(
         (email) => !oldEmailIds.has(email.message_id)
       );
@@ -188,7 +192,7 @@ async function loadEmails(forceRefresh = false, showLoading = true) {
 
     if (refreshBtn) {
       refreshBtn.disabled = false;
-      refreshBtn.innerHTML = "<span>🔄</span> 刷新";
+      refreshBtn.innerHTML = '<span>🔄</span><span class="btn-text">刷新</span>';
       refreshBtn.style.opacity = "1";
     }
   }
@@ -199,8 +203,17 @@ function renderEmails(emails) {
   const emailsList = document.getElementById("emailsList");
 
   if (!emails || emails.length === 0) {
+    // 检查是否有搜索条件
+    const senderSearch = document.getElementById("senderSearch")?.value || "";
+    const subjectSearch = document.getElementById("subjectSearch")?.value || "";
+    const hasSearchCondition = senderSearch || subjectSearch;
+    
+    const emptyMessage = hasSearchCondition 
+      ? '没有找到符合搜索条件的邮件' 
+      : '暂无邮件';
+    
     emailsList.innerHTML =
-      '<tr><td colspan="4" style="padding: 40px; text-align: center; color: #64748b;">没有找到邮件</td></tr>';
+      `<tr><td colspan="4" style="padding: 40px; text-align: center; color: #64748b;">${emptyMessage}</td></tr>`;
     return;
   }
 

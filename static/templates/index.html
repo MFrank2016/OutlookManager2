@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <!-- 邮箱账户列表页面 -->
+  {% include 'pages/accounts.html' %}
+  
+  <!-- 添加单个账户页面 -->
+  {% include 'pages/add_account.html' %}
+  
+  <!-- 批量添加账户页面 -->
+  {% include 'pages/batch_add.html' %}
+  
+  <!-- 管理面板页面 -->
+  {% include 'pages/admin_panel.html' %}
+  
+  <!-- API文档页面 -->
+  {% include 'pages/api_docs.html' %}
+  
+  <!-- 邮件列表页面 -->
+  {% include 'pages/emails.html' %}
+{% endblock %}
+

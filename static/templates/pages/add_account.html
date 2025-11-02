@@ -1,0 +1,145 @@
+<!-- 添加单个账户页面 -->
+<div id="addAccountPage" class="page hidden">
+  <div class="card">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h3 class="font-semibold">添加邮箱账户</h3>
+        <p class="text-sm" style="color: #64748b">
+          添加单个Outlook邮箱账户到系统
+        </p>
+      </div>
+      <button
+        class="btn btn-secondary btn-sm"
+        onclick="showPage('accounts')"
+      >
+        <span>←</span>
+        返回列表
+      </button>
+    </div>
+
+    <div style="max-width: 600px">
+      <div class="form-group">
+        <label class="form-label">邮箱地址 *</label>
+        <input
+          type="email"
+          id="email"
+          class="form-input"
+          placeholder="example@outlook.com"
+          required
+        />
+        <p class="text-xs" style="color: #64748b; margin-top: 4px">
+          请输入有效的Outlook邮箱地址
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">刷新令牌 (Refresh Token) *</label>
+        <textarea
+          id="refreshToken"
+          class="form-input form-textarea"
+          rows="4"
+          placeholder="从Azure应用获取的refresh_token"
+          required
+        ></textarea>
+        <p class="text-xs" style="color: #64748b; margin-top: 4px">
+          从Azure应用程序注册中获取的刷新令牌，用于OAuth2认证
+        </p>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">客户端ID (Client ID) *</label>
+        <input
+          type="text"
+          id="clientId"
+          class="form-input"
+          placeholder="Azure应用的client_id"
+          required
+        />
+        <p class="text-xs" style="color: #64748b; margin-top: 4px">
+          Azure应用程序的客户端标识符
+        </p>
+      </div>
+
+      <div class="form-group">
+        <div
+          style="
+            background: #f8fafc;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+          "
+        >
+          <h4
+            style="
+              margin: 0 0 8px 0;
+              font-size: 0.875rem;
+              font-weight: 600;
+              color: #374151;
+            "
+          >
+            📋 获取步骤：
+          </h4>
+          <ol
+            style="
+              margin: 0;
+              padding-left: 20px;
+              font-size: 0.75rem;
+              color: #6b7280;
+              line-height: 1.5;
+            "
+          >
+            <li>
+              访问
+              <a
+                href="https://portal.azure.com"
+                target="_blank"
+                style="color: #3b82f6"
+                >Azure Portal</a
+              >
+            </li>
+            <li>注册应用程序并配置权限</li>
+            <li>获取Client ID和Refresh Token</li>
+            <li>确保应用有邮件读取权限</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="accountTags">标签 (可选，用逗号分隔)</label>
+        <input
+          type="text"
+          id="accountTags"
+          class="form-control"
+          placeholder="工作,个人,重要"
+        />
+      </div>
+
+      <div class="flex gap-3">
+        <button
+          class="btn btn-primary"
+          onclick="addAccount()"
+          id="addAccountBtn"
+        >
+          <span>➕</span>
+          添加账户
+        </button>
+        <button
+          class="btn btn-secondary"
+          onclick="clearAddAccountForm()"
+        >
+          <span>🗑️</span>
+          清空表单
+        </button>
+        <button
+          class="btn btn-secondary"
+          onclick="testAccountConnection()"
+          id="testBtn"
+        >
+          <span>🔍</span>
+          测试连接
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+

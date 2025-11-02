@@ -1,0 +1,52 @@
+<!-- API基础信息 -->
+<div class="api-endpoint">
+  <div class="api-header">
+    <div>
+      <h3 style="margin: 0; color: #1f2937">📡 API基础信息</h3>
+    </div>
+  </div>
+  <div class="api-body">
+    <div class="api-section">
+      <h4>Base URL</h4>
+      <div class="api-example" id="baseUrlExample">
+        http://localhost:8001
+      </div>
+    </div>
+    <div class="api-section">
+      <h4>认证方式</h4>
+      <p class="api-description">
+        ✅ JWT Token认证 - 所有API都需要在请求头中携带JWT Token
+      </p>
+      <div class="api-example">
+        Authorization: Bearer &lt;your_jwt_token&gt;
+      </div>
+      <p
+        class="api-description"
+        style="margin-top: 8px; font-size: 0.75rem"
+      >
+        💡 通过
+        <code>POST /auth/login</code>
+        接口获取Token，Token有效期为24小时。
+      </p>
+    </div>
+    <div class="api-section">
+      <h4>版本信息</h4>
+      <p class="api-description">
+        当前版本: <strong>v2.0.0</strong>
+      </p>
+      <p
+        class="api-description"
+        style="font-size: 0.75rem; margin-top: 4px"
+      >
+        新增功能：JWT认证、日志系统、SQLite存储、管理面板
+      </p>
+    </div>
+  </div>
+</div>
+
+<p class="api-description" style="margin: 20px 0;">
+  📚 完整的API文档内容已保留在原始HTML文件中。<br>
+  如需查看详细的API接口列表，请访问：
+  <a href="/docs" target="_blank" style="color: #3b82f6">Swagger API文档</a>
+</p>
+

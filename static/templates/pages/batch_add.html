@@ -1,0 +1,157 @@
+<!-- 批量添加账户页面 -->
+<div id="batchAddPage" class="page hidden">
+  <div class="card">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h3 class="font-semibold">批量添加邮箱账户</h3>
+        <p class="text-sm" style="color: #64748b">
+          一次性添加多个邮箱账户到系统
+        </p>
+      </div>
+      <button
+        class="btn btn-secondary btn-sm"
+        onclick="showPage('accounts')"
+      >
+        <span>←</span>
+        返回列表
+      </button>
+    </div>
+
+    <div style="max-width: 800px">
+      <div class="form-group">
+        <label class="form-label">批量账户信息</label>
+        <p class="text-sm" style="color: #64748b; margin-bottom: 8px">
+          每行格式：<code>邮箱----密码----刷新令牌----客户端ID</code>
+        </p>
+        <p
+          class="text-sm"
+          style="color: #64748b; margin-bottom: 12px"
+        >
+          📧 推荐购买地址（非广告，只是推荐）：
+          <a
+            target="_blank"
+            href="http://wmemail.com"
+            style="color: #3b82f6; margin: 0 8px"
+            >wmemail.com</a
+          >
+        </p>
+        <textarea
+          id="batchAccounts"
+          class="form-input form-textarea"
+          rows="12"
+          placeholder="example1@outlook.com----password1----refresh_token1----client_id1
+example2@outlook.com----password2----refresh_token2----client_id2
+example3@outlook.com----password3----refresh_token3----client_id3"
+        ></textarea>
+        <p class="text-xs" style="color: #64748b; margin-top: 8px">
+          💡 提示：每行一个账户，使用四个连字符(----)分隔字段
+        </p>
+      </div>
+
+      <div class="form-group">
+        <div
+          style="
+            background: #fef3c7;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #fbbf24;
+          "
+        >
+          <h4
+            style="
+              margin: 0 0 8px 0;
+              font-size: 0.875rem;
+              font-weight: 600;
+              color: #92400e;
+            "
+          >
+            ⚠️ 注意事项：
+          </h4>
+          <ul
+            style="
+              margin: 0;
+              padding-left: 20px;
+              font-size: 0.75rem;
+              color: #92400e;
+              line-height: 1.5;
+            "
+          >
+            <li>确保所有账户信息格式正确</li>
+            <li>建议先测试少量账户再批量添加</li>
+            <li>添加过程中请勿关闭页面</li>
+            <li>失败的账户会在结果中显示</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button
+          class="btn btn-primary"
+          onclick="batchAddAccounts()"
+          id="batchAddBtn"
+        >
+          <span>📦</span>
+          开始批量添加
+        </button>
+        <button class="btn btn-secondary" onclick="clearBatchForm()">
+          <span>🗑️</span>
+          清空表单
+        </button>
+        <button
+          class="btn btn-secondary"
+          onclick="validateBatchFormat()"
+        >
+          <span>✅</span>
+          验证格式
+        </button>
+        <button class="btn btn-secondary" onclick="loadSampleData()">
+          <span>📝</span>
+          加载示例
+        </button>
+      </div>
+
+      <!-- 批量添加进度 -->
+      <div id="batchProgress" class="hidden" style="margin-top: 24px">
+        <h4
+          style="
+            margin-bottom: 12px;
+            font-size: 0.875rem;
+            font-weight: 600;
+          "
+        >
+          添加进度：
+        </h4>
+        <div class="progress-bar">
+          <div class="progress-fill" id="batchProgressFill"></div>
+        </div>
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 8px;
+          "
+        >
+          <span id="batchProgressText">准备中...</span>
+          <span id="batchProgressCount">0 / 0</span>
+        </div>
+      </div>
+
+      <!-- 批量添加结果 -->
+      <div id="batchResults" class="hidden" style="margin-top: 24px">
+        <h4
+          style="
+            margin-bottom: 12px;
+            font-size: 0.875rem;
+            font-weight: 600;
+          "
+        >
+          添加结果：
+        </h4>
+        <div id="batchResultsList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+

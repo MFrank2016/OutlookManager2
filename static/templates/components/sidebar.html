@@ -1,0 +1,70 @@
+<!-- 左侧菜单 -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div>
+      <h1>📧 邮件管理</h1>
+      <p>Outlook邮件管理系统</p>
+    </div>
+    <button
+      class="sidebar-toggle"
+      onclick="toggleSidebar()"
+      title="折叠/展开侧边栏"
+    >
+      ◀
+    </button>
+  </div>
+  <nav class="sidebar-nav">
+    <button
+      class="nav-item active"
+      onclick="showPage('accounts', this)"
+      data-tooltip="邮箱账户"
+    >
+      <span class="icon">👥</span>
+      <span class="nav-text">邮箱账户</span>
+    </button>
+    <button
+      class="nav-item"
+      onclick="showPage('addAccount', this)"
+      data-tooltip="添加账户"
+    >
+      <span class="icon">➕</span>
+      <span class="nav-text">添加账户</span>
+    </button>
+    <button
+      class="nav-item"
+      onclick="showPage('batchAdd', this)"
+      data-tooltip="批量添加"
+    >
+      <span class="icon">📦</span>
+      <span class="nav-text">批量添加</span>
+    </button>
+    <button
+      class="nav-item"
+      onclick="showPage('adminPanel', this)"
+      data-tooltip="管理面板"
+    >
+      <span class="icon">⚙️</span>
+      <span class="nav-text">管理面板</span>
+    </button>
+    <button
+      class="nav-item"
+      onclick="showPage('apiDocs', this)"
+      data-tooltip="API管理"
+    >
+      <span class="icon">📖</span>
+      <span class="nav-text">API管理</span>
+    </button>
+    <button
+      class="nav-item"
+      onclick="showPage('emails', this)"
+      oncontextmenu="showEmailsContextMenu(event)"
+      id="emailsNav"
+      style="display: none"
+      data-tooltip="邮件列表"
+    >
+      <span class="icon">📧</span>
+      <span class="nav-text">邮件列表</span>
+    </button>
+  </nav>
+</div>
+

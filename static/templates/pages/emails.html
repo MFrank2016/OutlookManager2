@@ -1,0 +1,207 @@
+<!-- 邮件列表页面 -->
+<div id="emailsPage" class="page hidden">
+  <div class="card">
+    <!-- 账户信息和操作按钮 -->
+    <div class="email-compact-header">
+      <div class="email-header-left">
+        <span class="email-current-account">
+          <span
+            id="currentAccountEmail"
+            onclick="copyEmailAddress(this.textContent)"
+            title="点击复制"
+            >-</span
+          >
+        </span>
+        <span class="email-stats-compact">
+          <span id="totalEmailCount">0</span>封 ·
+          <span id="unreadEmailCount">0</span>未读 ·
+          <span id="todayEmailCount">0</span>今日
+        </span>
+      </div>
+      <div class="email-header-right">
+        <button
+          class="btn btn-primary btn-sm"
+          onclick="refreshEmails()"
+          id="refreshBtn"
+          title="刷新邮件列表"
+        >
+          <span>🔄</span>
+          <span class="btn-text">刷新</span>
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick="clearCache()"
+          title="清除缓存"
+        >
+          <span>🗑️</span>
+          <span class="btn-text">清除缓存</span>
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick="exportEmails()"
+          title="导出邮件"
+        >
+          <span>📤</span>
+          <span class="btn-text">导出</span>
+        </button>
+        <button
+          class="btn btn-secondary btn-sm"
+          onclick="backToAccounts()"
+          title="返回账户列表"
+        >
+          <span>←</span>
+          <span class="btn-text">返回</span>
+        </button>
+      </div>
+    </div>
+    <!-- 隐藏的统计元素（保持兼容性） -->
+    <div style="display: none">
+      <span id="attachmentEmailCount">0</span>
+      <span id="lastUpdateTime">-</span>
+    </div>
+
+    <!-- 搜索和过滤 -->
+    <div
+      style="
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 16px;
+      "
+    >
+      <div class="search-container">
+        <span class="search-icon">👤</span>
+        <input
+          type="text"
+          class="search-input"
+          id="senderSearch"
+          placeholder="搜索发件人..."
+          onkeyup="searchAndLoadEmails()"
+        />
+      </div>
+      <div class="search-container">
+        <span class="search-icon">📧</span>
+        <input
+          type="text"
+          class="search-input"
+          id="subjectSearch"
+          placeholder="搜索主题..."
+          onkeyup="searchAndLoadEmails()"
+        />
+      </div>
+    </div>
+
+    <div class="filter-container">
+      <div class="filter-group">
+        <label class="filter-label">文件夹:</label>
+        <select
+          class="filter-select"
+          id="folderFilter"
+          onchange="loadEmails()"
+        >
+          <option value="all">全部邮件</option>
+          <option value="inbox">收件箱</option>
+          <option value="junk">垃圾邮件</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">排序:</label>
+        <select
+          class="filter-select"
+          id="sortOrder"
+          onchange="loadEmails()"
+        >
+          <option value="desc">日期倒序（最新在前）</option>
+          <option value="asc">日期正序（最旧在前）</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">每页显示:</label>
+        <select
+          class="filter-select"
+          id="emailPageSize"
+          onchange="changeEmailPageSize()"
+        >
+          <option value="20">20条</option>
+          <option value="50">50条</option>
+          <option value="100" selected>100条</option>
+        </select>
+      </div>
+      <button
+        class="btn btn-primary btn-sm"
+        onclick="loadEmails(true)"
+      >
+        <span>🔍</span>
+        搜索
+      </button>
+      <button
+        class="btn btn-secondary btn-sm"
+        onclick="clearSearchFilters()"
+      >
+        <span>🗑️</span>
+        清除搜索
+      </button>
+    </div>
+
+    <!-- 分页控件 -->
+    <div
+      class="pagination-controls"
+      style="
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 12px;
+        padding: 8px;
+        background: white;
+        border-radius: 6px;
+      "
+    >
+      <button
+        class="btn btn-secondary btn-sm"
+        onclick="emailPrevPage()"
+        id="emailPrevBtn"
+      >
+        <span>◀</span> 上一页
+      </button>
+      <span style="font-size: 0.8125rem; color: #64748b">
+        第 <strong id="emailCurrentPageDisplay">1</strong> 页
+        <span id="emailTotalInfo"></span>
+      </span>
+      <button
+        class="btn btn-secondary btn-sm"
+        onclick="emailNextPage()"
+        id="emailNextBtn"
+      >
+        下一页 <span>▶</span>
+      </button>
+    </div>
+
+    <!-- 邮件列表表格 -->
+    <div class="emails-table-container">
+      <table class="emails-table">
+        <thead>
+          <tr>
+            <th style="width: 35%">发件人</th>
+            <th style="width: 40%">主题</th>
+            <th style="width: 15%">日期</th>
+            <th style="width: 10%">操作</th>
+          </tr>
+        </thead>
+        <tbody id="emailsList">
+          <tr>
+            <td colspan="4" style="padding: 40px; text-align: center">
+              <div class="loading">
+                <div class="loading-spinner"></div>
+                正在加载邮件...
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="emailsPagination" class="pagination hidden"></div>
+  </div>
+</div>
+

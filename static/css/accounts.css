@@ -1,5 +1,55 @@
 /* accounts.css - 账户列表样式 */
 
+/* 账户页面紧凑头部 */
+.accounts-compact-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  margin: -24px -24px 16px -24px;
+}
+
+.accounts-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.accounts-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.accounts-subtitle {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.accounts-header-right {
+  display: flex;
+  gap: 4px;
+}
+
+.accounts-header-right .btn {
+  padding: 5px 10px;
+  font-size: 0.8125rem;
+  min-height: 28px;
+}
+
+.accounts-header-right .btn span {
+  font-size: 0.875rem;
+}
+
+/* 桌面端隐藏按钮文字 */
+.accounts-header-right .btn .btn-text {
+  display: none;
+}
+
 /* 账户表格容器 */
 .accounts-table-container {
   background: white;
@@ -252,22 +302,208 @@
 }
 
 @media (max-width: 768px) {
+  /* 头部优化 */
+  .accounts-compact-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .accounts-header-left {
+    gap: 2px;
+  }
+
+  .accounts-title {
+    font-size: 0.9375rem;
+  }
+
+  .accounts-subtitle {
+    font-size: 0.6875rem;
+  }
+
+  .accounts-header-right {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .accounts-header-right .btn {
+    padding: 8px 10px;
+    font-size: 0.75rem;
+    justify-content: center;
+  }
+
+  .accounts-header-right .btn span {
+    font-size: 0.875rem;
+  }
+
+  /* 手机端显示按钮文字 */
+  .accounts-header-right .btn .btn-text {
+    display: inline;
+    margin-left: 4px;
+  }
+
+  /* 表格改为卡片布局 */
   .accounts-table-container {
-    overflow-x: auto;
+    border: none;
+    background: transparent;
+    box-shadow: none;
   }
 
   .accounts-table {
-    min-width: 800px;
+    display: block;
+    min-width: 100%;
+  }
+
+  .accounts-table thead {
+    display: none;
+  }
+
+  .accounts-table tbody {
+    display: block;
+  }
+
+  .accounts-table tbody tr {
+    display: block;
+    margin-bottom: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .accounts-table tbody tr:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  }
+
+  .accounts-table tbody td {
+    display: block;
+    padding: 0;
+    border: none;
+  }
+
+  /* 账户信息行 */
+  .accounts-table tbody td:nth-child(1) {
+    margin-bottom: 10px;
+  }
+
+  /* 标签行 */
+  .accounts-table tbody td:nth-child(2) {
+    margin-bottom: 8px;
+  }
+
+  /* 状态行 */
+  .accounts-table tbody td:nth-child(3) {
+    margin-bottom: 8px;
+  }
+
+  /* 刷新状态行 */
+  .accounts-table tbody td:nth-child(4) {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  /* 操作行 */
+  .accounts-table tbody td:nth-child(5) {
+    margin-top: 10px;
   }
 
   .account-avatar {
-    width: 32px;
-    height: 32px;
-    font-size: 0.75rem;
+    width: 36px;
+    height: 36px;
+    font-size: 0.875rem;
   }
 
   .account-cell {
+    gap: 10px;
+  }
+
+  .account-email {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .account-client-id {
+    font-size: 0.6875rem;
+  }
+
+  /* 操作按钮 */
+  .account-actions {
+    justify-content: stretch;
+    gap: 6px;
+  }
+
+  .account-actions .btn {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 0.75rem;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .account-actions .btn span {
+    font-size: 1rem;
+    margin-right: 0;
+    display: inline-block;
+    line-height: 1;
+  }
+
+  /* 为操作按钮添加文字标签 */
+  .account-actions .btn::after {
+    margin-left: 4px;
+    font-size: 0.6875rem;
+    display: inline-block;
+  }
+
+  .account-actions .btn:nth-child(1)::after {
+    content: "查看";
+  }
+
+  .account-actions .btn:nth-child(2)::after {
+    content: "标签";
+  }
+
+  .account-actions .btn:nth-child(3)::after {
+    content: "刷新";
+  }
+
+  .account-actions .btn:nth-child(4)::after {
+    content: "删除";
+  }
+
+  /* 标签样式优化 */
+  .account-tags {
+    flex-wrap: wrap;
+  }
+
+  .account-tag {
+    font-size: 0.6875rem;
+    padding: 3px 8px;
+  }
+
+  /* 状态徽章优化 */
+  .status-badge {
+    font-size: 0.6875rem;
+    padding: 4px 8px;
+  }
+
+  /* 刷新状态优化 */
+  .refresh-status-cell {
     gap: 8px;
+  }
+
+  .refresh-time {
+    font-size: 0.6875rem;
+  }
+
+  .refresh-status-text {
+    font-size: 0.625rem;
   }
 }
 
