@@ -1,0 +1,342 @@
+/* 发送邮件模态框样式 */
+
+/* 模态框默认隐藏，打开时使用 flex 居中显示 */
+#sendEmailModal {
+  display: none;
+}
+
+/* 模态框内容 */
+.send-email-modal-content {
+  max-width: 800px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* 发件人信息 */
+.send-email-info {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+}
+
+.send-email-from {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+}
+
+.send-email-from .label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.send-email-from .value {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+/* 表单组 */
+.send-email-modal-content .form-group {
+  margin-bottom: 20px;
+}
+
+.send-email-modal-content .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #334155;
+  font-size: 0.875rem;
+}
+
+.send-email-modal-content .form-group label .required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.send-email-modal-content .form-control {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+.send-email-modal-content .form-control:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* 富文本编辑器容器 */
+.send-email-editor {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  min-height: 300px;
+  transition: all 0.2s;
+}
+
+.send-email-editor:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Quill编辑器样式覆盖 */
+.send-email-editor .ql-toolbar {
+  border: none;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 6px 6px 0 0;
+  background: #f8fafc;
+  padding: 8px;
+}
+
+.send-email-editor .ql-container {
+  border: none;
+  font-size: 0.875rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.send-email-editor .ql-editor {
+  min-height: 250px;
+  padding: 12px 16px;
+  color: #1e293b;
+  line-height: 1.6;
+}
+
+.send-email-editor .ql-editor.ql-blank::before {
+  color: #94a3b8;
+  font-style: normal;
+  left: 16px;
+}
+
+/* 编辑器提示文本 */
+.editor-hint {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* 模态框按钮 */
+.send-email-modal-content .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.send-email-modal-content .modal-footer .btn {
+  padding: 10px 20px;
+  font-size: 0.875rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.send-email-modal-content .modal-footer .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.send-email-modal-content .modal-footer .btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.send-email-modal-content .modal-footer .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+.send-email-modal-content .modal-footer .btn-secondary {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.send-email-modal-content .modal-footer .btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+/* 响应式设计 - 平板 */
+@media (max-width: 1024px) {
+  .send-email-modal-content {
+    max-width: 700px;
+    width: 92%;
+  }
+  
+  .send-email-editor .ql-editor {
+    min-height: 220px;
+  }
+}
+
+/* 响应式设计 - 手机 */
+@media (max-width: 768px) {
+  .send-email-modal-content {
+    max-width: 100%;
+    width: 95%;
+    margin: 20px auto;
+  }
+  
+  .send-email-modal-content .modal-header {
+    padding: 16px;
+  }
+  
+  .send-email-modal-content .modal-header h3 {
+    font-size: 1.125rem;
+  }
+  
+  .send-email-modal-content .modal-body {
+    padding: 16px;
+  }
+  
+  .send-email-info {
+    padding: 10px 12px;
+    margin-bottom: 16px;
+  }
+  
+  .send-email-from {
+    font-size: 0.8125rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .send-email-modal-content .form-group {
+    margin-bottom: 16px;
+  }
+  
+  .send-email-modal-content .form-group label {
+    font-size: 0.8125rem;
+    margin-bottom: 6px;
+  }
+  
+  .send-email-modal-content .form-control {
+    padding: 8px 10px;
+    font-size: 0.875rem;
+  }
+  
+  /* 编辑器调整 */
+  .send-email-editor {
+    min-height: 250px;
+  }
+  
+  .send-email-editor .ql-toolbar {
+    padding: 6px;
+  }
+  
+  .send-email-editor .ql-toolbar .ql-formats {
+    margin-right: 8px;
+  }
+  
+  .send-email-editor .ql-editor {
+    min-height: 180px;
+    padding: 10px 12px;
+    font-size: 0.875rem;
+  }
+  
+  .editor-hint {
+    font-size: 0.6875rem;
+    margin-top: 6px;
+  }
+  
+  /* 按钮调整 */
+  .send-email-modal-content .modal-footer {
+    padding: 12px 16px;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  
+  .send-email-modal-content .modal-footer .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 16px;
+    font-size: 0.875rem;
+  }
+}
+
+/* 响应式设计 - 小屏手机 */
+@media (max-width: 480px) {
+  .send-email-modal-content {
+    width: 98%;
+    margin: 10px auto;
+  }
+  
+  .send-email-modal-content .modal-header {
+    padding: 12px;
+  }
+  
+  .send-email-modal-content .modal-header h3 {
+    font-size: 1rem;
+  }
+  
+  .send-email-modal-content .modal-body {
+    padding: 12px;
+  }
+  
+  .send-email-editor .ql-editor {
+    min-height: 150px;
+    font-size: 0.8125rem;
+  }
+  
+  /* 工具栏紧凑布局 */
+  .send-email-editor .ql-toolbar {
+    padding: 4px;
+  }
+  
+  .send-email-editor .ql-toolbar button {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .send-email-editor .ql-toolbar .ql-formats {
+    margin-right: 6px;
+  }
+}
+
+/* 深色模式支持（可选） */
+@media (prefers-color-scheme: dark) {
+  .send-email-info {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  
+  .send-email-from .label {
+    color: #94a3b8;
+  }
+  
+  .send-email-from .value {
+    color: #f1f5f9;
+  }
+  
+  .send-email-editor {
+    background: #1e293b;
+    border-color: #334155;
+  }
+  
+  .send-email-editor .ql-toolbar {
+    background: #0f172a;
+    border-color: #334155;
+  }
+  
+  .send-email-editor .ql-editor {
+    color: #f1f5f9;
+  }
+  
+  .editor-hint {
+    color: #64748b;
+  }
+}
+

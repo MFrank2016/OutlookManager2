@@ -165,6 +165,9 @@ async function loadAccounts(page = 1, resetSearch = false, showLoading = true) {
 
         // 检查是否已选中
         const isChecked = selectedAccounts.has(account.email_id);
+        
+        // 检查是否支持 Graph API（发送邮件需要）
+        const supportsGraphApi = account.api_method === "graph_api";
 
         return `
                 <tr class="clickable" onclick="viewAccountEmails('${
@@ -221,6 +224,18 @@ async function loadAccounts(page = 1, resetSearch = false, showLoading = true) {
                             }')" title="查看邮件">
                                 <span>📧</span>
                             </button>
+                            ${supportsGraphApi 
+                              ? `<button class="btn btn-success btn-sm" onclick="openSendEmailModal('${
+                                  account.email_id
+                                }')" title="发送邮件">
+                                    <span>✉️</span>
+                                </button>`
+                              : `<button class="btn btn-secondary btn-sm" onclick="showGraphApiRequiredNotice('${
+                                  account.email_id
+                                }')" title="发送邮件需要Graph API" style="opacity: 0.6;">
+                                    <span>✉️</span>
+                                </button>`
+                            }
                             <button class="btn btn-secondary btn-sm" onclick="editAccountTags('${
                               account.email_id
                             }', ${JSON.stringify(
@@ -664,5 +679,64 @@ function changePageSize() {
 
     // 重新加载第一页
     loadAccounts(1);
+  }
+}
+
+// ============================================================================
+// Graph API 提示功能
+// ============================================================================
+
+/**
+ * 显示需要 Graph API 的提示
+ */
+function showGraphApiRequiredNotice(emailId) {
+  const message = `
+    <div style="margin-bottom: 12px;">
+      <strong>发送邮件功能需要 Graph API 支持</strong>
+    </div>
+    <div style="margin-bottom: 12px; color: #64748b; font-size: 0.875rem;">
+      当前账户 <strong>${emailId}</strong> 使用的是 IMAP 方式，不支持发送邮件。
+    </div>
+    <div style="margin-bottom: 12px; color: #64748b; font-size: 0.875rem;">
+      要使用发送邮件功能，需要：
+    </div>
+    <ul style="margin: 8px 0 12px 20px; color: #64748b; font-size: 0.875rem;">
+      <li>确保该账户具有 Graph API 权限（Mail.ReadWrite、Mail.Send）</li>
+      <li>点击下方按钮检测并启用 Graph API</li>
+    </ul>
+    <div style="margin-top: 16px;">
+      <button class="btn btn-primary" onclick="detectAndEnableGraphApi('${emailId}')">
+        <span>🔍</span> 检测并启用 Graph API
+      </button>
+    </div>
+  `;
+  
+  showNotification(message, "warning", 10000);
+}
+
+/**
+ * 检测并启用 Graph API
+ */
+async function detectAndEnableGraphApi(emailId) {
+  try {
+    showNotification("正在检测 Graph API 可用性...", "info");
+    
+    const response = await apiRequest(`/accounts/${emailId}/detect-api-method`, {
+      method: "POST"
+    });
+    
+    if (response.api_method === "graph_api") {
+      showSuccess(`账户 ${emailId} 已成功启用 Graph API！现在可以使用发送邮件功能了。`);
+      // 刷新账户列表以更新按钮状态
+      loadAccounts(accountsCurrentPage);
+    } else {
+      showNotification(
+        `该账户不支持 Graph API。请检查账户权限配置，确保具有 Mail.ReadWrite 和 Mail.Send 权限。`,
+        "warning",
+        8000
+      );
+    }
+  } catch (error) {
+    showError(`检测失败: ${error.message}`);
   }
 }

@@ -601,14 +601,18 @@
   }
 
   .account-actions .btn:nth-child(2)::after {
-    content: "标签";
+    content: "发送";
   }
 
   .account-actions .btn:nth-child(3)::after {
-    content: "刷新";
+    content: "标签";
   }
 
   .account-actions .btn:nth-child(4)::after {
+    content: "刷新";
+  }
+
+  .account-actions .btn:nth-child(5)::after {
     content: "删除";
   }
 
