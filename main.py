@@ -65,7 +65,7 @@ async def token_refresh_background_task():
             logger.info("Starting scheduled token refresh for all accounts...")
 
             # 从数据库读取所有账户
-            accounts_data, _ = db.get_all_accounts_db(page=1, page_size=1000)
+            accounts_data, _ = db.get_all_accounts_db(page=1, page_size=10000)
 
             if not accounts_data:
                 logger.info("No accounts to refresh")
