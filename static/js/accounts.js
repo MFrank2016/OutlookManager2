@@ -377,6 +377,159 @@ async function refreshAccountToken(emailId) {
   }
 }
 
+// 批量刷新Token功能
+async function showBatchRefreshDialog() {
+  try {
+    // 获取当前筛选条件下的账户数量
+    const params = new URLSearchParams({
+      page: 1,
+      page_size: 1,
+    });
+
+    if (currentEmailSearch) {
+      params.append("email_search", currentEmailSearch);
+    }
+
+    if (currentTagSearch) {
+      params.append("tag_search", currentTagSearch);
+    }
+
+    if (
+      currentRefreshStatusFilter &&
+      currentRefreshStatusFilter !== "all" &&
+      currentRefreshStatusFilter !== "custom"
+    ) {
+      params.append("refresh_status", currentRefreshStatusFilter);
+    }
+
+    // 添加自定义日期范围参数
+    if (
+      currentRefreshStatusFilter === "custom" &&
+      currentRefreshStartDate &&
+      currentRefreshEndDate
+    ) {
+      params.append("refresh_start_date", currentRefreshStartDate);
+      params.append("refresh_end_date", currentRefreshEndDate);
+    }
+
+    const data = await apiRequest(`/accounts?${params.toString()}`);
+    const totalAccounts = data.total_accounts || 0;
+
+    if (totalAccounts === 0) {
+      showNotification("当前筛选条件下没有账户需要刷新", "warning");
+      return;
+    }
+
+    // 构建筛选条件说明
+    let filterDesc = [];
+    if (currentEmailSearch) {
+      filterDesc.push(`邮箱包含"${currentEmailSearch}"`);
+    }
+    if (currentTagSearch) {
+      filterDesc.push(`标签包含"${currentTagSearch}"`);
+    }
+    if (currentRefreshStatusFilter && currentRefreshStatusFilter !== "all") {
+      if (currentRefreshStatusFilter === "custom") {
+        const startDate = new Date(currentRefreshStartDate);
+        const endDate = new Date(currentRefreshEndDate);
+        filterDesc.push(
+          `刷新时间在 ${startDate.toLocaleString(
+            "zh-CN"
+          )} 至 ${endDate.toLocaleString("zh-CN")} 之间`
+        );
+      } else {
+        const statusMap = {
+          never_refreshed: "从未刷新",
+          success: "刷新成功",
+          failed: "刷新失败",
+          pending: "待刷新",
+        };
+        filterDesc.push(`状态为"${statusMap[currentRefreshStatusFilter]}"`);
+      }
+    }
+
+    const filterText =
+      filterDesc.length > 0
+        ? `当前筛选条件：${filterDesc.join("、")}\n`
+        : "当前筛选条件：全部账户\n";
+
+    if (
+      !confirm(
+        `${filterText}将刷新 ${totalAccounts} 个账户的Token，确定继续吗？\n\n此操作可能需要较长时间，请耐心等待。`
+      )
+    ) {
+      return;
+    }
+
+    await batchRefreshTokens();
+  } catch (error) {
+    showNotification(`获取账户信息失败: ${error.message}`, "error");
+  }
+}
+
+async function batchRefreshTokens() {
+  try {
+    // 构建请求参数
+    const params = new URLSearchParams();
+
+    if (currentEmailSearch) {
+      params.append("email_search", currentEmailSearch);
+    }
+
+    if (currentTagSearch) {
+      params.append("tag_search", currentTagSearch);
+    }
+
+    if (
+      currentRefreshStatusFilter &&
+      currentRefreshStatusFilter !== "all" &&
+      currentRefreshStatusFilter !== "custom"
+    ) {
+      params.append("refresh_status", currentRefreshStatusFilter);
+    }
+
+    // 添加自定义日期范围参数
+    if (
+      currentRefreshStatusFilter === "custom" &&
+      currentRefreshStartDate &&
+      currentRefreshEndDate
+    ) {
+      params.append("refresh_start_date", currentRefreshStartDate);
+      params.append("refresh_end_date", currentRefreshEndDate);
+    }
+
+    showNotification("正在批量刷新Token，请稍候...", "info");
+
+    const result = await apiRequest(
+      `/accounts/batch-refresh-tokens?${params.toString()}`,
+      {
+        method: "POST",
+      }
+    );
+
+    // 显示结果
+    const successMsg = `批量刷新完成！\n总计: ${result.total_processed} 个账户\n成功: ${result.success_count} 个\n失败: ${result.failed_count} 个`;
+
+    if (result.failed_count === 0) {
+      showNotification(successMsg, "success");
+    } else {
+      // 如果有失败的，显示详细信息
+      let detailMsg = successMsg + "\n\n失败账户：\n";
+      result.details
+        .filter((d) => d.status === "failed")
+        .forEach((detail) => {
+          detailMsg += `- ${detail.email}: ${detail.message}\n`;
+        });
+      showNotification(detailMsg, "warning");
+    }
+
+    // 刷新账户列表
+    loadAccounts(accountsCurrentPage);
+  } catch (error) {
+    showNotification(`批量刷新失败: ${error.message}`, "error");
+  }
+}
+
 // 更多账户管理函数...
 function updateAccountsStats() {
   const accountsStats = document.getElementById("accountsStats");

@@ -38,7 +38,7 @@ echo ""
 
 # 步骤2: 停止容器
 echo "步骤2: 停止现有容器..."
-docker-compose down
+docker compose down
 echo -e "${GREEN}   ✓ 容器已停止${NC}"
 echo ""
 
@@ -74,13 +74,13 @@ echo ""
 # 步骤5: 重新构建镜像
 echo "步骤5: 重新构建Docker镜像..."
 echo "   这可能需要几分钟时间..."
-docker-compose build --no-cache
+docker compose build --no-cache
 echo -e "${GREEN}   ✓ 镜像构建完成${NC}"
 echo ""
 
 # 步骤6: 启动容器
 echo "步骤6: 启动容器..."
-docker-compose up -d
+docker compose up -d
 echo -e "${GREEN}   ✓ 容器已启动${NC}"
 echo ""
 
@@ -125,7 +125,7 @@ echo "  2. 清除浏览器缓存并刷新页面"
 echo "  3. 检查显示的时间是否正确"
 echo ""
 echo "如有问题，请查看:"
-echo "  - 日志: docker-compose logs -f"
+echo "  - 日志: docker compose logs -f"
 echo "  - 文档: docs/时区配置指南.md"
 echo ""
 

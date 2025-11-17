@@ -64,19 +64,35 @@ async def token_refresh_background_task():
         try:
             logger.info("Starting scheduled token refresh for all accounts...")
 
-            # 从数据库读取所有账户
-            accounts_data, _ = db.get_all_accounts_db(page=1, page_size=10000)
+            # 分批获取所有账户（避免一次性加载过多数据）
+            page = 1
+            page_size = 1000
+            all_accounts = []
+            
+            while True:
+                accounts_data, total = db.get_all_accounts_db(page=page, page_size=page_size)
+                if not accounts_data:
+                    break
+                all_accounts.extend(accounts_data)
+                logger.info(f"Loaded {len(accounts_data)} accounts from page {page}, total loaded: {len(all_accounts)}/{total}")
+                
+                # 如果已经获取了所有账户，退出循环
+                if len(all_accounts) >= total:
+                    break
+                page += 1
 
-            if not accounts_data:
+            if not all_accounts:
                 logger.info("No accounts to refresh")
                 await asyncio.sleep(24 * 60 * 60)  # 等待1天
                 continue
+
+            logger.info(f"Total accounts to refresh: {len(all_accounts)}")
 
             # 逐个刷新token
             refresh_count = 0
             failed_count = 0
 
-            for account_data in accounts_data:
+            for account_data in all_accounts:
                 email_id = account_data["email"]
                 try:
                     # 构建凭证对象
@@ -154,8 +170,23 @@ async def email_sync_background_task():
         try:
             logger.info("=== Running scheduled email sync ===")
 
-            # 获取所有账户
-            accounts, total = db.get_all_accounts_db(page=1, page_size=10000)
+            # 分批获取所有账户（避免一次性加载过多数据）
+            page = 1
+            page_size = 1000
+            all_accounts = []
+            total = 0
+            
+            while True:
+                accounts, total = db.get_all_accounts_db(page=page, page_size=page_size)
+                if not accounts:
+                    break
+                all_accounts.extend(accounts)
+                logger.info(f"Loaded {len(accounts)} accounts from page {page}, total loaded: {len(all_accounts)}/{total}")
+                
+                # 如果已经获取了所有账户，退出循环
+                if len(all_accounts) >= total:
+                    break
+                page += 1
             
             if total == 0:
                 logger.info("No accounts found, skipping sync")
@@ -167,7 +198,7 @@ async def email_sync_background_task():
             sync_count = 0
             error_count = 0
 
-            for account in accounts:
+            for account in all_accounts:
                 email = account.get("email")
                 try:
                     logger.info(f"[{email}] Starting email sync...")
@@ -243,7 +274,7 @@ async def warmup_cache():
         logger.info("Starting cache warmup...")
         
         # 获取所有账户
-        accounts_data, total_accounts = db.get_all_accounts_db(page=1, page_size=1000)
+        accounts_data, total_accounts = db.get_all_accounts_db(page=1, page_size=10000)
         if not accounts_data:
             logger.info("No accounts found for cache warmup")
             return
