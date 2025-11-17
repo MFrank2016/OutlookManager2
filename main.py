@@ -155,7 +155,7 @@ async def email_sync_background_task():
             logger.info("=== Running scheduled email sync ===")
 
             # 获取所有账户
-            accounts, total = db.get_all_accounts_db(page=1, page_size=1000)
+            accounts, total = db.get_all_accounts_db(page=1, page_size=10000)
             
             if total == 0:
                 logger.info("No accounts found, skipping sync")
