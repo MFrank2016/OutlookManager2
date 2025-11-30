@@ -13,17 +13,31 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash, Copy, Loader2, Edit } from "lucide-react";
+import { Trash, Copy, Loader2, Edit, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
 import { ShareToken } from "@/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function ShareManagementPage() {
   const queryClient = useQueryClient();
   const [page] = useState(1);
   const [editToken, setEditToken] = useState<ShareToken | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState<string>("");
+
+  // 获取账户列表
+  const { data: accountsData } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: async () => {
+      const res = await api.get("/accounts", {
+        params: { page: 1, page_size: 1000 }
+      });
+      return res.data.accounts || [];
+    }
+  });
 
   const { data: tokens, isLoading } = useQuery({
     queryKey: ["share-tokens", page],
@@ -62,6 +76,37 @@ export default function ShareManagementPage() {
     <div className="space-y-6 px-0 md:px-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">分享管理</h1>
+        <div className="flex gap-2">
+          {accountsData && accountsData.length > 0 && (
+            <>
+              <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="选择邮箱账户" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accountsData.map((account: { email: string }) => (
+                    <SelectItem key={account.email} value={account.email}>
+                      {account.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                onClick={() => {
+                  if (!selectedAccount) {
+                    toast.error("请先选择邮箱账户");
+                    return;
+                  }
+                  setIsCreateDialogOpen(true);
+                }}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                创建分享
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="rounded-md border bg-white shadow-sm overflow-hidden">
@@ -168,7 +213,24 @@ export default function ShareManagementPage() {
             if (!open) setEditToken(null);
         }}
         tokenToEdit={editToken || undefined}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: ["share-tokens"] })}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["share-tokens"] });
+          setEditToken(null);
+        }}
+      />
+      
+      <ShareTokenDialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+            setIsCreateDialogOpen(open);
+            if (!open) setSelectedAccount("");
+        }}
+        emailAccount={selectedAccount}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["share-tokens"] });
+          setIsCreateDialogOpen(false);
+          setSelectedAccount("");
+        }}
       />
     </div>
   );

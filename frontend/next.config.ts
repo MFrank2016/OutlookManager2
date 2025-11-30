@@ -29,6 +29,10 @@ const nextConfig: NextConfig = {
         destination: "http://127.0.0.1:8000/cache/:path*",
       },
       {
+        source: "/share/:path*",
+        destination: "http://127.0.0.1:8000/share/:path*",
+      },
+      {
         source: "/docs",
         destination: "http://127.0.0.1:8000/docs",
       },
