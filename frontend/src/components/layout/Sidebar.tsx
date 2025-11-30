@@ -1,0 +1,136 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  LayoutDashboard,
+  Mail,
+  Settings,
+  Book,
+  Menu,
+  LogOut
+} from "lucide-react";
+import { useAuthStore } from "@/store/useAuthStore";
+
+interface SidebarProps {
+  collapsed: boolean;
+  toggleCollapsed: () => void;
+}
+
+export function Sidebar({ collapsed, toggleCollapsed }: SidebarProps) {
+  const pathname = usePathname();
+  const { user, logout } = useAuthStore();
+  
+  const routes = [
+    {
+      label: "Accounts",
+      icon: LayoutDashboard,
+      href: "/dashboard",
+      active: pathname === "/dashboard" || pathname.startsWith("/dashboard/accounts"),
+    },
+    {
+      label: "Emails",
+      icon: Mail,
+      href: "/dashboard/emails",
+      active: pathname.startsWith("/dashboard/emails"),
+    },
+    {
+      label: "Admin Panel",
+      icon: Settings,
+      href: "/dashboard/admin",
+      active: pathname.startsWith("/dashboard/admin"),
+      adminOnly: true,
+    },
+    {
+      label: "API Docs",
+      icon: Book,
+      href: "/dashboard/api-docs",
+      active: pathname.startsWith("/dashboard/api-docs"),
+    },
+  ];
+
+  return (
+    <div
+      className={cn(
+        "relative flex flex-col h-screen bg-slate-900 text-white transition-all duration-300 ease-in-out border-r border-slate-800",
+        collapsed ? "w-16" : "w-64"
+      )}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 h-16 border-b border-slate-800">
+        {!collapsed && (
+          <h1 className="text-xl font-bold truncate text-blue-400">Outlook Mgr</h1>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleCollapsed}
+          className={cn(
+            "text-slate-400 hover:text-white hover:bg-slate-800",
+            collapsed ? "mx-auto" : "ml-auto"
+          )}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {/* Nav */}
+      <ScrollArea className="flex-1 py-4">
+        <nav className="space-y-1 px-2">
+          {routes.map((route) => {
+            if (route.adminOnly && user?.role !== "admin") return null;
+            
+            return (
+              <Link
+                key={route.href}
+                href={route.href}
+                className={cn(
+                  "flex items-center px-3 py-2 rounded-md transition-colors text-sm font-medium",
+                  route.active
+                    ? "bg-blue-600 text-white"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white",
+                  collapsed && "justify-center px-0"
+                )}
+                title={collapsed ? route.label : undefined}
+              >
+                <route.icon className={cn("h-5 w-5", !collapsed && "mr-3")} />
+                {!collapsed && <span>{route.label}</span>}
+              </Link>
+            );
+          })}
+        </nav>
+      </ScrollArea>
+
+      {/* User / Logout */}
+      <div className="p-4 border-t border-slate-800">
+        <div className={cn("flex items-center", collapsed ? "justify-center flex-col gap-2" : "gap-3")}>
+          <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold shrink-0">
+            {user?.username?.[0]?.toUpperCase() || "U"}
+          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user?.username}</p>
+              <p className="text-xs text-slate-400 truncate capitalize">{user?.role}</p>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={logout}
+            className={cn(
+              "text-slate-400 hover:text-red-400 hover:bg-slate-800",
+              !collapsed && "ml-auto"
+            )}
+            title="Logout"
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
