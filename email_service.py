@@ -45,7 +45,7 @@ async def list_emails(
     from_cache = False
     
     # 检查是否使用 Graph API
-    if credentials.api_method == "graph_api":
+    if credentials.api_method in ["graph", "graph_api"]:
         logger.info(f"Using Graph API for {credentials.email}")
         return await list_emails_via_graph_api(
             credentials, folder, page, page_size, force_refresh,
@@ -323,7 +323,7 @@ async def get_email_details(
     """获取邮件详细内容 - 优化版本（支持SQLite缓存）"""
     
     # 检查是否使用 Graph API
-    if credentials.api_method == "graph_api":
+    if credentials.api_method in ["graph", "graph_api"]:
         logger.info(f"Using Graph API for email details: {credentials.email}")
         from graph_api_service import get_email_details_graph
         return await get_email_details_graph(credentials, message_id)
@@ -548,7 +548,7 @@ async def delete_email(
     Returns:
         bool: 是否删除成功
     """
-    if credentials.api_method == "graph_api":
+    if credentials.api_method in ["graph", "graph_api"]:
         logger.info(f"Deleting email via Graph API: {message_id}")
         from graph_api_service import delete_email_graph
         return await delete_email_graph(credentials, message_id)
@@ -623,7 +623,7 @@ async def send_email(
     Returns:
         str: 邮件ID
     """
-    if credentials.api_method == "graph_api":
+    if credentials.api_method in ["graph", "graph_api"]:
         logger.info(f"Sending email via Graph API from {credentials.email} to {to}")
         from graph_api_service import send_email_graph
         return await send_email_graph(credentials, to, subject, body_text, body_html)
