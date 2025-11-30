@@ -218,6 +218,14 @@ def init_database() -> None:
             # 列已存在，忽略错误
             pass
         
+        # 尝试添加 body_preview 列
+        try:
+            cursor.execute("ALTER TABLE emails_cache ADD COLUMN body_preview TEXT")
+            logger.info("Added body_preview column to emails_cache table")
+        except Exception:
+            # 列已存在，忽略错误
+            pass
+        
         # 创建邮件详情缓存表
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS email_details_cache (
@@ -1467,8 +1475,8 @@ def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
                 cursor.execute("""
                     INSERT OR REPLACE INTO emails_cache 
                     (email_account, message_id, folder, subject, from_email, date, 
-                     is_read, has_attachments, sender_initial, verification_code, cache_size, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                     is_read, has_attachments, sender_initial, verification_code, body_preview, cache_size, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, (
                     email_account,
                     email.get('message_id'),
@@ -1480,6 +1488,7 @@ def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
                     1 if email.get('has_attachments') else 0,
                     email.get('sender_initial', '?'),
                     email.get('verification_code'),
+                    email.get('body_preview'),
                     cache_size
                 ))
             
@@ -1567,7 +1576,7 @@ def get_cached_emails(
         offset = (page - 1) * page_size
         cursor.execute(f"""
             SELECT message_id, folder, subject, from_email, date, 
-                   is_read, has_attachments, sender_initial, verification_code
+                   is_read, has_attachments, sender_initial, verification_code, body_preview
             FROM emails_cache 
             WHERE {where_clause}
             ORDER BY {sort_by} {sort_order.upper()}
@@ -1583,7 +1592,7 @@ def get_cached_emails(
             cursor.execute(f"""
                 UPDATE emails_cache 
                 SET access_count = access_count + 1,
-                    last_accessed_at = CURRENT_TIMESTAMP
+                last_accessed_at = CURRENT_TIMESTAMP
                 WHERE email_account = ? AND message_id IN ({placeholders})
             """, [email_account] + message_ids)
         
@@ -1598,7 +1607,8 @@ def get_cached_emails(
                 'is_read': bool(row[5]),
                 'has_attachments': bool(row[6]),
                 'sender_initial': row[7],
-                'verification_code': row[8]
+                'verification_code': row[8],
+                'body_preview': row[9]
             })
         
         return emails, total
@@ -1859,6 +1869,41 @@ def clear_email_cache_db(email_account: str) -> bool:
             return True
     except Exception as e:
         logger.error(f"Error clearing email cache: {e}")
+        return False
+
+
+def delete_email_from_cache(email_account: str, message_id: str) -> bool:
+    """
+    从缓存中删除指定邮件
+    
+    Args:
+        email_account: 邮箱账号
+        message_id: 邮件ID
+        
+    Returns:
+        是否删除成功
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 删除列表缓存
+            cursor.execute(
+                "DELETE FROM emails_cache WHERE email_account = ? AND message_id = ?", 
+                (email_account, message_id)
+            )
+            
+            # 删除详情缓存
+            cursor.execute(
+                "DELETE FROM email_details_cache WHERE email_account = ? AND message_id = ?", 
+                (email_account, message_id)
+            )
+            
+            conn.commit()
+            logger.info(f"Deleted email {message_id} from cache for {email_account}")
+            return True
+    except Exception as e:
+        logger.error(f"Error deleting email from cache: {e}")
         return False
 
 

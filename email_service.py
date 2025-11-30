@@ -229,6 +229,7 @@ async def list_emails(
                             has_attachments=False,  # 简化处理，实际需要检查邮件结构
                             sender_initial=sender_initial,
                             verification_code=verification_code,
+                            body_preview=None,
                         )
                         email_items.append(email_item)
 
@@ -589,6 +590,17 @@ async def delete_email_via_imap(
             imap_pool.return_connection(credentials.email, imap_client)
             
             logger.info(f"Successfully deleted email {message_id} via IMAP for {credentials.email}")
+            
+            # 删除缓存
+            try:
+                db.delete_email_from_cache(credentials.email, message_id)
+                
+                # 清除内存缓存，因为页面内容变了
+                from cache_service import clear_email_cache
+                clear_email_cache(credentials.email)
+            except Exception as e:
+                logger.warning(f"Failed to delete email from cache: {e}")
+                
             return True
             
         except Exception as e:

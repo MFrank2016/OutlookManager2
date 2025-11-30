@@ -400,23 +400,23 @@ async def get_cache_statistics(admin: dict = Depends(auth.get_current_admin)):
             cursor.execute("""
                 SELECT 
                     COUNT(*) as total,
-                    SUM(CASE WHEN access_count > 0 THEN 1 ELSE 0 END) as accessed
+                    COALESCE(SUM(CASE WHEN access_count > 0 THEN 1 ELSE 0 END), 0) as accessed
                 FROM emails_cache
             """)
             row = cursor.fetchone()
-            emails_total = row[0] if row else 0
-            emails_accessed = row[1] if row else 0
+            emails_total = row[0] if row and row[0] is not None else 0
+            emails_accessed = row[1] if row and row[1] is not None else 0
             
             # 计算邮件详情缓存命中率
             cursor.execute("""
                 SELECT 
                     COUNT(*) as total,
-                    SUM(CASE WHEN access_count > 0 THEN 1 ELSE 0 END) as accessed
+                    COALESCE(SUM(CASE WHEN access_count > 0 THEN 1 ELSE 0 END), 0) as accessed
                 FROM email_details_cache
             """)
             row = cursor.fetchone()
-            details_total = row[0] if row else 0
-            details_accessed = row[1] if row else 0
+            details_total = row[0] if row and row[0] is not None else 0
+            details_accessed = row[1] if row and row[1] is not None else 0
             
             # 综合命中率
             total_records = emails_total + details_total

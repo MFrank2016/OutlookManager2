@@ -64,16 +64,16 @@ export default function DashboardLayout({
 
       {/* Desktop: Sidebar */}
       <div className="hidden md:flex h-full">
-        <Sidebar
-          collapsed={sidebarCollapsed}
-          toggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
+      <Sidebar
+        collapsed={sidebarCollapsed}
+        toggleCollapsed={() => setSidebarCollapsed(!sidebarCollapsed)}
           isMobile={false}
-        />
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-6">
-            {children}
-          </div>
-        </main>
+      />
+      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-1 overflow-y-auto p-6">
+          {children}
+        </div>
+      </main>
       </div>
 
       {/* Mobile: Main Content */}

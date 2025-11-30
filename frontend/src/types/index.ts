@@ -31,6 +31,7 @@ export interface Email {
   has_attachments: boolean;
   sender_initial: string;
   verification_code?: string;
+  body_preview?: string;
 }
 
 export interface EmailDetail {

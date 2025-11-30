@@ -175,7 +175,7 @@ async def list_emails_graph(
                 params = {
                     "$top": 999,  # 获取足够多的邮件用于分页和搜索
                     "$orderby": "receivedDateTime desc",
-                    "$select": "id,subject,from,receivedDateTime,isRead,hasAttachments"
+                    "$select": "id,subject,from,receivedDateTime,isRead,hasAttachments,bodyPreview"
                 }
                 
                 # 添加过滤条件
@@ -234,7 +234,8 @@ async def list_emails_graph(
                         is_read=email.get("isRead", False),
                         has_attachments=email.get("hasAttachments", False),
                         sender_initial=sender_initial,
-                        verification_code=verification_code
+                        verification_code=verification_code,
+                        body_preview=email.get("bodyPreview", "")
                     )
                     all_emails.append(email_item)
         
@@ -254,6 +255,7 @@ async def list_emails_graph(
         paginated_emails = all_emails[start_idx:end_idx]
         
         logger.info(f"Fetched {len(paginated_emails)} emails via Graph API for {credentials.email}")
+        logger.info(f"Paginated emails: {paginated_emails}")
         return paginated_emails, total
         
     except httpx.HTTPStatusError as e:
@@ -388,6 +390,18 @@ async def delete_email_graph(
             response.raise_for_status()
             
             logger.info(f"Successfully deleted email {message_id} via Graph API for {credentials.email}")
+            
+            # 删除缓存
+            try:
+                import database as db
+                db.delete_email_from_cache(credentials.email, message_id)
+                
+                # 清除内存缓存
+                from cache_service import clear_email_cache
+                clear_email_cache(credentials.email)
+            except Exception as e:
+                logger.warning(f"Failed to delete email from cache: {e}")
+            
             return True
             
     except httpx.HTTPStatusError as e:

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -16,22 +16,18 @@ import { cn } from "@/lib/utils";
 import { SendEmailDialog } from "@/components/emails/SendEmailDialog";
 import { 
     Search, 
-    Filter, 
     ArrowUpDown, 
     ChevronLeft, 
     ChevronRight,
     Inbox,
     Trash2,
-    Mail,
-    Key,
     Copy,
     Check,
     RefreshCw,
     Trash,
-    AlertCircle
+    Eye
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
@@ -46,6 +42,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function EmailsPage() {
   const searchParams = useSearchParams();
@@ -111,7 +116,7 @@ export default function EmailsPage() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isAutoRefreshEnabled, selectedAccount, isEmailsLoading]); // 移除 refetchEmails 依赖
+  }, [isAutoRefreshEnabled, selectedAccount, isEmailsLoading]); 
 
   // 当筛选条件改变时，重置倒计时
   useEffect(() => {
@@ -152,16 +157,6 @@ export default function EmailsPage() {
       setPage(1);
   }, [search, folder, sortBy, sortOrder, selectedAccount]);
 
-  // 复制验证码处理函数
-  const handleCopyCode = async (code: string) => {
-    const success = await copyToClipboard(code);
-    if (success) {
-      toast.success("验证码已复制到剪贴板");
-    } else {
-      toast.error("复制失败，请手动复制");
-    }
-  };
-
   // 删除邮件
   const handleDeleteEmail = async (messageId: string) => {
     if (!selectedAccount) return;
@@ -179,13 +174,14 @@ export default function EmailsPage() {
     }
   };
 
-  // 清空收件箱
-  const handleClearInbox = async () => {
+  // 清空当前文件夹
+  const handleClearFolder = async () => {
     if (!selectedAccount) return;
     
+    const targetFolder = folder === "all" ? "inbox" : folder;
+    
     try {
-      // 获取收件箱所有邮件（需要获取所有页）
-      let allInboxEmails: any[] = [];
+      let allFolderEmails: any[] = [];
       let currentPage = 1;
       let hasMore = true;
       
@@ -193,13 +189,13 @@ export default function EmailsPage() {
         try {
           const response = await api.get(`/emails/${selectedAccount}`, {
             params: {
-              folder: "inbox",
+              folder: targetFolder,
               page: currentPage,
               page_size: 100,
             }
           });
           const pageEmails = response.data.emails || [];
-          allInboxEmails = [...allInboxEmails, ...pageEmails];
+          allFolderEmails = [...allFolderEmails, ...pageEmails];
           
           if (currentPage >= response.data.total_pages) {
             hasMore = false;
@@ -211,18 +207,17 @@ export default function EmailsPage() {
         }
       }
       
-      if (allInboxEmails.length === 0) {
-        toast.info("收件箱已经是空的");
+      if (allFolderEmails.length === 0) {
+        toast.info(`${targetFolder === "inbox" ? "收件箱" : targetFolder === "junk" ? "垃圾箱" : "文件夹"}已经是空的`);
         return;
       }
 
-      // 批量删除
       let successCount = 0;
       let failCount = 0;
       
-      toast.info(`开始删除 ${allInboxEmails.length} 封邮件...`);
+      toast.info(`开始删除 ${allFolderEmails.length} 封邮件...`);
       
-      for (const email of allInboxEmails) {
+      for (const email of allFolderEmails) {
         try {
           await api.delete(`/emails/${selectedAccount}/${email.message_id}`);
           successCount++;
@@ -231,20 +226,19 @@ export default function EmailsPage() {
         }
       }
 
-      toast.success(`清空完成！成功删除 ${successCount} 封邮件${failCount > 0 ? `，失败 ${failCount} 封` : ""}`);
+      const folderName = targetFolder === "inbox" ? "收件箱" : targetFolder === "junk" ? "垃圾箱" : "文件夹";
+      toast.success(`清空${folderName}完成！成功删除 ${successCount} 封邮件${failCount > 0 ? `，失败 ${failCount} 封` : ""}`);
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       setSelectedEmailId(null);
       setEmailDetailOpen(false);
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || "清空收件箱失败");
+      toast.error(error.response?.data?.detail || "清空失败");
     }
   };
 
-  // 获取发件人头像首字母
-  const getSenderInitial = (email: string) => {
-    if (!email) return "?";
-    const match = email.match(/^([a-zA-Z0-9])/);
-    return match ? match[1].toUpperCase() : email.charAt(0).toUpperCase();
+  const openEmailDetail = (messageId: string) => {
+    setSelectedEmailId(messageId);
+    setEmailDetailOpen(true);
   };
 
   return (
@@ -347,55 +341,19 @@ export default function EmailsPage() {
                 </Button>
             </div>
 
-            {emailsData && (
-                <div className="ml-auto flex items-center gap-2 flex-wrap">
-                    <span className="text-muted-foreground text-xs sm:text-sm">
-                        <span className="hidden sm:inline">Page </span>{page}<span className="hidden sm:inline"> of {emailsData.total_pages}</span>
-                        <span className="hidden md:inline"> ({emailsData.total_emails} total)</span>
-                    </span>
-                    <div className="flex gap-1">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 min-w-[44px] min-h-[44px]"
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            disabled={page === 1}
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 min-w-[44px] min-h-[44px]"
-                            onClick={() => setPage(p => Math.min(emailsData.total_pages, p + 1))}
-                            disabled={page >= emailsData.total_pages}
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-            )}
-        </div>
-      </div>
-
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0">
-        {/* Email List */}
-        <Card className="w-full lg:w-[400px] flex flex-col border-none shadow-md">
-            <div className="p-3 border-b bg-slate-50/50 font-medium text-sm text-slate-600 flex justify-between items-center">
-                <span>Message List</span>
-                <div className="flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2">
                   {isAutoRefreshEnabled && (
-                    <span className="text-xs text-slate-500 font-mono">
+                    <span className="text-xs text-slate-500 font-mono mr-2">
                       {refreshCountdown}s
                     </span>
                   )}
-                  {selectedAccount && folder === "inbox" && (
+                  {selectedAccount && (folder === "inbox" || folder === "junk" || folder === "all") && (
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
                       onClick={() => setClearInboxOpen(true)}
-                      title="清空收件箱"
+                      title={folder === "inbox" ? "清空收件箱" : folder === "junk" ? "清空垃圾箱" : "清空收件箱"}
                     >
                       <Trash2 className="h-3 w-3 mr-1" />
                       <span className="hidden sm:inline">清空</span>
@@ -411,133 +369,200 @@ export default function EmailsPage() {
                   >
                     <RefreshCw className={cn("h-3 w-3", isEmailsLoading && "animate-spin")} />
                   </Button>
-                </div>
             </div>
-            <ScrollArea className="flex-1 bg-white">
-                {isEmailsLoading && !emailsData ? (
-                    <div className="p-8 text-center text-muted-foreground">Loading emails...</div>
-                ) : (
-                    <div className="divide-y">
-                        {emailsData?.emails.map((email, idx) => (
-                            <div 
-                                key={email.message_id}
-                                onClick={() => {
-                                  setSelectedEmailId(email.message_id);
-                                  // 只在移动端和中等屏幕显示弹窗，桌面端使用侧边栏
-                                  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                                    setEmailDetailOpen(true);
-                                  }
-                                }}
-                                className={cn(
-                                    "p-3 cursor-pointer hover:bg-slate-50 transition-all duration-200 group relative border border-slate-200",
-                                    selectedEmailId === email.message_id 
-                                        ? "bg-blue-50/80 border-l-4 border-l-blue-600 border-r-2 border-r-blue-400 border-t-2 border-t-blue-400 border-b-2 border-b-blue-400 shadow-md ring-2 ring-blue-200" 
-                                        : "border-l-4 border-l-transparent",
-                                    idx % 2 === 0 ? "bg-white" : "bg-slate-50/30" // Zebra striping
-                                )}
-                            >
-                                <div className="flex items-start gap-2 mb-1">
-                                    <Avatar className="h-8 w-8 shrink-0 mt-0.5">
-                                        <AvatarFallback className="bg-blue-500 text-white text-xs">
-                                            {getSenderInitial(email.from_email)}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex justify-between items-start gap-2">
-                                            <div className="font-semibold text-sm text-slate-900 truncate flex-1 min-w-0">
-                                                {email.from_email}
-                                            </div>
-                                            <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">
-                                                {formatDistanceToNow(new Date(email.date), { addSuffix: true })}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div className="text-xs sm:text-sm font-medium text-slate-700 truncate mb-1.5 flex items-center gap-2 min-w-0">
-                                    {email.verification_code ? (
-                                        <div className="inline-flex items-center gap-1.5 mr-2 shrink-0">
-                                            <span className="inline-flex items-center text-amber-600 text-xs">
-                                                <Key className="w-3 h-3 mr-0.5" />
-                                                {email.verification_code}
-                                            </span>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-7 w-7 min-w-[32px] min-h-[32px] p-0 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleCopyCode(email.verification_code!);
-                                                }}
-                                                title="复制验证码"
-                                            >
-                                                <Copy className="w-3 h-3" />
-                                            </Button>
-                                        </div>
-                                    ) : null}
-                                    <span className="truncate flex-1 min-w-0">{email.subject}</span>
-                                </div>
-                                
-                                <div className="flex items-center justify-between mt-1.5">
-                                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 font-normal">
-                                        {email.folder}
-                                    </Badge>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setDeleteEmailId(email.message_id);
-                                        }}
-                                        title="删除邮件"
-                                    >
-                                        <Trash className="h-3 w-3" />
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
-                        {emailsData?.emails.length === 0 && (
-                            <div className="p-12 text-center flex flex-col items-center text-muted-foreground">
-                                <Inbox className="h-12 w-12 mb-4 text-slate-200" />
-                                <p>No emails found</p>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </ScrollArea>
-        </Card>
 
-        {/* Email Detail - Desktop View (Large screens only) */}
-        <Card className="hidden lg:flex flex-1 flex-col border-none shadow-md overflow-hidden">
-            {selectedEmailId ? (
-                <EmailDetailView account={selectedAccount!} messageId={selectedEmailId} />
-            ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-300 bg-slate-50/30">
-                    <Mail className="h-16 w-16 mb-4 opacity-20" />
-                    <p className="text-lg font-medium text-slate-400">Select an email to read</p>
+            {emailsData && (
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-muted-foreground text-xs sm:text-sm">
+                        {page} / {emailsData.total_pages}
+                    </span>
+                    <div className="flex gap-1">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 min-w-[32px] min-h-[32px]"
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page === 1}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 min-w-[32px] min-h-[32px]"
+                            onClick={() => setPage(p => Math.min(emailsData.total_pages, p + 1))}
+                            disabled={page >= emailsData.total_pages}
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
             )}
-        </Card>
-        
-        {/* Mobile/Tablet: Show placeholder when no email selected */}
-        <Card className="lg:hidden flex-1 flex-col border-none shadow-md overflow-hidden">
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-300 bg-slate-50/30">
-                <Mail className="h-16 w-16 mb-4 opacity-20" />
-                <p className="text-lg font-medium text-slate-400">点击邮件查看详情</p>
-            </div>
-        </Card>
+        </div>
       </div>
 
-      {/* Email Detail - Modal Dialog (Mobile & Tablet, also available on Desktop) */}
+      <div className="flex-1 flex flex-col min-h-0 bg-white rounded-lg shadow-sm border overflow-hidden">
+        {isEmailsLoading && !emailsData ? (
+            <div className="p-8 text-center text-muted-foreground">Loading emails...</div>
+        ) : emailsData?.emails.length === 0 ? (
+            <div className="p-12 text-center flex flex-col items-center text-muted-foreground">
+                <Inbox className="h-12 w-12 mb-4 text-slate-200" />
+                <p>No emails found</p>
+            </div>
+        ) : (
+            <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-[250px]">发件人</TableHead>
+                                <TableHead>主题</TableHead>
+                                <TableHead className="w-[180px]">日期</TableHead>
+                                <TableHead className="w-[100px] text-right">操作</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {emailsData?.emails.map((email) => (
+                                <TableRow 
+                                    key={email.message_id}
+                                    className="cursor-pointer hover:bg-slate-50"
+                                    onClick={() => openEmailDetail(email.message_id)}
+                                >
+                                    <TableCell className="font-medium">
+                                        <div className="flex items-center gap-2">
+                                            <Avatar className="h-8 w-8">
+                                                <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
+                                                    {email.sender_initial}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="truncate" title={email.from_email}>
+                                                {email.from_email.split('<')[0].trim() || email.from_email}
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-col">
+                                            <div className="font-medium truncate flex items-center gap-2">
+                                                {email.verification_code && (
+                                                    <Badge variant="secondary" className="bg-amber-100 text-amber-800 text-[10px] px-1 py-0 h-4">
+                                                        Code: {email.verification_code}
+                                                    </Badge>
+                                                )}
+                                                {email.subject}
+                                            </div>
+                                            <div className="text-xs text-slate-500 truncate max-w-[500px]">
+                                                {email.body_preview || "No preview available"}
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-slate-500 text-sm">
+                                        {new Date(email.date).toLocaleString('zh-CN', {
+                                            year: 'numeric',
+                                            month: '2-digit',
+                                            day: '2-digit',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex justify-end gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openEmailDetail(email.message_id);
+                                                }}
+                                                title="查看"
+                                            >
+                                                <Eye className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setDeleteEmailId(email.message_id);
+                                                }}
+                                                title="删除"
+                                            >
+                                                <Trash className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+
+                {/* Mobile List View */}
+                <div className="md:hidden flex flex-col divide-y overflow-y-auto">
+                    {emailsData?.emails.map((email) => (
+                        <div 
+                            key={email.message_id}
+                            className="p-4 flex flex-col gap-2 bg-white active:bg-slate-50"
+                            onClick={() => openEmailDetail(email.message_id)}
+                        >
+                            <div className="flex justify-between items-start">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                    <Avatar className="h-8 w-8 shrink-0">
+                                        <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
+                                            {email.sender_initial}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="font-bold text-sm truncate">
+                                        {email.from_email.split('<')[0].trim() || email.from_email}
+                                    </div>
+                                </div>
+                                <div className="text-xs text-slate-400 whitespace-nowrap ml-2">
+                                    {formatDistanceToNow(new Date(email.date), { addSuffix: true })}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-1 pl-10">
+                                <div className="font-bold text-sm text-slate-900 truncate">
+                                     {email.verification_code && (
+                                        <span className="text-amber-600 mr-1">[Code: {email.verification_code}]</span>
+                                     )}
+                                     {email.subject}
+                                </div>
+                                <div className="text-xs text-slate-500 line-clamp-2 break-words">
+                                    {email.body_preview || "No preview available"}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end items-center mt-2 pl-10 gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs w-full bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        openEmailDetail(email.message_id);
+                                    }}
+                                >
+                                    <Eye className="h-3 w-3 mr-1" />
+                                    查看
+                                </Button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </>
+        )}
+      </div>
+
       <Dialog open={emailDetailOpen} onOpenChange={(open) => {
         setEmailDetailOpen(open);
-        // 关闭弹窗时不清除选中的邮件ID，这样桌面端可以继续在侧边栏查看
       }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col w-[95vw] lg:w-auto">
-          {selectedEmailId && (
+        <DialogContent className="max-w-[95vw] lg:max-w-7xl max-h-[90vh] overflow-hidden flex flex-col w-full">
+          {selectedEmailId && selectedAccount && (
             <EmailDetailModalView 
-              account={selectedAccount!} 
+              account={selectedAccount} 
               messageId={selectedEmailId}
               onClose={() => setEmailDetailOpen(false)}
               onDelete={() => {
@@ -552,7 +577,6 @@ export default function EmailsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 删除邮件确认对话框 */}
       <AlertDialog open={!!deleteEmailId} onOpenChange={(open) => !open && setDeleteEmailId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -578,16 +602,17 @@ export default function EmailsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* 清空收件箱确认对话框 */}
       <AlertDialog open={clearInboxOpen} onOpenChange={setClearInboxOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认清空收件箱</AlertDialogTitle>
+            <AlertDialogTitle>
+              {folder === "inbox" ? "确认清空收件箱" : folder === "junk" ? "确认清空垃圾箱" : "确认清空收件箱"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              确定要清空收件箱吗？这将删除收件箱中的所有邮件，此操作无法撤销。
+              确定要清空{folder === "inbox" ? "收件箱" : folder === "junk" ? "垃圾箱" : "收件箱"}吗？这将删除{folder === "inbox" ? "收件箱" : folder === "junk" ? "垃圾箱" : "收件箱"}中的所有邮件，此操作无法撤销。
               <br />
               <span className="text-xs text-muted-foreground mt-2 block">
-                注意：将删除所有收件箱中的邮件，不仅仅是当前页显示的邮件。
+                注意：将删除所有{folder === "inbox" ? "收件箱" : folder === "junk" ? "垃圾箱" : "收件箱"}中的邮件，不仅仅是当前页显示的邮件。
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -595,7 +620,7 @@ export default function EmailsPage() {
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                handleClearInbox();
+                handleClearFolder();
                 setClearInboxOpen(false);
               }}
               className="bg-red-600 hover:bg-red-700"
@@ -906,174 +931,5 @@ function EmailDetailModalView({ account, messageId, onClose, onDelete }: { accou
                 </ScrollArea>
             </div>
         </>
-    );
-}
-
-function EmailDetailView({ account, messageId }: { account: string, messageId: string }) {
-    const { data: email, isLoading, error, refetch, isRefetching } = useEmailDetail(account, messageId);
-    const [copied, setCopied] = useState(false);
-    const [refreshCountdown, setRefreshCountdown] = useState(30); // 30秒自动刷新
-    const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
-    
-    // 存储邮件内容，只在 messageId 变化时更新，避免自动刷新时重新渲染
-    const [stableEmailBody, setStableEmailBody] = useState<string>("");
-    const [stableMessageId, setStableMessageId] = useState<string>("");
-    
-    // 使用 ref 存储倒计时，避免状态更新导致组件重新渲染
-    const countdownRef = useRef(30);
-
-    // 使用 ref 存储 refetch 函数，避免重复渲染
-    const refetchRef = useRef(refetch);
-    useEffect(() => {
-        refetchRef.current = refetch;
-    }, [refetch]);
-
-    // 当切换邮件时，更新稳定的邮件内容并重置倒计时
-    useEffect(() => {
-        if (email && messageId !== stableMessageId) {
-            setStableEmailBody(email.body_html || email.body_plain || "");
-            setStableMessageId(messageId);
-            countdownRef.current = 30;
-            setRefreshCountdown(30);
-        }
-    }, [messageId, email, stableMessageId]);
-
-    // 自动刷新倒计时 - 使用 ref 存储倒计时值，只在需要显示时更新状态
-    useEffect(() => {
-        // 只有在邮件加载完成且不是加载状态时才启动倒计时
-        if (!isAutoRefreshEnabled || isLoading || !email) {
-            // 如果禁用自动刷新或正在加载或没有邮件数据，停止倒计时
-            return;
-        }
-
-        const interval = setInterval(() => {
-            countdownRef.current -= 1;
-            
-            if (countdownRef.current <= 0) {
-                // 倒计时结束，自动刷新
-                refetchRef.current().then(() => {
-                    countdownRef.current = 30;
-                    setRefreshCountdown(30);
-                }).catch(() => {
-                    countdownRef.current = 30;
-                    setRefreshCountdown(30);
-                });
-            } else {
-                // 只在倒计时变化时更新显示，减少重新渲染
-                // 每5秒更新一次显示，或者当倒计时小于10秒时每秒更新
-                if (countdownRef.current % 5 === 0 || countdownRef.current <= 10) {
-                    setRefreshCountdown(countdownRef.current);
-                }
-            }
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [isAutoRefreshEnabled, isLoading, messageId]); // 只依赖必要的值，email 通过 isLoading 间接控制
-
-    // 手动刷新时重置倒计时
-    const handleManualRefresh = async () => {
-        countdownRef.current = 30;
-        setRefreshCountdown(30);
-        await refetch();
-        toast.success("邮件已刷新");
-    };
-
-    if (isLoading && !email) return <div className="flex-1 flex items-center justify-center text-muted-foreground">Loading content...</div>;
-    if (error) return <div className="flex-1 flex items-center justify-center text-red-500">Failed to load email</div>;
-    if (!email) return <div className="flex-1 flex items-center justify-center text-muted-foreground">Email not found</div>;
-
-    const handleCopyCode = async (code: string) => {
-        const success = await copyToClipboard(code);
-        if (success) {
-            setCopied(true);
-            toast.success("验证码已复制到剪贴板");
-            setTimeout(() => setCopied(false), 2000);
-        } else {
-            toast.error("复制失败，请手动复制");
-        }
-    };
-
-    return (
-        <div className="flex flex-col h-full bg-white">
-            <div className="p-4 sm:p-6 border-b bg-slate-50/30">
-                <div className="flex flex-col gap-3 sm:gap-4 mb-3 sm:mb-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-4">
-                        <div className="flex-1 flex items-start gap-2 min-w-0">
-                            <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-900 leading-tight flex-1 break-words">{email.subject}</h2>
-                            <div className="flex items-center gap-2 shrink-0">
-                                {isAutoRefreshEnabled && (
-                                    <CountdownDisplay countdown={refreshCountdown} />
-                                )}
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 min-h-[44px] min-w-[44px] p-0"
-                                    onClick={handleManualRefresh}
-                                    disabled={isRefetching}
-                                    title="刷新邮件"
-                                >
-                                    <RefreshCw className={cn("h-4 w-4", isRefetching && "animate-spin")} />
-                                </Button>
-                            </div>
-                        </div>
-                        {email.verification_code && (
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0 w-full sm:w-auto">
-                                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-200 text-xs sm:text-sm md:text-base px-2 sm:px-3 py-1 sm:py-1.5 text-center">
-                                    Code: {email.verification_code}
-                                </Badge>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-9 sm:h-10 px-2 sm:px-3 min-h-[44px] text-amber-700 border-amber-300 hover:bg-amber-50 w-full sm:w-auto"
-                                    onClick={() => handleCopyCode(email.verification_code!)}
-                                    title="复制验证码"
-                                >
-                                    {copied ? (
-                                        <>
-                                            <Check className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" />
-                                            <span className="text-xs sm:text-sm">已复制</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Copy className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" />
-                                            <span className="text-xs sm:text-sm">复制</span>
-                                        </>
-                                    )}
-                                </Button>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="flex flex-col gap-2 sm:gap-3">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-2 sm:gap-3">
-                            <div className="space-y-1.5 sm:space-y-1 flex-1 w-full">
-                                <div className="flex items-start sm:items-center gap-2 text-xs sm:text-sm text-slate-600">
-                                    <span className="font-medium text-slate-500 w-10 sm:w-12 shrink-0">From:</span> 
-                                    <span className="font-semibold text-slate-900 break-all break-words">{email.from_email}</span>
-                                </div>
-                                <div className="flex items-start sm:items-center gap-2 text-xs sm:text-sm text-slate-600">
-                                    <span className="font-medium text-slate-500 w-10 sm:w-12 shrink-0">To:</span> 
-                                    <span className="break-all break-words">{email.to_email}</span>
-                                </div>
-                            </div>
-                            <div className="text-[10px] sm:text-xs text-slate-400 shrink-0 self-start sm:self-end">
-                                {new Date(email.date).toLocaleString(undefined, { 
-                                    dateStyle: 'medium', 
-                                    timeStyle: 'short' 
-                                })}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <ScrollArea className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8">
-                <EmailContent 
-                    content={stableEmailBody}
-                    viewMode="html"
-                    contentKey={messageId}
-                />
-            </ScrollArea>
-        </div>
     );
 }

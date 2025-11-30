@@ -46,6 +46,7 @@ class EmailItem(BaseModel):
     has_attachments: bool = False
     sender_initial: str = "?"
     verification_code: Optional[str] = None  # 验证码（如果检测到）
+    body_preview: Optional[str] = None  # 邮件内容预览
 
     class Config:
         json_schema_extra = {
