@@ -20,11 +20,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, RefreshCw, Trash, Tag, Mail, CheckCircle, XCircle, Clock, Eye, Send, CheckSquare, Square } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Trash, Tag, Mail, CheckCircle, XCircle, Clock, Eye, Send, CheckSquare, Square, Share2 } from "lucide-react";
 import { Account } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
 import { TagsDialog } from "./TagsDialog";
+import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
 import { useDeleteAccount, useRefreshToken } from "@/hooks/useAccounts";
 import { useResponsiveActions } from "@/hooks/useResponsiveActions";
 import Link from "next/link";
@@ -44,6 +45,11 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
     open: false,
     email: null,
     tags: [],
+  });
+  
+  const [shareDialogState, setShareDialogState] = useState<{ open: boolean; email: string }>({
+    open: false,
+    email: "",
   });
   
   const deleteAccount = useDeleteAccount();
@@ -71,6 +77,10 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
 
   const handleEditTags = (account: Account) => {
     setTagDialogState({ open: true, email: account.email_id, tags: account.tags || [] });
+  };
+
+  const handleShare = (account: Account) => {
+    setShareDialogState({ open: true, email: account.email_id });
   };
 
   // Function to generate a deterministic color for tags
@@ -179,6 +189,18 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                       <Send className="h-3 w-3 mr-1" />
                       发送
                     </Link>
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-8 px-3 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleShare(account);
+                    }}
+                  >
+                    <Share2 className="h-3 w-3 mr-1" />
+                    分享
                   </Button>
                   <Button
                     variant="secondary"
@@ -382,6 +404,15 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                         variant="ghost"
                         size="sm"
                         className="h-10 px-3 min-h-[44px]"
+                        onClick={() => handleShare(account)}
+                      >
+                        <span className="mr-1.5">🔗</span>
+                        <span className="hidden sm:inline">分享</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-10 px-3 min-h-[44px]"
                         onClick={() => handleEditTags(account)}
                       >
                         <span className="mr-1.5">🏷️</span>
@@ -422,6 +453,9 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                         <DropdownMenuItem onClick={() => handleEditTags(account)}>
                           <span className="mr-2">🏷️</span> 管理标签
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleShare(account)}>
+                          <span className="mr-2">🔗</span> 分享链接
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50" onClick={() => {
                             if (confirm("确定要删除此账户吗？")) {
@@ -445,6 +479,12 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
         onOpenChange={(open) => setTagDialogState(prev => ({ ...prev, open }))}
         accountEmail={tagDialogState.email}
         initialTags={tagDialogState.tags}
+      />
+      
+      <ShareTokenDialog 
+        open={shareDialogState.open}
+        onOpenChange={(open) => setShareDialogState(prev => ({ ...prev, open }))}
+        emailAccount={shareDialogState.email}
       />
     </>
   );

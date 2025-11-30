@@ -37,11 +37,13 @@ async def list_emails(
     subject_search: Optional[str] = None,
     sort_by: str = "date",
     sort_order: str = "desc",
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None
 ) -> EmailListResponse:
     """获取邮件列表 - 优化版本（支持SQLite缓存、搜索、排序）"""
     
     import time
-    start_time = time.time()
+    start_time_ms = time.time()
     from_cache = False
     
     # 检查是否使用 Graph API
@@ -49,7 +51,8 @@ async def list_emails(
         logger.info(f"Using Graph API for {credentials.email}")
         return await list_emails_via_graph_api(
             credentials, folder, page, page_size, force_refresh,
-            sender_search, subject_search, sort_by, sort_order, start_time
+            sender_search, subject_search, sort_by, sort_order, start_time_ms,
+            start_time, end_time
         )
 
     # 优先从 SQLite 缓存获取
@@ -63,12 +66,14 @@ async def list_emails(
                 sender_search=sender_search,
                 subject_search=subject_search,
                 sort_by=sort_by,
-                sort_order=sort_order
+                sort_order=sort_order,
+                start_time=start_time,
+                end_time=end_time
             )
             
             if cached_emails:
                 from_cache = True
-                fetch_time_ms = int((time.time() - start_time) * 1000)
+                fetch_time_ms = int((time.time() - start_time_ms) * 1000)
                 logger.info(f"Returning {len(cached_emails)} cached emails from SQLite for {credentials.email} ({fetch_time_ms}ms)")
                 email_items = [
                     EmailItem(**email) for email in cached_emails
@@ -259,7 +264,7 @@ async def list_emails(
             except Exception as e:
                 logger.warning(f"Failed to cache emails to SQLite: {e}")
 
-            fetch_time_ms = int((time.time() - start_time) * 1000)
+            fetch_time_ms = int((time.time() - start_time_ms) * 1000)
             
             result = EmailListResponse(
                 email_id=credentials.email,
@@ -470,7 +475,9 @@ async def list_emails_via_graph_api(
     subject_search: Optional[str],
     sort_by: str,
     sort_order: str,
-    start_time: float
+    start_time_ms: float,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None
 ) -> EmailListResponse:
     """使用 Graph API 获取邮件列表"""
     from graph_api_service import list_emails_graph
@@ -487,11 +494,13 @@ async def list_emails_via_graph_api(
                 sender_search=sender_search,
                 subject_search=subject_search,
                 sort_by=sort_by,
-                sort_order=sort_order
+                sort_order=sort_order,
+                start_time=start_time,
+                end_time=end_time
             )
             
             if cached_emails:
-                fetch_time_ms = int((time.time() - start_time) * 1000)
+                fetch_time_ms = int((time.time() - start_time_ms) * 1000)
                 logger.info(f"Returning {len(cached_emails)} cached emails from SQLite for {credentials.email} ({fetch_time_ms}ms)")
                 email_items = [EmailItem(**email) for email in cached_emails]
                 return EmailListResponse(
@@ -510,7 +519,8 @@ async def list_emails_via_graph_api(
     # 从 Graph API 获取
     email_items, total = await list_emails_graph(
         credentials, folder, page, page_size,
-        sender_search, subject_search, sort_by, sort_order
+        sender_search, subject_search, sort_by, sort_order,
+        start_time, end_time
     )
     
     # 缓存到 SQLite
@@ -521,7 +531,7 @@ async def list_emails_via_graph_api(
     except Exception as e:
         logger.warning(f"Failed to cache emails to SQLite: {e}")
     
-    fetch_time_ms = int((time.time() - start_time) * 1000)
+    fetch_time_ms = int((time.time() - start_time_ms) * 1000)
     
     return EmailListResponse(
         email_id=credentials.email,

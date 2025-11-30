@@ -52,3 +52,16 @@ export interface ConfigItem {
   description?: string;
   updated_at: string;
 }
+
+export interface ShareToken {
+  id: number;
+  token: string;
+  email_account_id: string;
+  start_time: string;
+  end_time?: string;
+  expiry_time?: string;
+  is_active: boolean;
+  subject_keyword?: string;
+  sender_keyword?: string;
+  created_at: string;
+}

@@ -332,6 +332,26 @@ def init_database() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_last_accessed ON emails_cache(last_accessed_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_email_details_cache_last_accessed ON email_details_cache(last_accessed_at)")
         
+        # 创建 share_tokens 表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS share_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token TEXT UNIQUE NOT NULL,
+                email_account_id TEXT NOT NULL,
+                start_time TEXT NOT NULL,
+                end_time TEXT,
+                subject_keyword TEXT,
+                sender_keyword TEXT,
+                expiry_time TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                is_active INTEGER DEFAULT 1
+            )
+        """)
+        
+        # 创建索引
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_token ON share_tokens(token)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_account ON share_tokens(email_account_id)")
+
         conn.commit()
         logger.info("Database initialized successfully")
 
@@ -1446,6 +1466,107 @@ def delete_table_record(table_name: str, record_id: int) -> bool:
 
 
 # ============================================================================
+# Share Tokens 表操作
+# ============================================================================
+
+def create_share_token(
+    token: str,
+    email_account_id: str,
+    start_time: str,
+    end_time: Optional[str] = None,
+    subject_keyword: Optional[str] = None,
+    sender_keyword: Optional[str] = None,
+    expiry_time: Optional[str] = None,
+    is_active: bool = True
+) -> int:
+    """
+    创建分享码
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO share_tokens (
+                token, email_account_id, start_time, end_time, 
+                subject_keyword, sender_keyword, expiry_time, is_active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            token, email_account_id, start_time, end_time,
+            subject_keyword, sender_keyword, expiry_time, 1 if is_active else 0
+        ))
+        conn.commit()
+        return cursor.lastrowid
+
+def get_share_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    获取分享码信息
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM share_tokens WHERE token = ?", (token,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def update_share_token(token_id: int, **kwargs) -> bool:
+    """
+    更新分享码信息
+    """
+    if not kwargs:
+        return False
+        
+    set_clause = ", ".join([f"{key} = ?" for key in kwargs.keys()])
+    values = list(kwargs.values()) + [token_id]
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"UPDATE share_tokens SET {set_clause} WHERE id = ?", values)
+        conn.commit()
+        return cursor.rowcount > 0
+
+def delete_share_token(token_id: int) -> bool:
+    """
+    删除分享码
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM share_tokens WHERE id = ?", (token_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+def list_share_tokens(
+    email_account_id: Optional[str] = None,
+    page: int = 1, 
+    page_size: int = 50
+) -> Tuple[List[Dict[str, Any]], int]:
+    """
+    列出分享码
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        conditions = []
+        params = []
+        
+        if email_account_id:
+            conditions.append("email_account_id = ?")
+            params.append(email_account_id)
+            
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        
+        # 获取总数
+        cursor.execute(f"SELECT COUNT(*) FROM share_tokens WHERE {where_clause}", params)
+        total = cursor.fetchone()[0]
+        
+        # 分页查询
+        offset = (page - 1) * page_size
+        cursor.execute(
+            f"SELECT * FROM share_tokens WHERE {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?", 
+            params + [page_size, offset]
+        )
+        
+        return [dict(row) for row in cursor.fetchall()], total
+
+
+# ============================================================================
 # 邮件缓存操作
 # ============================================================================
 
@@ -1517,10 +1638,12 @@ def get_cached_emails(
     sender_search: Optional[str] = None,
     subject_search: Optional[str] = None,
     sort_by: str = 'date',
-    sort_order: str = 'desc'
+    sort_order: str = 'desc',
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None
 ) -> Tuple[List[Dict[str, Any]], int]:
     """
-    从缓存获取邮件列表（支持搜索、排序、分页）
+    从缓存获取邮件列表（支持搜索、排序、分页、时间范围）
     
     Args:
         email_account: 邮箱账号
@@ -1531,6 +1654,8 @@ def get_cached_emails(
         subject_search: 主题模糊搜索
         sort_by: 排序字段（默认date）
         sort_order: 排序方向（asc或desc）
+        start_time: 开始时间 (ISO格式)
+        end_time: 结束时间 (ISO格式)
         
     Returns:
         (邮件列表, 总数)
@@ -1553,6 +1678,14 @@ def get_cached_emails(
         if subject_search:
             conditions.append("subject LIKE ?")
             params.append(f"%{subject_search}%")
+            
+        if start_time:
+            conditions.append("date >= ?")
+            params.append(start_time)
+            
+        if end_time:
+            conditions.append("date <= ?")
+            params.append(end_time)
         
         where_clause = " AND ".join(conditions)
         

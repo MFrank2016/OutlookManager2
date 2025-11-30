@@ -11,7 +11,8 @@ import {
   Settings,
   Book,
   Menu,
-  LogOut
+  LogOut,
+  Share2
 } from "lucide-react";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -38,6 +39,12 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
       icon: Mail,
       href: "/dashboard/emails",
       active: pathname.startsWith("/dashboard/emails"),
+    },
+    {
+      label: "Share",
+      icon: Share2,
+      href: "/dashboard/share",
+      active: pathname.startsWith("/dashboard/share"),
     },
     {
       label: "Admin Panel",

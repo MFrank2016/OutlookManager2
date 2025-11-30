@@ -127,7 +127,9 @@ async def list_emails_graph(
     sender_search: Optional[str] = None,
     subject_search: Optional[str] = None,
     sort_by: str = "date",
-    sort_order: str = "desc"
+    sort_order: str = "desc",
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None
 ) -> tuple[List[EmailItem], int]:
     """
     使用 Graph API 获取邮件列表
@@ -141,6 +143,8 @@ async def list_emails_graph(
         subject_search: 主题搜索
         sort_by: 排序字段
         sort_order: 排序方向
+        start_time: 开始时间 (ISO8601)
+        end_time: 结束时间 (ISO8601)
         
     Returns:
         tuple: (邮件列表, 总数)
@@ -184,6 +188,10 @@ async def list_emails_graph(
                     filters.append(f"contains(from/emailAddress/address, '{sender_search}')")
                 if subject_search:
                     filters.append(f"contains(subject, '{subject_search}')")
+                if start_time:
+                    filters.append(f"receivedDateTime ge {start_time}")
+                if end_time:
+                    filters.append(f"receivedDateTime le {end_time}")
                 
                 if filters:
                     params["$filter"] = " and ".join(filters)
