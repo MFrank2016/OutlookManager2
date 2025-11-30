@@ -25,11 +25,16 @@ class VerificationCodeDetector:
         # 中文关键词
         '验证码', '驗證碼', '动态码', '動態碼', '确认码', '確認碼',
         '安全码', '安全碼', '校验码', '校驗碼', '激活码', '激活碼',
+        '验证', '驗證', '校验', '校驗', '激活', '安全',
         # 英文关键词
         'verification code', 'verify code', 'confirmation code',
         'security code', 'otp', 'one-time password', 'pin code',
         'activation code', 'auth code', 'authentication code',
         'dynamic code', 'passcode', 'pin number',
+        'verification', 'verify', 'confirm', 'activate', 'authenticate',
+        # 常见服务商标识
+        'microsoft', 'google', 'apple', 'amazon', 'facebook', 'twitter',
+        'github', 'linkedin', 'paypal', 'alipay', 'wechat', 'qq',
         # 其他语言
         'código de verificación',  # 西班牙语
         'code de vérification',    # 法语
@@ -39,13 +44,17 @@ class VerificationCodeDetector:
     # 验证码正则表达式模式（按优先级排序）
     PATTERNS = [
         # 特殊格式 - 最高优先级（明确标识为验证码）
-        r'(?:code|Code|CODE|验证码|驗證碼)[:\s是：]+([A-Z0-9]{4,8})',
-        r'(?:OTP|otp)[:\s]+(\d{4,8})',
+        r'(?:code|Code|CODE|验证码|驗證碼|验证|驗證|校验|校驗)[:\s是：为為]+([A-Z0-9]{4,8})',
+        r'(?:OTP|otp|OTP码|otp码)[:\s]+(\d{4,8})',
+        r'(?:您的|your|your\s+)(?:验证码|驗證碼|code|verification\s+code)[:\s是：为為]+([A-Z0-9]{4,8})',
+        r'(?:is|为|是|：|:)\s*([A-Z0-9]{4,8})\s*(?:\.|。|,|，|$|请|please)',
         
         # HTML中的验证码（通常被强调）
         r'<b[^>]*>([A-Z0-9]{4,8})</b>',
         r'<strong[^>]*>([A-Z0-9]{4,8})</strong>',
-        r'<span[^>]*(?:font-size|font-weight|color)[^>]*>([A-Z0-9]{4,8})</span>',
+        r'<span[^>]*(?:font-size|font-weight|color|style)[^>]*>([A-Z0-9]{4,8})</span>',
+        r'<div[^>]*(?:font-size|font-weight|color|style)[^>]*>([A-Z0-9]{4,8})</div>',
+        r'<p[^>]*(?:font-size|font-weight|color|style)[^>]*>([A-Z0-9]{4,8})</p>',
         
         # 纯数字验证码（4-8位）- 常见
         r'(?<!\d)(\d{4,8})(?!\d)',
@@ -54,10 +63,13 @@ class VerificationCodeDetector:
         r'\b([A-Z]{2,4}[0-9]{2,6})\b',  # AB1234
         r'\b([0-9]{2,4}[A-Z]{2,4})\b',  # 1234AB
         r'\b([A-Z0-9]{6})\b',           # 6位大写字母数字
+        r'\b([A-Z0-9]{5})\b',           # 5位大写字母数字
+        r'\b([A-Z0-9]{7})\b',           # 7位大写字母数字
         
         # 带分隔符的验证码
         r'(\d{3}[-\s]\d{3})',      # 123-456 或 123 456
         r'(\d{2}[-\s]\d{2}[-\s]\d{2})',  # 12-34-56
+        r'(\d{4}[-\s]\d{4})',      # 1234-5678
     ]
     
     def __init__(self):
@@ -159,12 +171,14 @@ class VerificationCodeDetector:
         
         # 排除常见的非验证码单词
         exclude_list = [
-            'http', 'https', 'www', 'com', 'net', 'org',
+            'http', 'https', 'www', 'com', 'net', 'org', 'edu', 'gov',
             'mail', 'email', 'dear', 'hello', 'thanks', 'thank',
             'reply', 'subject', 'from', 'sent', 'date', 'time',
             'yyyy', 'dddd', 'mmmm', 'your', 'please', 'click',
             'account', 'password', 'username', 'login', 'security',
             'verification', 'code', 'confirm', 'activate',
+            'minute', 'minutes', 'hour', 'hours', 'day', 'days',
+            'min', 'sec', 'second', 'seconds',
         ]
         
         if code.lower() in exclude_list:

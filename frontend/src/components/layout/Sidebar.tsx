@@ -18,9 +18,11 @@ import { useAuthStore } from "@/store/useAuthStore";
 interface SidebarProps {
   collapsed: boolean;
   toggleCollapsed: () => void;
+  isMobile?: boolean;
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ collapsed, toggleCollapsed }: SidebarProps) {
+export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
   
@@ -51,6 +53,59 @@ export function Sidebar({ collapsed, toggleCollapsed }: SidebarProps) {
       active: pathname.startsWith("/dashboard/api-docs"),
     },
   ];
+
+  const handleLinkClick = () => {
+    if (isMobile && onNavigate) {
+      onNavigate();
+    }
+  };
+
+  if (isMobile) {
+    return (
+      <nav className="space-y-1 px-2 py-4">
+        {routes.map((route) => {
+          if (route.adminOnly && user?.role !== "admin") return null;
+          
+          return (
+            <Link
+              key={route.href}
+              href={route.href}
+              onClick={handleLinkClick}
+              className={cn(
+                "flex items-center px-3 py-2 rounded-md transition-colors text-sm font-medium",
+                route.active
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+              )}
+            >
+              <route.icon className="h-5 w-5 mr-3" />
+              <span>{route.label}</span>
+            </Link>
+          );
+        })}
+        <div className="pt-4 mt-4 border-t border-slate-800">
+          <div className="flex items-center gap-3 px-3 py-2">
+            <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold shrink-0">
+              {user?.username?.[0]?.toUpperCase() || "U"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user?.username}</p>
+              <p className="text-xs text-slate-400 truncate capitalize">{user?.role}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={logout}
+              className="text-slate-400 hover:text-red-400 hover:bg-slate-800"
+              title="Logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <div

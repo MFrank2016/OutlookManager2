@@ -25,11 +25,11 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Accounts</h1>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="secondary">
+    <div className="space-y-6 px-0 md:px-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Accounts</h1>
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <Button asChild variant="secondary" className="flex-1 sm:flex-initial min-h-[44px]">
             <Link href="/dashboard/accounts/batch">
               <PackagePlus className="mr-2 h-4 w-4" /> Batch Add
             </Link>
@@ -38,12 +38,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 bg-white p-4 rounded-lg shadow-sm border">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 bg-white p-4 rounded-lg shadow-sm border">
+        <div className="relative flex-1 w-full">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <Input 
                 placeholder="Search emails..." 
-                className="pl-9" 
+                className="pl-9 min-h-[44px]" 
                 value={search}
                 onChange={(e) => {
                     setSearch(e.target.value);
@@ -51,11 +51,11 @@ export default function DashboardPage() {
                 }}
             />
         </div>
-        <div className="relative flex-1 min-w-[200px]">
+        <div className="relative flex-1 w-full">
             <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <Input 
-                placeholder="Filter by tags (e.g. vip, !old)" 
-                className="pl-9" 
+                placeholder="Filter by tags..." 
+                className="pl-9 min-h-[44px]" 
                 value={tagSearch}
                 onChange={(e) => {
                     setTagSearch(e.target.value);
@@ -63,9 +63,9 @@ export default function DashboardPage() {
                 }}
             />
         </div>
-        <div className="w-[180px]">
+        <div className="w-full sm:w-[180px]">
             <Select value={refreshStatus} onValueChange={(val) => { setRefreshStatus(val === "all" ? undefined : val); setPage(1); }}>
-                <SelectTrigger>
+                <SelectTrigger className="min-h-[44px]">
                     <SelectValue placeholder="Filter Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -81,30 +81,32 @@ export default function DashboardPage() {
       <AccountsTable accounts={data?.accounts || []} isLoading={isLoading} />
 
       {data && data.total_pages > 1 && (
-        <div className="flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <div className="text-sm text-muted-foreground text-center sm:text-left">
                 Total: {data.total_accounts} accounts
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center justify-center space-x-2">
             <Button
                 variant="outline"
                 size="sm"
+                className="min-h-[44px] min-w-[44px]"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
             >
                 <ChevronLeft className="h-4 w-4" />
-                Previous
+                <span className="hidden sm:inline ml-1">Previous</span>
             </Button>
-            <div className="text-sm font-medium">
-                Page {page} of {data.total_pages}
+            <div className="text-sm font-medium px-2">
+                <span className="hidden sm:inline">Page </span>{page}<span className="hidden sm:inline"> of {data.total_pages}</span>
             </div>
             <Button
                 variant="outline"
                 size="sm"
+                className="min-h-[44px] min-w-[44px]"
                 onClick={() => setPage((p) => Math.min(data.total_pages, p + 1))}
                 disabled={page === data.total_pages}
             >
-                Next
+                <span className="hidden sm:inline mr-1">Next</span>
                 <ChevronRight className="h-4 w-4" />
             </Button>
             </div>

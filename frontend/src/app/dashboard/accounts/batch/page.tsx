@@ -159,13 +159,13 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 max-w-4xl mx-auto px-4 sm:px-0">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Batch Add Accounts</h1>
-          <p className="text-muted-foreground">Add multiple email accounts at once.</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Batch Add Accounts</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Add multiple email accounts at once.</p>
         </div>
-        <Button variant="outline" asChild>
+        <Button variant="outline" asChild className="w-full sm:w-auto min-h-[44px]">
           <Link href="/dashboard">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to List
           </Link>
@@ -180,13 +180,13 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center space-x-4 p-4 bg-slate-50 rounded-lg border">
-            <span className="text-sm font-medium">Import Method:</span>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-4 bg-slate-50 rounded-lg border">
+            <span className="text-sm font-medium shrink-0">Import Method:</span>
             <Select
               value={importMethod}
               onValueChange={(value: "imap" | "graph") => setImportMethod(value)}
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
                 <SelectValue placeholder="Select method" />
               </SelectTrigger>
               <SelectContent>
@@ -194,7 +194,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                 <SelectItem value="graph">Microsoft Graph API</SelectItem>
               </SelectContent>
             </Select>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-muted-foreground flex-1">
               {importMethod === "imap"
                 ? "Uses standard IMAP protocol. Good for most cases."
                 : "Uses Microsoft Graph API. Faster and more reliable for some accounts."}
@@ -225,7 +225,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
 
           <Textarea
             placeholder="Paste your accounts here..."
-            className="min-h-[300px] font-mono text-sm"
+            className="min-h-[200px] sm:min-h-[300px] font-mono text-sm"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isProcessing}
@@ -243,8 +243,12 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
             </AlertDescription>
           </Alert>
 
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={handleBatchAdd} disabled={isProcessing || !input.trim()}>
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+            <Button 
+              onClick={handleBatchAdd} 
+              disabled={isProcessing || !input.trim()}
+              className="w-full sm:w-auto min-h-[44px]"
+            >
               {isProcessing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
@@ -255,13 +259,28 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                 </>
               )}
             </Button>
-            <Button variant="secondary" onClick={handleClear} disabled={isProcessing}>
+            <Button 
+              variant="secondary" 
+              onClick={handleClear} 
+              disabled={isProcessing}
+              className="w-full sm:w-auto min-h-[44px]"
+            >
               <Trash2 className="mr-2 h-4 w-4" /> Clear
             </Button>
-            <Button variant="secondary" onClick={handleValidate} disabled={isProcessing}>
+            <Button 
+              variant="secondary" 
+              onClick={handleValidate} 
+              disabled={isProcessing}
+              className="w-full sm:w-auto min-h-[44px]"
+            >
               <CheckCircle className="mr-2 h-4 w-4" /> Validate Format
             </Button>
-            <Button variant="secondary" onClick={handleLoadSample} disabled={isProcessing}>
+            <Button 
+              variant="secondary" 
+              onClick={handleLoadSample} 
+              disabled={isProcessing}
+              className="w-full sm:w-auto min-h-[44px]"
+            >
               <FileText className="mr-2 h-4 w-4" /> Load Sample
             </Button>
           </div>

@@ -105,6 +105,7 @@ async def token_refresh_background_task():
                         next_refresh_time=account_data.get("next_refresh_time"),
                         refresh_status=account_data.get("refresh_status", "pending"),
                         refresh_error=account_data.get("refresh_error"),
+                        api_method=account_data.get("api_method", "imap"),  # 支持graph邮箱刷新
                     )
 
                     # 刷新token
