@@ -20,7 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, RefreshCw, Trash, Tag, Mail, CheckCircle, XCircle, Clock, Eye, Send } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Trash, Tag, Mail, CheckCircle, XCircle, Clock, Eye, Send, CheckSquare, Square } from "lucide-react";
 import { Account } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
@@ -29,13 +29,17 @@ import { useDeleteAccount, useRefreshToken } from "@/hooks/useAccounts";
 import { useResponsiveActions } from "@/hooks/useResponsiveActions";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface AccountsTableProps {
   accounts: Account[];
   isLoading: boolean;
+  onBatchRefresh?: (emailIds: string[]) => void;
+  selectedAccounts?: string[];
+  onSelectionChange?: (emailIds: string[]) => void;
 }
 
-export function AccountsTable({ accounts, isLoading }: AccountsTableProps) {
+export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAccounts = [], onSelectionChange }: AccountsTableProps) {
   const [tagDialogState, setTagDialogState] = useState<{ open: boolean; email: string | null; tags: string[] }>({
     open: false,
     email: null,
@@ -45,6 +49,25 @@ export function AccountsTable({ accounts, isLoading }: AccountsTableProps) {
   const deleteAccount = useDeleteAccount();
   const refreshToken = useRefreshToken();
   const showAllActions = useResponsiveActions(1200);
+
+  const handleSelectAccount = (emailId: string, checked: boolean) => {
+    if (checked) {
+      onSelectionChange?.([...selectedAccounts, emailId]);
+    } else {
+      onSelectionChange?.(selectedAccounts.filter(id => id !== emailId));
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      onSelectionChange?.(accounts.map(acc => acc.email_id));
+    } else {
+      onSelectionChange?.([]);
+    }
+  };
+
+  const isAllSelected = accounts.length > 0 && selectedAccounts.length === accounts.length;
+  const isIndeterminate = selectedAccounts.length > 0 && selectedAccounts.length < accounts.length;
 
   const handleEditTags = (account: Account) => {
     setTagDialogState({ open: true, email: account.email_id, tags: account.tags || [] });
@@ -75,6 +98,12 @@ export function AccountsTable({ accounts, isLoading }: AccountsTableProps) {
         {accounts.map((account) => (
           <Card key={account.email_id} className="p-4 hover:shadow-md transition-shadow">
             <div className="flex items-start gap-3">
+              <Checkbox
+                checked={selectedAccounts.includes(account.email_id)}
+                onCheckedChange={(checked) => handleSelectAccount(account.email_id, checked as boolean)}
+                onClick={(e) => e.stopPropagation()}
+                className="mt-1"
+              />
               <Avatar className="h-10 w-10 shrink-0">
                 <AvatarFallback className="bg-blue-500 text-white">
                   {account.email_id.charAt(0).toUpperCase()}
@@ -201,6 +230,13 @@ export function AccountsTable({ accounts, isLoading }: AccountsTableProps) {
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50 hover:bg-slate-50">
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={handleSelectAll}
+                  className={cn(isIndeterminate && "data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground")}
+                />
+              </TableHead>
               <TableHead className="w-[50px] hidden sm:table-cell"></TableHead>
               <TableHead>Account</TableHead>
               <TableHead className="hidden md:table-cell">Tags</TableHead>
@@ -221,6 +257,12 @@ export function AccountsTable({ accounts, isLoading }: AccountsTableProps) {
                   window.location.href = `/dashboard/emails?account=${encodeURIComponent(account.email_id)}`;
                 }}
               >
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <Checkbox
+                    checked={selectedAccounts.includes(account.email_id)}
+                    onCheckedChange={(checked) => handleSelectAccount(account.email_id, checked as boolean)}
+                  />
+                </TableCell>
                 <TableCell className="hidden sm:table-cell">
                     <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-blue-500 text-white text-xs">

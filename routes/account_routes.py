@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 
 import auth
 import database as db
@@ -19,6 +19,7 @@ from models import (
     AccountListResponse,
     AccountResponse,
     AddTagRequest,
+    BatchRefreshRequest,
     BatchRefreshResult,
     BatchDeleteRequest,
     BatchDeleteResult,
@@ -407,6 +408,7 @@ async def manual_refresh_token(
 
 @router.post("/batch-refresh-tokens", response_model=BatchRefreshResult)
 async def batch_refresh_tokens(
+    request: Optional[BatchRefreshRequest] = Body(None, description="批量刷新请求，包含email_ids列表"),
     email_search: Optional[str] = Query(None, description="邮箱账号模糊搜索"),
     tag_search: Optional[str] = Query(None, description="标签模糊搜索"),
     refresh_status: Optional[str] = Query(None, description="刷新状态筛选 (all, never_refreshed, success, failed, pending, custom)"),
@@ -416,28 +418,39 @@ async def batch_refresh_tokens(
     refresh_end_date: Optional[str] = Query(None, description="刷新截止日期（ISO格式，用于自定义日期范围）"),
     admin: dict = Depends(auth.get_current_admin),
 ):
-    """批量刷新符合条件的账户Token"""
+    """批量刷新符合条件的账户Token（支持指定email_ids或筛选条件）"""
     try:
-        logger.info(f"Admin {admin['username']} initiated batch token refresh with filters: "
-                   f"email_search={email_search}, tag_search={tag_search}, "
-                   f"refresh_status={refresh_status}, time_filter={time_filter}, "
-                   f"refresh_start_date={refresh_start_date}, refresh_end_date={refresh_end_date}")
-        
-        # 获取符合筛选条件的所有账户
-        accounts_data, total_accounts = db.get_accounts_by_filters(
-            page=1,
-            page_size=10000,  # 获取所有符合条件的账户
-            email_search=email_search,
-            tag_search=tag_search,
-            refresh_status=refresh_status,
-            time_filter=time_filter,
-            after_date=after_date,
-            refresh_start_date=refresh_start_date,
-            refresh_end_date=refresh_end_date,
-        )
+        # 如果提供了email_ids，直接使用这些账户
+        if request and request.email_ids and len(request.email_ids) > 0:
+            logger.info(f"Admin {admin['username']} initiated batch token refresh for {len(request.email_ids)} selected accounts")
+            accounts_data = []
+            for email_id in request.email_ids:
+                account_data = db.get_account_by_email(email_id)
+                if account_data:
+                    accounts_data.append(account_data)
+            total_accounts = len(accounts_data)
+        else:
+            # 否则使用筛选条件
+            logger.info(f"Admin {admin['username']} initiated batch token refresh with filters: "
+                       f"email_search={email_search}, tag_search={tag_search}, "
+                       f"refresh_status={refresh_status}, time_filter={time_filter}, "
+                       f"refresh_start_date={refresh_start_date}, refresh_end_date={refresh_end_date}")
+            
+            # 获取符合筛选条件的所有账户
+            accounts_data, total_accounts = db.get_accounts_by_filters(
+                page=1,
+                page_size=10000,  # 获取所有符合条件的账户
+                email_search=email_search,
+                tag_search=tag_search,
+                refresh_status=refresh_status,
+                time_filter=time_filter,
+                after_date=after_date,
+                refresh_start_date=refresh_start_date,
+                refresh_end_date=refresh_end_date,
+            )
         
         if not accounts_data:
-            logger.info("No accounts match the filter criteria")
+            logger.info("No accounts match the criteria")
             return BatchRefreshResult(
                 total_processed=0,
                 success_count=0,

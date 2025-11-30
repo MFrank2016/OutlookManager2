@@ -7,14 +7,21 @@ import { AddAccountDialog } from "@/components/accounts/AddAccountDialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Search, PackagePlus, Filter } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, PackagePlus, Filter, RefreshCw } from "lucide-react";
 import Link from "next/link";
+import api from "@/lib/api";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [tagSearch, setTagSearch] = useState("");
   const [refreshStatus, setRefreshStatus] = useState<string | undefined>(undefined);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [isBatchRefreshing, setIsBatchRefreshing] = useState(false);
+  const queryClient = useQueryClient();
   
   const { data, isLoading } = useAccounts({ 
       page, 
@@ -23,6 +30,37 @@ export default function DashboardPage() {
       tag_search: tagSearch,
       refresh_status: refreshStatus
   });
+
+  const handleBatchRefresh = async () => {
+    if (selectedAccounts.length === 0) {
+      toast.warning("请先选择要刷新的账户");
+      return;
+    }
+
+    if (!confirm(`确定要批量刷新 ${selectedAccounts.length} 个账户的Token吗？`)) {
+      return;
+    }
+
+    setIsBatchRefreshing(true);
+    try {
+      const response = await api.post("/accounts/batch-refresh-tokens", {
+        email_ids: selectedAccounts
+      });
+      
+      const result = response.data;
+      toast.success(`批量刷新完成！成功: ${result.success_count}, 失败: ${result.failed_count}`);
+      
+      // 刷新账户列表
+      queryClient.invalidateQueries({ queryKey: ["accounts"] });
+      
+      // 清空选择
+      setSelectedAccounts([]);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || "批量刷新失败");
+    } finally {
+      setIsBatchRefreshing(false);
+    }
+  };
 
   return (
     <div className="space-y-6 px-0 md:px-4">
@@ -78,7 +116,40 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <AccountsTable accounts={data?.accounts || []} isLoading={isLoading} />
+      {selectedAccounts.length > 0 && (
+        <div className="flex items-center justify-between bg-blue-50 p-4 rounded-lg border border-blue-200">
+          <div className="text-sm text-blue-900">
+            已选择 <span className="font-bold">{selectedAccounts.length}</span> 个账户
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedAccounts([])}
+              className="min-h-[44px]"
+            >
+              取消选择
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleBatchRefresh}
+              disabled={isBatchRefreshing}
+              className="min-h-[44px]"
+            >
+              <RefreshCw className={cn("mr-2 h-4 w-4", isBatchRefreshing && "animate-spin")} />
+              批量刷新Token
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <AccountsTable 
+        accounts={data?.accounts || []} 
+        isLoading={isLoading}
+        selectedAccounts={selectedAccounts}
+        onSelectionChange={setSelectedAccounts}
+      />
 
       {data && data.total_pages > 1 && (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">

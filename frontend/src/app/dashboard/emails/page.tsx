@@ -26,12 +26,26 @@ import {
     Key,
     Copy,
     Check,
-    RefreshCw
+    RefreshCw,
+    Trash,
+    AlertCircle
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function EmailsPage() {
   const searchParams = useSearchParams();
@@ -41,6 +55,8 @@ export default function EmailsPage() {
   const [selectedAccount, setSelectedAccount] = useState<string | null>(initialAccount);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [emailDetailOpen, setEmailDetailOpen] = useState(false);
+  const [deleteEmailId, setDeleteEmailId] = useState<string | null>(null);
+  const [clearInboxOpen, setClearInboxOpen] = useState(false);
   
   // Filters
   const [search, setSearch] = useState("");
@@ -144,6 +160,91 @@ export default function EmailsPage() {
     } else {
       toast.error("复制失败，请手动复制");
     }
+  };
+
+  // 删除邮件
+  const handleDeleteEmail = async (messageId: string) => {
+    if (!selectedAccount) return;
+    
+    try {
+      await api.delete(`/emails/${selectedAccount}/${messageId}`);
+      toast.success("邮件已删除");
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      if (selectedEmailId === messageId) {
+        setSelectedEmailId(null);
+        setEmailDetailOpen(false);
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || "删除邮件失败");
+    }
+  };
+
+  // 清空收件箱
+  const handleClearInbox = async () => {
+    if (!selectedAccount) return;
+    
+    try {
+      // 获取收件箱所有邮件（需要获取所有页）
+      let allInboxEmails: any[] = [];
+      let currentPage = 1;
+      let hasMore = true;
+      
+      while (hasMore) {
+        try {
+          const response = await api.get(`/emails/${selectedAccount}`, {
+            params: {
+              folder: "inbox",
+              page: currentPage,
+              page_size: 100,
+            }
+          });
+          const pageEmails = response.data.emails || [];
+          allInboxEmails = [...allInboxEmails, ...pageEmails];
+          
+          if (currentPage >= response.data.total_pages) {
+            hasMore = false;
+          } else {
+            currentPage++;
+          }
+        } catch (error) {
+          hasMore = false;
+        }
+      }
+      
+      if (allInboxEmails.length === 0) {
+        toast.info("收件箱已经是空的");
+        return;
+      }
+
+      // 批量删除
+      let successCount = 0;
+      let failCount = 0;
+      
+      toast.info(`开始删除 ${allInboxEmails.length} 封邮件...`);
+      
+      for (const email of allInboxEmails) {
+        try {
+          await api.delete(`/emails/${selectedAccount}/${email.message_id}`);
+          successCount++;
+        } catch (error) {
+          failCount++;
+        }
+      }
+
+      toast.success(`清空完成！成功删除 ${successCount} 封邮件${failCount > 0 ? `，失败 ${failCount} 封` : ""}`);
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      setSelectedEmailId(null);
+      setEmailDetailOpen(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || "清空收件箱失败");
+    }
+  };
+
+  // 获取发件人头像首字母
+  const getSenderInitial = (email: string) => {
+    if (!email) return "?";
+    const match = email.match(/^([a-zA-Z0-9])/);
+    return match ? match[1].toUpperCase() : email.charAt(0).toUpperCase();
   };
 
   return (
@@ -288,6 +389,18 @@ export default function EmailsPage() {
                       {refreshCountdown}s
                     </span>
                   )}
+                  {selectedAccount && folder === "inbox" && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => setClearInboxOpen(true)}
+                      title="清空收件箱"
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      <span className="hidden sm:inline">清空</span>
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -323,13 +436,22 @@ export default function EmailsPage() {
                                     idx % 2 === 0 ? "bg-white" : "bg-slate-50/30" // Zebra striping
                                 )}
                             >
-                                <div className="flex justify-between items-start mb-1 gap-2">
-                                    <div className="font-semibold text-sm text-slate-900 truncate flex-1 min-w-0">
-                                        {email.from_email}
+                                <div className="flex items-start gap-2 mb-1">
+                                    <Avatar className="h-8 w-8 shrink-0 mt-0.5">
+                                        <AvatarFallback className="bg-blue-500 text-white text-xs">
+                                            {getSenderInitial(email.from_email)}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex justify-between items-start gap-2">
+                                            <div className="font-semibold text-sm text-slate-900 truncate flex-1 min-w-0">
+                                                {email.from_email}
+                                            </div>
+                                            <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">
+                                                {formatDistanceToNow(new Date(email.date), { addSuffix: true })}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">
-                                        {formatDistanceToNow(new Date(email.date), { addSuffix: true })}
-                                    </span>
                                 </div>
                                 
                                 <div className="text-xs sm:text-sm font-medium text-slate-700 truncate mb-1.5 flex items-center gap-2 min-w-0">
@@ -356,11 +478,22 @@ export default function EmailsPage() {
                                     <span className="truncate flex-1 min-w-0">{email.subject}</span>
                                 </div>
                                 
-                                <div className="flex items-center gap-2 mt-1.5">
+                                <div className="flex items-center justify-between mt-1.5">
                                     <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 font-normal">
                                         {email.folder}
                                     </Badge>
-                                    {/* Add more badges/flags here if available */}
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setDeleteEmailId(email.message_id);
+                                        }}
+                                        title="删除邮件"
+                                    >
+                                        <Trash className="h-3 w-3" />
+                                    </Button>
                                 </div>
                             </div>
                         ))}
@@ -407,10 +540,71 @@ export default function EmailsPage() {
               account={selectedAccount!} 
               messageId={selectedEmailId}
               onClose={() => setEmailDetailOpen(false)}
+              onDelete={() => {
+                if (selectedEmailId) {
+                  handleDeleteEmail(selectedEmailId);
+                  setEmailDetailOpen(false);
+                  setSelectedEmailId(null);
+                }
+              }}
             />
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 删除邮件确认对话框 */}
+      <AlertDialog open={!!deleteEmailId} onOpenChange={(open) => !open && setDeleteEmailId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除这封邮件吗？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteEmailId) {
+                  handleDeleteEmail(deleteEmailId);
+                  setDeleteEmailId(null);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 清空收件箱确认对话框 */}
+      <AlertDialog open={clearInboxOpen} onOpenChange={setClearInboxOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认清空收件箱</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要清空收件箱吗？这将删除收件箱中的所有邮件，此操作无法撤销。
+              <br />
+              <span className="text-xs text-muted-foreground mt-2 block">
+                注意：将删除所有收件箱中的邮件，不仅仅是当前页显示的邮件。
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                handleClearInbox();
+                setClearInboxOpen(false);
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              清空
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -450,7 +644,7 @@ const EmailContent = React.memo(({
 });
 EmailContent.displayName = "EmailContent";
 
-function EmailDetailModalView({ account, messageId, onClose }: { account: string, messageId: string, onClose: () => void }) {
+function EmailDetailModalView({ account, messageId, onClose, onDelete }: { account: string, messageId: string, onClose: () => void, onDelete?: () => void }) {
     const { data: email, isLoading, error, refetch, isRefetching } = useEmailDetail(account, messageId);
     const [copied, setCopied] = useState(false);
     const [viewMode, setViewMode] = useState<"html" | "text" | "source">("html");
@@ -639,6 +833,23 @@ function EmailDetailModalView({ account, messageId, onClose }: { account: string
                     <div className="ml-auto flex items-center gap-2">
                         {isAutoRefreshEnabled && (
                             <CountdownDisplay countdown={refreshCountdown} />
+                        )}
+                        {onDelete && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm("确定要删除这封邮件吗？")) {
+                                        onDelete();
+                                    }
+                                }}
+                                title="删除邮件"
+                            >
+                                <Trash className="h-4 w-4 mr-1" />
+                                <span className="text-xs">删除</span>
+                            </Button>
                         )}
                         <Button
                             variant="ghost"

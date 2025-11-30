@@ -141,6 +141,12 @@ class AddTagRequest(BaseModel):
     tag: str
 
 
+class BatchRefreshRequest(BaseModel):
+    """批量刷新Token请求模型"""
+    
+    email_ids: Optional[List[str]] = Field(None, description="要刷新的邮箱账户列表，如果为空则使用筛选条件")
+
+
 class BatchRefreshResult(BaseModel):
     """批量刷新结果模型"""
     
