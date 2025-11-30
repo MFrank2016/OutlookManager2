@@ -533,7 +533,8 @@ def create_account(
     email: str,
     refresh_token: str,
     client_id: str,
-    tags: List[str] = None
+    tags: List[str] = None,
+    api_method: str = "imap"
 ) -> Dict[str, Any]:
     """
     创建新账户
@@ -553,9 +554,9 @@ def create_account(
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO accounts (email, refresh_token, client_id, tags)
+            INSERT INTO accounts (email, refresh_token, client_id, tags, api_method)
             VALUES (?, ?, ?, ?)
-        """, (email, refresh_token, client_id, tags_json))
+        """, (email, refresh_token, client_id, tags_json, api_method))
         
         conn.commit()
         

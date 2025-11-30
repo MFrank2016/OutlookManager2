@@ -99,6 +99,7 @@ async def save_account_credentials(
                 refresh_token=credentials.refresh_token,
                 client_id=credentials.client_id,
                 tags=credentials.tags if hasattr(credentials, "tags") else [],
+                api_method=credentials.api_method if hasattr(credentials, "api_method") else "imap",
             )
 
             # 更新额外字段
