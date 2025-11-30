@@ -32,7 +32,9 @@ async def get_access_token(credentials: AccountCredentials) -> str:
         HTTPException: 令牌获取失败
     """
     # Determine scope based on api_method
-    scope = GRAPH_API_SCOPE if getattr(credentials, "api_method", "imap") == "graph_api" else OAUTH_SCOPE
+    api_method = getattr(credentials, "api_method", "imap")
+    logger.info(f"Credentials: {credentials}, api_method: {api_method}")
+    scope = GRAPH_API_SCOPE if api_method in ["graph", "graph_api"] else OAUTH_SCOPE
 
     # 构建OAuth2请求数据
     token_request_data = {
@@ -41,6 +43,11 @@ async def get_access_token(credentials: AccountCredentials) -> str:
         "refresh_token": credentials.refresh_token,
         "scope": scope,
     }
+    logger.info(f"Token request data: {token_request_data}")
+    logger.info(f"Scope: {scope}")
+    logger.info(f"Client ID: {credentials.client_id}")
+    logger.info(f"Refresh token: {credentials.refresh_token}")
+    logger.info(f"Token URL: {TOKEN_URL}")
 
     try:
         # 发送令牌请求

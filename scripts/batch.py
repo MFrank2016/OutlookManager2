@@ -373,13 +373,6 @@ async def get_account_credentials() -> Dict[str, AccountCredentials]:
 
 
 # ============================================================================
-# OAuth2令牌管理模块
-# ============================================================================
-
-# get_access_token imported from oauth_service
-
-
-# ============================================================================
 # IMAP核心服务 - 邮件列表
 # ============================================================================
 
@@ -537,7 +530,8 @@ async def main():
                 logger.info(f"Processing account: {email_id}")
                 
                 # 获取邮件列表
-                if getattr(credentials, 'api_method', 'imap') == 'graph':
+                api_method = getattr(credentials, 'api_method', 'imap')
+                if api_method in ['graph', 'graph_api']:
                     if list_emails_graph:
                         logger.info(f"Using Graph API for {email_id}")
                         # 获取前1000封邮件 (Graph API处理)
