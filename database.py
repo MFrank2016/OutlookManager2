@@ -555,7 +555,7 @@ def create_account(
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO accounts (email, refresh_token, client_id, tags, api_method)
-            VALUES (?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?)
         """, (email, refresh_token, client_id, tags_json, api_method))
         
         conn.commit()

@@ -555,6 +555,7 @@ async def main():
                         continue
                 else:
                     # 使用IMAP
+                    logger.info(f"Using IMAP for {email_id}")
                     emails = await list_emails(imap_pool, credentials)
                 
                 # 保存为JSON文件

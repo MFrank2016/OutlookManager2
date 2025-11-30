@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
@@ -28,6 +29,7 @@ interface BatchResult {
 export default function BatchAddPage() {
   const router = useRouter();
   const [input, setInput] = useState("");
+  const [tagsInput, setTagsInput] = useState("");
   const [importMethod, setImportMethod] = useState<"imap" | "graph">("imap");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -44,6 +46,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
 
   const handleClear = () => {
     setInput("");
+    setTagsInput("");
     setResults([]);
     setProgress(0);
     setCurrentCount({ current: 0, total: 0 });
@@ -112,12 +115,18 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
 
       const [email, , refreshToken, clientId] = parts;
 
+      // 解析标签：将逗号分隔的字符串转换为标签数组
+      const tags = tagsInput
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0);
+
       try {
         await api.post("/accounts", {
           email,
           refresh_token: refreshToken,
           client_id: clientId,
-          tags: ["batch-import"], // Optional: tag them
+          tags: tags.length > 0 ? tags : undefined,
           api_method: importMethod,
         });
         successCount++;
@@ -190,6 +199,20 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                 ? "Uses standard IMAP protocol. Good for most cases."
                 : "Uses Microsoft Graph API. Faster and more reliable for some accounts."}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">标签 (可选)</label>
+            <Input
+              placeholder="输入标签，多个标签用逗号分隔，例如：工作,重要,批量导入"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              disabled={isProcessing}
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              为批量导入的所有账号统一添加标签，多个标签请用逗号分隔
+            </p>
           </div>
 
           <div className="text-sm text-muted-foreground">

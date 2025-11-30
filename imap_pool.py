@@ -8,6 +8,7 @@ IMAP连接池管理模块
 import imaplib
 import logging
 import socket
+import ssl
 import threading
 from queue import Empty, Queue
 
@@ -40,13 +41,14 @@ class IMAPConnectionPool:
             f"Initialized IMAP connection pool with max_connections={max_connections}"
         )
 
-    def _create_connection(self, email: str, access_token: str) -> imaplib.IMAP4_SSL:
+    def _create_connection(self, email: str, access_token: str, retry_count: int = 0) -> imaplib.IMAP4_SSL:
         """
-        创建新的IMAP连接
+        创建新的IMAP连接（带重试机制）
 
         Args:
             email: 邮箱地址
             access_token: OAuth2访问令牌
+            retry_count: 当前重试次数
 
         Returns:
             IMAP4_SSL: 已认证的IMAP连接
@@ -54,6 +56,9 @@ class IMAPConnectionPool:
         Raises:
             Exception: 连接创建失败
         """
+        max_retries = 2
+        retry_delay = 1  # 秒
+        
         try:
             # 设置全局socket超时
             socket.setdefaulttimeout(SOCKET_TIMEOUT)
@@ -74,8 +79,24 @@ class IMAPConnectionPool:
             return imap_client
 
         except Exception as e:
-            logger.error(f"Failed to create IMAP connection for {email}: {e}")
-            raise
+            # SSL错误或网络错误，可以重试
+            error_msg = str(e).lower()
+            error_type = type(e).__name__
+            is_retryable = any(keyword in error_msg for keyword in [
+                'unexpected_eof', 'eof', 'connection', 'timeout', 'reset', 
+                'broken pipe', 'network', 'ssl', 'protocol'
+            ]) or 'ssl' in error_type.lower()
+            
+            if is_retryable and retry_count < max_retries:
+                logger.warning(
+                    f"Failed to create IMAP connection for {email} (attempt {retry_count + 1}/{max_retries + 1}): {e}. Retrying..."
+                )
+                import time
+                time.sleep(retry_delay * (retry_count + 1))  # 指数退避
+                return self._create_connection(email, access_token, retry_count + 1)
+            else:
+                logger.error(f"Failed to create IMAP connection for {email} after {retry_count + 1} attempts: {e}")
+                raise
 
     def get_connection(self, email: str, access_token: str) -> imaplib.IMAP4_SSL:
         """
