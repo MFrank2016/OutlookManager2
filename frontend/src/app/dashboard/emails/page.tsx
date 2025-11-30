@@ -157,6 +157,16 @@ export default function EmailsPage() {
       setPage(1);
   }, [search, folder, sortBy, sortOrder, selectedAccount]);
 
+  // 复制验证码处理函数
+  const handleCopyCode = async (code: string) => {
+    const success = await copyToClipboard(code);
+    if (success) {
+      toast.success("验证码已复制到剪贴板");
+    } else {
+      toast.error("复制失败，请手动复制");
+    }
+  };
+
   // 删除邮件
   const handleDeleteEmail = async (messageId: string) => {
     if (!selectedAccount) return;
@@ -499,58 +509,101 @@ export default function EmailsPage() {
                     </Table>
                 </div>
 
-                {/* Mobile List View */}
-                <div className="md:hidden flex flex-col divide-y overflow-y-auto">
-                    {emailsData?.emails.map((email) => (
-                        <div 
-                            key={email.message_id}
-                            className="p-4 flex flex-col gap-2 bg-white active:bg-slate-50"
-                            onClick={() => openEmailDetail(email.message_id)}
-                        >
-                            <div className="flex justify-between items-start">
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <Avatar className="h-8 w-8 shrink-0">
-                                        <AvatarFallback className="bg-blue-100 text-blue-700 text-xs">
-                                            {email.sender_initial}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className="font-bold text-sm truncate">
-                                        {email.from_email.split('<')[0].trim() || email.from_email}
+                {/* Mobile Card View */}
+                <div className="md:hidden flex flex-col p-3 gap-3 overflow-y-auto bg-slate-100">
+                    {emailsData?.emails.map((email) => {
+                        // 解析发件人名称和邮箱
+                        let senderName = email.from_email;
+                        let senderEmail = "";
+                        if (email.from_email.includes("<")) {
+                            const parts = email.from_email.split("<");
+                            senderName = parts[0].trim().replace(/^['"]+|['"]+$/g, '');
+                            senderEmail = parts[1].replace(">", "").trim();
+                        }
+
+                        return (
+                            <div 
+                                key={email.message_id}
+                                className="bg-[#FEF9E7] border border-blue-200 rounded-xl shadow-sm relative overflow-hidden p-3"
+                                onClick={() => openEmailDetail(email.message_id)}
+                            >
+                                {/* 左侧蓝色条 */}
+                                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-500"></div>
+                                
+                                <div className="pl-2 flex flex-col gap-2">
+                                    {/* 第一栏：头像 + 发件人 */}
+                                    <div className="flex items-center gap-2">
+                                        <Avatar className="h-8 w-8 shrink-0">
+                                            <AvatarFallback className="bg-purple-500 text-white text-xs font-bold">
+                                                {email.sender_initial}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1 min-w-0 flex flex-col">
+                                            <span className="font-bold text-sm text-gray-900 truncate">
+                                                {senderName}
+                                            </span>
+                                            {senderEmail && (
+                                                <span className="text-xs text-gray-500 truncate">
+                                                    {senderEmail}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* 第二栏：主题 + 预览 */}
+                                    <div className="flex items-start gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm text-gray-900 font-medium line-clamp-2 break-words">
+                                                {email.subject}
+                                            </div>
+                                            <div className="text-xs text-gray-500 truncate mt-0.5">
+                                                {email.body_preview || "No preview available"}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* 第三栏：日期 */}
+                                    <div className="text-xs text-gray-500 pl-4">
+                                        {new Date(email.date).toLocaleString('zh-CN', {
+                                            year: 'numeric',
+                                            month: '2-digit',
+                                            day: '2-digit',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}
+                                    </div>
+
+                                    {/* 第四栏：操作按钮 */}
+                                    <div className="mt-1">
+                                        <Button
+                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 h-9 text-sm font-medium"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openEmailDetail(email.message_id);
+                                            }}
+                                        >
+                                            <Eye className="h-4 w-4 mr-1.5" />
+                                            查看
+                                        </Button>
+                                        {email.verification_code && (
+                                            <Button
+                                                variant="outline"
+                                                className="w-full mt-2 border-amber-300 text-amber-700 hover:bg-amber-50 h-8 text-xs"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleCopyCode(email.verification_code!);
+                                                }}
+                                            >
+                                                <Copy className="h-3 w-3 mr-1.5" />
+                                                复制验证码 ({email.verification_code})
+                                            </Button>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="text-xs text-slate-400 whitespace-nowrap ml-2">
-                                    {formatDistanceToNow(new Date(email.date), { addSuffix: true })}
-                                </div>
                             </div>
-
-                            <div className="flex flex-col gap-1 pl-10">
-                                <div className="font-bold text-sm text-slate-900 truncate">
-                                     {email.verification_code && (
-                                        <span className="text-amber-600 mr-1">[Code: {email.verification_code}]</span>
-                                     )}
-                                     {email.subject}
-                                </div>
-                                <div className="text-xs text-slate-500 line-clamp-2 break-words">
-                                    {email.body_preview || "No preview available"}
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end items-center mt-2 pl-10 gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-xs w-full bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 hover:text-blue-700"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        openEmailDetail(email.message_id);
-                                    }}
-                                >
-                                    <Eye className="h-3 w-3 mr-1" />
-                                    查看
-                                </Button>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </>
         )}
