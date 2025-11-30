@@ -1,8 +1,13 @@
 // tags.js - 标签管理模块
 
 // 打开标签管理模态框
-function editAccountTags(emailId, tags) {
+function editAccountTags(emailId) {
   currentEditAccount = emailId;
+  
+  // 从全局accounts数组中查找账户
+  const account = accounts.find(a => a.email_id === emailId);
+  const tags = account ? (account.tags || []) : [];
+  
   currentEditTags = Array.isArray(tags) ? [...tags] : [];
 
   // 更新模态框标题
@@ -27,7 +32,7 @@ function renderCurrentTags() {
   if (!tagsList) return;
 
   if (currentEditTags.length === 0) {
-    tagsList.innerHTML = '<p class="text-muted">暂无标签</p>';
+    tagsList.innerHTML = '<div class="tags-empty-state">暂无标签，请在下方添加</div>';
     return;
   }
 

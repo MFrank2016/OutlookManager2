@@ -73,7 +73,7 @@ function contextEditTags() {
   if (contextMenuTarget && typeof accounts !== "undefined") {
     const account = accounts.find((acc) => acc.email_id === contextMenuTarget);
     if (account && typeof editAccountTags === "function") {
-      editAccountTags(contextMenuTarget, account.tags || []);
+      editAccountTags(contextMenuTarget);
     }
   }
   hideContextMenu();

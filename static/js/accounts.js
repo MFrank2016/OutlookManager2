@@ -165,7 +165,7 @@ async function loadAccounts(page = 1, resetSearch = false, showLoading = true) {
 
         // 检查是否已选中
         const isChecked = selectedAccounts.has(account.email_id);
-        
+
         // 检查是否支持 Graph API（发送邮件需要）
         const supportsGraphApi = account.api_method === "graph_api";
 
@@ -224,23 +224,18 @@ async function loadAccounts(page = 1, resetSearch = false, showLoading = true) {
                             }')" title="查看邮件">
                                 <span>📧</span>
                             </button>
-                            ${supportsGraphApi 
-                              ? `<button class="btn btn-success btn-sm" onclick="openSendEmailModal('${
-                                  account.email_id
-                                }')" title="发送邮件">
+                            ${
+                              supportsGraphApi
+                                ? `<button class="btn btn-success btn-sm" onclick="openSendEmailModal('${account.email_id}')" title="发送邮件">
                                     <span>✉️</span>
                                 </button>`
-                              : `<button class="btn btn-secondary btn-sm" onclick="showGraphApiRequiredNotice('${
-                                  account.email_id
-                                }')" title="发送邮件需要Graph API" style="opacity: 0.6;">
+                                : `<button class="btn btn-secondary btn-sm" onclick="showGraphApiRequiredNotice('${account.email_id}')" title="发送邮件需要Graph API" style="opacity: 0.6;">
                                     <span>✉️</span>
                                 </button>`
                             }
                             <button class="btn btn-secondary btn-sm" onclick="editAccountTags('${
                               account.email_id
-                            }', ${JSON.stringify(
-          account.tags || []
-        )})" title="管理标签">
+                            }')" title="管理标签">
                                 <span>🏷️</span>
                             </button>
                             <button class="btn btn-info btn-sm" onclick="refreshAccountToken('${
@@ -863,7 +858,7 @@ function showGraphApiRequiredNotice(emailId) {
       </button>
     </div>
   `;
-  
+
   showNotification(message, "warning", 10000);
 }
 
@@ -873,13 +868,18 @@ function showGraphApiRequiredNotice(emailId) {
 async function detectAndEnableGraphApi(emailId) {
   try {
     showNotification("正在检测 Graph API 可用性...", "info");
-    
-    const response = await apiRequest(`/accounts/${emailId}/detect-api-method`, {
-      method: "POST"
-    });
-    
+
+    const response = await apiRequest(
+      `/accounts/${emailId}/detect-api-method`,
+      {
+        method: "POST",
+      }
+    );
+
     if (response.api_method === "graph_api") {
-      showSuccess(`账户 ${emailId} 已成功启用 Graph API！现在可以使用发送邮件功能了。`);
+      showSuccess(
+        `账户 ${emailId} 已成功启用 Graph API！现在可以使用发送邮件功能了。`
+      );
       // 刷新账户列表以更新按钮状态
       loadAccounts(accountsCurrentPage);
     } else {
