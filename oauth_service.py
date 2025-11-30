@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import httpx
 from fastapi import HTTPException
 
-from config import TOKEN_URL, OAUTH_SCOPE
+from config import TOKEN_URL, OAUTH_SCOPE, GRAPH_API_SCOPE
 from models import AccountCredentials
 import database as db
 
@@ -31,12 +31,15 @@ async def get_access_token(credentials: AccountCredentials) -> str:
     Raises:
         HTTPException: 令牌获取失败
     """
+    # Determine scope based on api_method
+    scope = GRAPH_API_SCOPE if getattr(credentials, "api_method", "imap") == "graph_api" else OAUTH_SCOPE
+
     # 构建OAuth2请求数据
     token_request_data = {
         "client_id": credentials.client_id,
         "grant_type": "refresh_token",
         "refresh_token": credentials.refresh_token,
-        "scope": OAUTH_SCOPE,
+        "scope": scope,
     }
 
     try:

@@ -23,7 +23,6 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from queue import Empty, Queue
 from typing import Dict, List, Optional
-import httpx
 import os
 import sys
 
@@ -34,6 +33,8 @@ try:
     from graph_api_service import list_emails_graph
 except ImportError:
     list_emails_graph = None
+
+from oauth_service import get_access_token
 
 
 # ============================================================================
@@ -46,9 +47,7 @@ OUTPUT_DIR = "email_lists"
 OUTPUT_FILE_FORMAT = "{email_id}_{date}.json"
 
 # OAuth2配置
-TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
-OAUTH_SCOPE = "https://outlook.office.com/IMAP.AccessAsUser.All offline_access"
-GRAPH_API_SCOPE = "https://graph.microsoft.com/.default"
+# TOKEN_URL, OAUTH_SCOPE and GRAPH_API_SCOPE are handled in oauth_service.py
 
 # IMAP服务器配置
 IMAP_SERVER = "outlook.live.com"
@@ -377,56 +376,7 @@ async def get_account_credentials() -> Dict[str, AccountCredentials]:
 # OAuth2令牌管理模块
 # ============================================================================
 
-async def get_access_token(credentials: AccountCredentials) -> str:
-    """
-    使用refresh_token获取access_token
-
-    Args:
-        credentials: 账户凭证信息
-
-    Returns:
-        str: OAuth2访问令牌
-
-    Raises:
-        Exception: 令牌获取失败
-    """
-    # Determine scope based on api_method
-    scope = GRAPH_API_SCOPE if getattr(credentials, 'api_method', 'imap') == 'graph' else OAUTH_SCOPE
-
-    # 构建OAuth2请求数据
-    token_request_data = {
-        'client_id': credentials.client_id,
-        'grant_type': 'refresh_token',
-        'refresh_token': credentials.refresh_token,
-        'scope': scope
-    }
-
-    try:
-        # 发送令牌请求，明确禁用代理
-        async with httpx.AsyncClient(timeout=30.0, proxies=None) as client:
-            response = await client.post(TOKEN_URL, data=token_request_data)
-            response.raise_for_status()
-
-            # 解析响应
-            token_data = response.json()
-            access_token = token_data.get('access_token')
-
-            if not access_token:
-                logger.error(f"No access token in response for {credentials.email}")
-                raise ValueError("Failed to obtain access token from response")
-
-            logger.info(f"Successfully obtained access token for {credentials.email}")
-            return access_token
-
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP {e.response.status_code} error getting access token for {credentials.email}: {e}")
-        raise
-    except httpx.RequestError as e:
-        logger.error(f"Request error getting access token for {credentials.email}: {e}")
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected error getting access token for {credentials.email}: {e}")
-        raise
+# get_access_token imported from oauth_service
 
 
 # ============================================================================
