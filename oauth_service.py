@@ -43,6 +43,17 @@ async def get_access_token(credentials: AccountCredentials) -> str:
         # 发送令牌请求
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(TOKEN_URL, data=token_request_data)
+            
+            # 检查状态码，如果是400/401/403，说明refresh token无效或过期
+            if response.status_code in [400, 401, 403]:
+                logger.error(f"OAuth2 token request failed for {credentials.email}: {response.text}")
+                # 抛出具体的错误信息，而不是401 Unauthorized
+                error_detail = f"OAuth2 Error: {response.json().get('error_description', 'Invalid grant')}"
+                raise HTTPException(
+                    status_code=400,
+                    detail=error_detail,
+                )
+            
             response.raise_for_status()
 
             # 解析响应
@@ -74,9 +85,11 @@ async def get_access_token(credentials: AccountCredentials) -> str:
         logger.error(
             f"HTTP {e.response.status_code} error getting access token for {credentials.email}: {e}"
         )
+        # 捕获其他 HTTP 错误
         if e.response.status_code == 400:
-            raise HTTPException(
-                status_code=401, detail="Invalid refresh token or client credentials"
+             raise HTTPException(
+                status_code=400, 
+                detail=f"OAuth2 Error: {e.response.json().get('error_description', 'Invalid request')}"
             )
         else:
             raise HTTPException(status_code=401, detail="Authentication failed")
@@ -85,6 +98,8 @@ async def get_access_token(credentials: AccountCredentials) -> str:
         raise HTTPException(
             status_code=500, detail="Network error during token acquisition"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             f"Unexpected error getting access token for {credentials.email}: {e}"
@@ -119,6 +134,12 @@ async def refresh_account_token(credentials: AccountCredentials) -> dict:
         # 发送令牌请求
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(TOKEN_URL, data=token_request_data)
+            
+            if response.status_code in [400, 401, 403]:
+                error_msg = f"OAuth2 Error: {response.json().get('error_description', 'Invalid grant')}"
+                logger.error(f"Token refresh failed for {credentials.email}: {error_msg}")
+                return {"success": False, "error": error_msg}
+                
             response.raise_for_status()
 
             # 解析响应
@@ -259,4 +280,3 @@ async def detect_and_update_api_method(credentials: AccountCredentials) -> str:
         # 出错时默认使用 IMAP
         db.update_account(credentials.email, api_method="imap")
         return "imap"
-

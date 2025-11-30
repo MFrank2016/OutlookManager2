@@ -25,6 +25,16 @@ from queue import Empty, Queue
 from typing import Dict, List, Optional
 import httpx
 import os
+import sys
+
+# Add parent directory to path to allow imports from root
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+try:
+    from graph_api_service import list_emails_graph
+except ImportError:
+    list_emails_graph = None
+
 
 # ============================================================================
 # 配置常量
@@ -38,6 +48,7 @@ OUTPUT_FILE_FORMAT = "{email_id}_{date}.json"
 # OAuth2配置
 TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
 OAUTH_SCOPE = "https://outlook.office.com/IMAP.AccessAsUser.All offline_access"
+GRAPH_API_SCOPE = "https://graph.microsoft.com/.default"
 
 # IMAP服务器配置
 IMAP_SERVER = "outlook.live.com"
@@ -62,11 +73,12 @@ logger = logging.getLogger(__name__)
 
 class AccountCredentials:
     """账户凭证模型"""
-    def __init__(self, email: str, refresh_token: str, client_id: str, tags: Optional[List[str]] = None):
+    def __init__(self, email: str, refresh_token: str, client_id: str, tags: Optional[List[str]] = None, api_method: str = "imap"):
         self.email = email
         self.refresh_token = refresh_token
         self.client_id = client_id
         self.tags = tags or []
+        self.api_method = api_method
 
 
 class EmailItem:
@@ -346,7 +358,8 @@ async def get_account_credentials() -> Dict[str, AccountCredentials]:
                 email=email_id,
                 refresh_token=account_info['refresh_token'],
                 client_id=account_info['client_id'],
-                tags=account_info.get('tags', [])
+                tags=account_info.get('tags', []),
+                api_method=account_info.get('api_method', 'imap')
             )
 
         logger.info(f"Loaded {len(credentials)} account(s) from {ACCOUNTS_FILE}")
@@ -377,12 +390,15 @@ async def get_access_token(credentials: AccountCredentials) -> str:
     Raises:
         Exception: 令牌获取失败
     """
+    # Determine scope based on api_method
+    scope = GRAPH_API_SCOPE if getattr(credentials, 'api_method', 'imap') == 'graph' else OAUTH_SCOPE
+
     # 构建OAuth2请求数据
     token_request_data = {
         'client_id': credentials.client_id,
         'grant_type': 'refresh_token',
         'refresh_token': credentials.refresh_token,
-        'scope': OAUTH_SCOPE
+        'scope': scope
     }
 
     try:
@@ -571,7 +587,31 @@ async def main():
                 logger.info(f"Processing account: {email_id}")
                 
                 # 获取邮件列表
-                emails = await list_emails(imap_pool, credentials)
+                if getattr(credentials, 'api_method', 'imap') == 'graph':
+                    if list_emails_graph:
+                        logger.info(f"Using Graph API for {email_id}")
+                        # 获取前1000封邮件 (Graph API处理)
+                        email_items_obj, _ = await list_emails_graph(credentials, "all", 1, 1000)
+                        
+                        # 转换为字典格式
+                        emails = []
+                        for item in email_items_obj:
+                            emails.append({
+                                "email_id": credentials.email,
+                                "message_id": item.message_id,
+                                "folder": item.folder,
+                                "subject": item.subject,
+                                "from_email": item.from_email,
+                                "date": item.date,
+                                "is_read": item.is_read,
+                                "sender_initial": item.sender_initial
+                            })
+                    else:
+                        logger.error("Graph API service not available (import failed)")
+                        continue
+                else:
+                    # 使用IMAP
+                    emails = await list_emails(imap_pool, credentials)
                 
                 # 保存为JSON文件
                 output_file = os.path.join(OUTPUT_DIR, OUTPUT_FILE_FORMAT.format(
