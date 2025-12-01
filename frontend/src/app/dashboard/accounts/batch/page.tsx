@@ -145,8 +145,9 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
       return data;
     },
     enabled: !!taskId && isProcessing,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
       // 如果任务已完成或失败，停止轮询
+      const data = query.state.data;
       if (data?.status === "completed" || data?.status === "failed") {
         return false;
       }
