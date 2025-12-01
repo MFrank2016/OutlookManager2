@@ -17,19 +17,55 @@ import { cn } from "@/lib/utils";
 export default function DashboardPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [tagSearch, setTagSearch] = useState("");
+  const [includeTags, setIncludeTags] = useState("");
+  const [excludeTags, setExcludeTags] = useState("");
   const [refreshStatus, setRefreshStatus] = useState<string | undefined>(undefined);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [isBatchRefreshing, setIsBatchRefreshing] = useState(false);
+  const [queryParams, setQueryParams] = useState({
+    page: 1,
+    page_size: 10,
+    email_search: "",
+    include_tags: "",
+    exclude_tags: "",
+    refresh_status: undefined as string | undefined,
+  });
+  const [shouldQuery, setShouldQuery] = useState(false);
   const queryClient = useQueryClient();
   
-  const { data, isLoading } = useAccounts({ 
-      page, 
-      page_size: 10, 
-      email_search: search,
-      tag_search: tagSearch,
-      refresh_status: refreshStatus
+  const { data, isLoading, refetch } = useAccounts({ 
+      page: queryParams.page, 
+      page_size: queryParams.page_size, 
+      email_search: queryParams.email_search,
+      include_tags: queryParams.include_tags || undefined,
+      exclude_tags: queryParams.exclude_tags || undefined,
+      refresh_status: queryParams.refresh_status
+  }, {
+    enabled: shouldQuery,
   });
+
+  const handleSearch = () => {
+    const newParams = {
+      page: 1,
+      page_size: 10,
+      email_search: search,
+      include_tags: includeTags,
+      exclude_tags: excludeTags,
+      refresh_status: refreshStatus,
+    };
+    setQueryParams(newParams);
+    setPage(1);
+    setShouldQuery(true);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (!shouldQuery) {
+      toast.warning("请先点击查询按钮");
+      return;
+    }
+    setPage(newPage);
+    setQueryParams(prev => ({ ...prev, page: newPage }));
+  };
 
   const handleBatchRefresh = async () => {
     if (selectedAccounts.length === 0) {
@@ -85,24 +121,48 @@ export default function DashboardPage() {
                 value={search}
                 onChange={(e) => {
                     setSearch(e.target.value);
-                    setPage(1);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSearch();
+                  }
                 }}
             />
         </div>
         <div className="relative flex-1 w-full">
             <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <Input 
-                placeholder="按标签筛选..." 
+                placeholder="包含标签（多个用逗号分隔）..." 
                 className="pl-9 min-h-[44px]" 
-                value={tagSearch}
+                value={includeTags}
                 onChange={(e) => {
-                    setTagSearch(e.target.value);
-                    setPage(1);
+                    setIncludeTags(e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSearch();
+                  }
+                }}
+            />
+        </div>
+        <div className="relative flex-1 w-full">
+            <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input 
+                placeholder="排除标签（多个用逗号分隔）..." 
+                className="pl-9 min-h-[44px]" 
+                value={excludeTags}
+                onChange={(e) => {
+                    setExcludeTags(e.target.value);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSearch();
+                  }
                 }}
             />
         </div>
         <div className="w-full sm:w-[180px]">
-            <Select value={refreshStatus} onValueChange={(val) => { setRefreshStatus(val === "all" ? undefined : val); setPage(1); }}>
+            <Select value={refreshStatus} onValueChange={(val) => { setRefreshStatus(val === "all" ? undefined : val); }}>
                 <SelectTrigger className="min-h-[44px]">
                     <SelectValue placeholder="筛选状态" />
                 </SelectTrigger>
@@ -114,6 +174,14 @@ export default function DashboardPage() {
                 </SelectContent>
             </Select>
         </div>
+        <Button 
+          onClick={handleSearch}
+          disabled={isLoading}
+          className="min-h-[44px] w-full sm:w-auto"
+        >
+          <Search className="mr-2 h-4 w-4" />
+          查询
+        </Button>
       </div>
 
       {selectedAccounts.length > 0 && (
@@ -161,8 +229,8 @@ export default function DashboardPage() {
                 variant="outline"
                 size="sm"
                 className="min-h-[44px] min-w-[44px]"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
+                onClick={() => handlePageChange(Math.max(1, page - 1))}
+                disabled={page === 1 || isLoading}
             >
                 <ChevronLeft className="h-4 w-4" />
                 <span className="hidden sm:inline ml-1">上一页</span>
@@ -174,8 +242,8 @@ export default function DashboardPage() {
                 variant="outline"
                 size="sm"
                 className="min-h-[44px] min-w-[44px]"
-                onClick={() => setPage((p) => Math.min(data.total_pages, p + 1))}
-                disabled={page === data.total_pages}
+                onClick={() => handlePageChange(Math.min(data.total_pages, page + 1))}
+                disabled={page === data.total_pages || isLoading}
             >
                 <span className="hidden sm:inline mr-1">下一页</span>
                 <ChevronRight className="h-4 w-4" />

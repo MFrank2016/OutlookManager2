@@ -351,6 +351,47 @@ def init_database() -> None:
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_token ON share_tokens(token)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_account ON share_tokens(email_account_id)")
+        
+        # 创建批量导入任务表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS batch_import_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT UNIQUE NOT NULL,
+                total_count INTEGER NOT NULL,
+                success_count INTEGER DEFAULT 0,
+                failed_count INTEGER DEFAULT 0,
+                processed_count INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'pending',
+                api_method TEXT DEFAULT 'imap',
+                tags TEXT DEFAULT '[]',
+                created_by TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                completed_at TEXT
+            )
+        """)
+        
+        # 创建批量导入任务详情表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS batch_import_task_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id TEXT NOT NULL,
+                email TEXT NOT NULL,
+                refresh_token TEXT NOT NULL,
+                client_id TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                error_message TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                processed_at TEXT,
+                FOREIGN KEY (task_id) REFERENCES batch_import_tasks(task_id) ON DELETE CASCADE
+            )
+        """)
+        
+        # 创建索引
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_import_tasks_task_id ON batch_import_tasks(task_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_import_tasks_status ON batch_import_tasks(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_import_task_items_task_id ON batch_import_task_items(task_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_import_task_items_status ON batch_import_task_items(status)")
 
         conn.commit()
         logger.info("Database initialized successfully")
@@ -444,6 +485,8 @@ def get_accounts_by_filters(
     page_size: int = 10,
     email_search: Optional[str] = None,
     tag_search: Optional[str] = None,
+    include_tags: Optional[List[str]] = None,
+    exclude_tags: Optional[List[str]] = None,
     refresh_status: Optional[str] = None,
     time_filter: Optional[str] = None,
     after_date: Optional[str] = None,
@@ -457,7 +500,9 @@ def get_accounts_by_filters(
         page: 页码（从1开始）
         page_size: 每页数量
         email_search: 邮箱模糊搜索
-        tag_search: 标签模糊搜索
+        tag_search: 标签模糊搜索（已废弃，使用include_tags代替）
+        include_tags: 必须包含的标签列表（同时包含所有指定标签）
+        exclude_tags: 必须不包含的标签列表（不包含任何指定标签）
         refresh_status: 刷新状态筛选 (never_refreshed, failed, success, pending, all)
         time_filter: 时间过滤器 (today, week, month, custom)
         after_date: 自定义日期（用于custom时间过滤，ISO格式）
@@ -479,10 +524,21 @@ def get_accounts_by_filters(
             conditions.append("email LIKE ?")
             params.append(f"%{email_search}%")
         
-        # 标签搜索
-        if tag_search:
-            conditions.append("tags LIKE ?")
-            params.append(f"%{tag_search}%")
+        # 标签搜索（向后兼容，如果提供了tag_search，转换为include_tags）
+        if tag_search and not include_tags:
+            include_tags = [tag.strip() for tag in tag_search.split(",") if tag.strip()]
+        
+        # 包含标签筛选（必须同时包含所有指定标签）
+        if include_tags:
+            for tag in include_tags:
+                conditions.append("tags LIKE ?")
+                params.append(f'%"{tag}"%')  # JSON格式的标签匹配
+        
+        # 排除标签筛选（必须不包含任何指定标签）
+        if exclude_tags:
+            for tag in exclude_tags:
+                conditions.append("tags NOT LIKE ?")
+                params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         # 刷新状态筛选
         if refresh_status and refresh_status != 'all':
@@ -2066,4 +2122,227 @@ def get_email_count_by_account(email_account: str, folder: Optional[str] = None)
             """, (email_account,))
         
         return cursor.fetchone()[0]
+
+
+# ============================================================================
+# 批量导入任务表操作
+# ============================================================================
+
+def create_batch_import_task(
+    task_id: str,
+    total_count: int,
+    api_method: str = "imap",
+    tags: List[str] = None,
+    created_by: str = None
+) -> bool:
+    """
+    创建批量导入任务
+    
+    Args:
+        task_id: 任务ID
+        total_count: 总数量
+        api_method: API方法 (imap/graph)
+        tags: 标签列表
+        created_by: 创建者用户名
+        
+    Returns:
+        是否创建成功
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            tags_json = json.dumps(tags or [])
+            cursor.execute("""
+                INSERT INTO batch_import_tasks 
+                (task_id, total_count, api_method, tags, created_by)
+                VALUES (?, ?, ?, ?, ?)
+            """, (task_id, total_count, api_method, tags_json, created_by))
+            conn.commit()
+            logger.info(f"Created batch import task: {task_id}, total: {total_count}")
+            return True
+    except Exception as e:
+        logger.error(f"Error creating batch import task: {e}")
+        return False
+
+
+def add_batch_import_task_items(
+    task_id: str,
+    items: List[Dict[str, str]]
+) -> bool:
+    """
+    添加批量导入任务项
+    
+    Args:
+        task_id: 任务ID
+        items: 任务项列表，每个项包含 email, refresh_token, client_id
+        
+    Returns:
+        是否添加成功
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            for item in items:
+                cursor.execute("""
+                    INSERT INTO batch_import_task_items 
+                    (task_id, email, refresh_token, client_id)
+                    VALUES (?, ?, ?, ?)
+                """, (task_id, item['email'], item['refresh_token'], item['client_id']))
+            conn.commit()
+            logger.info(f"Added {len(items)} items to batch import task: {task_id}")
+            return True
+    except Exception as e:
+        logger.error(f"Error adding batch import task items: {e}")
+        return False
+
+
+def get_batch_import_task(task_id: str) -> Optional[Dict[str, Any]]:
+    """
+    获取批量导入任务信息
+    
+    Args:
+        task_id: 任务ID
+        
+    Returns:
+        任务信息字典或None
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM batch_import_tasks WHERE task_id = ?", (task_id,))
+            row = cursor.fetchone()
+            if row:
+                task = dict(row)
+                task['tags'] = json.loads(task['tags']) if task['tags'] else []
+                return task
+            return None
+    except Exception as e:
+        logger.error(f"Error getting batch import task: {e}")
+        return None
+
+
+def update_batch_import_task_progress(
+    task_id: str,
+    success_count: int = None,
+    failed_count: int = None,
+    processed_count: int = None,
+    status: str = None
+) -> bool:
+    """
+    更新批量导入任务进度
+    
+    Args:
+        task_id: 任务ID
+        success_count: 成功数量
+        failed_count: 失败数量
+        processed_count: 已处理数量
+        status: 状态 (pending, processing, completed, failed)
+        
+    Returns:
+        是否更新成功
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            updates = []
+            params = []
+            
+            if success_count is not None:
+                updates.append("success_count = ?")
+                params.append(success_count)
+            if failed_count is not None:
+                updates.append("failed_count = ?")
+                params.append(failed_count)
+            if processed_count is not None:
+                updates.append("processed_count = ?")
+                params.append(processed_count)
+            if status:
+                updates.append("status = ?")
+                params.append(status)
+                if status == 'completed' or status == 'failed':
+                    updates.append("completed_at = ?")
+                    params.append(datetime.now().isoformat())
+            
+            updates.append("updated_at = ?")
+            params.append(datetime.now().isoformat())
+            params.append(task_id)
+            
+            cursor.execute(
+                f"UPDATE batch_import_tasks SET {', '.join(updates)} WHERE task_id = ?",
+                params
+            )
+            conn.commit()
+            return True
+    except Exception as e:
+        logger.error(f"Error updating batch import task progress: {e}")
+        return False
+
+
+def update_batch_import_task_item(
+    task_id: str,
+    email: str,
+    status: str,
+    error_message: str = None
+) -> bool:
+    """
+    更新批量导入任务项状态
+    
+    Args:
+        task_id: 任务ID
+        email: 邮箱地址
+        status: 状态 (pending, success, failed)
+        error_message: 错误消息
+        
+    Returns:
+        是否更新成功
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE batch_import_task_items 
+                SET status = ?, error_message = ?, processed_at = ?
+                WHERE task_id = ? AND email = ?
+            """, (status, error_message, datetime.now().isoformat(), task_id, email))
+            conn.commit()
+            return True
+    except Exception as e:
+        logger.error(f"Error updating batch import task item: {e}")
+        return False
+
+
+def get_batch_import_task_items(
+    task_id: str,
+    status: str = None
+) -> List[Dict[str, Any]]:
+    """
+    获取批量导入任务项列表
+    
+    Args:
+        task_id: 任务ID
+        status: 状态筛选（可选）
+        
+    Returns:
+        任务项列表
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            if status:
+                cursor.execute("""
+                    SELECT * FROM batch_import_task_items 
+                    WHERE task_id = ? AND status = ?
+                    ORDER BY created_at
+                """, (task_id, status))
+            else:
+                cursor.execute("""
+                    SELECT * FROM batch_import_task_items 
+                    WHERE task_id = ?
+                    ORDER BY created_at
+                """, (task_id,))
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+    except Exception as e:
+        logger.error(f"Error getting batch import task items: {e}")
+        return []
 

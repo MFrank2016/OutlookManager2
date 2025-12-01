@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle, Loader2, ArrowLeft, Trash2, FileText, Play } from "lucide-react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 
 interface BatchResult {
   email: string;
@@ -35,6 +36,7 @@ export default function BatchAddPage() {
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<BatchResult[]>([]);
   const [currentCount, setCurrentCount] = useState({ current: 0, total: 0 });
+  const [taskId, setTaskId] = useState<string | null>(null);
 
   const handleLoadSample = () => {
     const sample = `example1@outlook.com----password1----refresh_token_here_1----client_id_here_1
@@ -89,74 +91,87 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
     setProgress(0);
     setCurrentCount({ current: 0, total: lines.length });
 
-    let successCount = 0;
-    let failCount = 0;
-    const newResults: BatchResult[] = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    // 解析所有账户数据
+    const items = [];
+    for (const line of lines) {
       const parts = line.split("----").map((p) => p.trim());
-
-      // Update progress
-      setCurrentCount({ current: i + 1, total: lines.length });
-      const currentProgress = Math.round(((i + 1) / lines.length) * 100);
-      setProgress(currentProgress);
-
       if (parts.length !== 4) {
-        failCount++;
-        newResults.push({
-          email: parts[0] || "Invalid Format",
-          status: "error",
-          message: "格式错误：应为 email----pwd----token----client_id",
-        });
-        setResults([...newResults]); // Update UI incrementally
         continue;
       }
-
       const [email, , refreshToken, clientId] = parts;
-
-      // 解析标签：将逗号分隔的字符串转换为标签数组
-      const tags = tagsInput
-        .split(",")
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0);
-
-      try {
-        await api.post("/accounts", {
-          email,
-          refresh_token: refreshToken,
-          client_id: clientId,
-          tags: tags.length > 0 ? tags : undefined,
-          api_method: importMethod,
-        });
-        successCount++;
-        newResults.push({
-          email,
-          status: "success",
-          message: "添加成功",
-        });
-      } catch (error: any) {
-        failCount++;
-        const msg = error.response?.data?.detail || error.message || "未知错误";
-        newResults.push({
-          email,
-          status: "error",
-          message: msg,
-        });
-      }
-      setResults([...newResults]);
-      
-      // Small delay to prevent rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      items.push({
+        email,
+        refresh_token: refreshToken,
+        client_id: clientId,
+      });
     }
 
-    setIsProcessing(false);
-    if (successCount > 0) {
-      toast.success(`完成：成功 ${successCount} 个，失败 ${failCount} 个`);
-    } else {
-      toast.error("所有账户添加失败");
+    if (items.length === 0) {
+      toast.error("没有有效的账户数据");
+      setIsProcessing(false);
+      return;
+    }
+
+    // 解析标签
+    const tags = tagsInput
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+
+    try {
+      // 创建批量导入任务
+      const response = await api.post("/accounts/batch-import", {
+        items,
+        api_method: importMethod,
+        tags,
+      });
+
+      const taskId = response.data.task_id;
+      setTaskId(taskId);
+      toast.success(`批量导入任务已创建，任务ID: ${taskId}`);
+    } catch (error: any) {
+      const msg = error.response?.data?.detail || error.message || "创建任务失败";
+      toast.error(msg);
+      setIsProcessing(false);
     }
   };
+
+  // 轮询任务进度
+  const { data: taskProgress } = useQuery({
+    queryKey: ["batch-import-task", taskId],
+    queryFn: async () => {
+      if (!taskId) return null;
+      const { data } = await api.get(`/accounts/batch-import/${taskId}`);
+      return data;
+    },
+    enabled: !!taskId && isProcessing,
+    refetchInterval: (data) => {
+      // 如果任务已完成或失败，停止轮询
+      if (data?.status === "completed" || data?.status === "failed") {
+        return false;
+      }
+      return 2000; // 每2秒轮询一次
+    },
+  });
+
+  // 更新进度显示
+  useEffect(() => {
+    if (taskProgress) {
+      const { processed_count, total_count, success_count, failed_count, status, progress_percent } = taskProgress;
+      setCurrentCount({ current: processed_count, total: total_count });
+      setProgress(progress_percent);
+
+      // 如果任务完成，更新状态
+      if (status === "completed" || status === "failed") {
+        setIsProcessing(false);
+        if (status === "completed") {
+          toast.success(`批量导入完成！成功: ${success_count}, 失败: ${failed_count}`);
+        } else {
+          toast.error("批量导入任务失败");
+        }
+      }
+    }
+  }, [taskProgress]);
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto px-4 sm:px-0">
@@ -315,32 +330,30 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
             </Button>
           </div>
 
-          {isProcessing || results.length > 0 ? (
+          {isProcessing || taskProgress ? (
             <div className="space-y-4 mt-6 border-t pt-6">
+              {taskId && (
+                <div className="text-sm text-muted-foreground">
+                  任务ID: <code className="bg-slate-100 px-1 rounded">{taskId}</code>
+                </div>
+              )}
               <div className="flex justify-between text-sm font-medium">
                 <span>进度</span>
-                <span>{currentCount.current} / {currentCount.total}</span>
+                <span>
+                  {currentCount.current} / {currentCount.total}
+                  {taskProgress && (
+                    <span className="ml-2 text-muted-foreground">
+                      (成功: {taskProgress.success_count}, 失败: {taskProgress.failed_count})
+                    </span>
+                  )}
+                </span>
               </div>
               <Progress value={progress} className="h-2" />
-              
-              <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded-md p-4 bg-slate-50">
-                {results.length === 0 && <p className="text-sm text-muted-foreground text-center">等待开始...</p>}
-                {results.map((res, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-sm">
-                    {res.status === "success" ? (
-                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                    )}
-                    <div className="flex-1 break-all">
-                      <span className="font-semibold">{res.email}</span>:{" "}
-                      <span className={res.status === "success" ? "text-green-700" : "text-red-700"}>
-                        {res.message}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              {taskProgress && (
+                <div className="text-sm text-muted-foreground">
+                  状态: <span className="font-medium">{taskProgress.status === "processing" ? "处理中" : taskProgress.status === "completed" ? "已完成" : taskProgress.status === "failed" ? "失败" : "等待中"}</span>
+                </div>
+              )}
             </div>
           ) : null}
         </CardContent>

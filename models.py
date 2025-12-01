@@ -172,6 +172,43 @@ class BatchDeleteResult(BaseModel):
     details: List[dict]
 
 
+class BatchImportItem(BaseModel):
+    """批量导入项模型"""
+    
+    email: str
+    refresh_token: str
+    client_id: str
+
+
+class BatchImportRequest(BaseModel):
+    """批量导入请求模型"""
+    
+    items: List[BatchImportItem]
+    api_method: str = "imap"
+    tags: List[str] = []
+
+
+class BatchImportTaskResponse(BaseModel):
+    """批量导入任务响应模型"""
+    
+    task_id: str
+    total_count: int
+    status: str
+    message: str
+
+
+class BatchImportTaskProgress(BaseModel):
+    """批量导入任务进度模型"""
+    
+    task_id: str
+    total_count: int
+    success_count: int
+    failed_count: int
+    processed_count: int
+    status: str
+    progress_percent: float
+
+
 class SendEmailRequest(BaseModel):
     """发送邮件请求模型"""
     

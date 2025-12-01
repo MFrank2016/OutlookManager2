@@ -9,13 +9,20 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
+import { useEffect, useState } from "react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const { theme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  // 避免 hydration mismatch
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={mounted ? (theme as ToasterProps["theme"]) : "light"}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

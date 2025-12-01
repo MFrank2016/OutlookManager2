@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Account } from "@/types";
 import { toast } from "sonner";
@@ -16,10 +16,15 @@ interface AccountsParams {
   page_size?: number;
   email_search?: string;
   tag_search?: string;
+  include_tags?: string;
+  exclude_tags?: string;
   refresh_status?: string;
 }
 
-export function useAccounts(params: AccountsParams = {}) {
+export function useAccounts(
+  params: AccountsParams = {},
+  options?: Omit<UseQueryOptions<AccountListResponse>, 'queryKey' | 'queryFn'>
+) {
   return useQuery({
     queryKey: ["accounts", params],
     queryFn: async () => {
@@ -29,11 +34,14 @@ export function useAccounts(params: AccountsParams = {}) {
             page_size: params.page_size || 10,
             email_search: params.email_search || undefined,
             tag_search: params.tag_search || undefined,
+            include_tags: params.include_tags || undefined,
+            exclude_tags: params.exclude_tags || undefined,
             refresh_status: params.refresh_status === "all" ? undefined : params.refresh_status,
         }
       });
       return data;
     },
+    ...options,
   });
 }
 

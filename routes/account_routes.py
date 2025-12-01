@@ -5,10 +5,14 @@
 """
 
 import logging
+import uuid
+import json
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional
+from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, BackgroundTasks
 
 import auth
 import database as db
@@ -24,6 +28,9 @@ from models import (
     BatchDeleteRequest,
     BatchDeleteResult,
     UpdateTagsRequest,
+    BatchImportRequest,
+    BatchImportTaskResponse,
+    BatchImportTaskProgress,
 )
 from oauth_service import get_access_token, refresh_account_token
 
@@ -98,7 +105,9 @@ async def get_accounts(
     page: int = Query(1, ge=1, description="页码，从1开始"),
     page_size: int = Query(10, ge=1, le=100, description="每页数量，范围1-100"),
     email_search: Optional[str] = Query(None, description="邮箱账号模糊搜索"),
-    tag_search: Optional[str] = Query(None, description="标签模糊搜索"),
+    tag_search: Optional[str] = Query(None, description="标签模糊搜索（已废弃，使用include_tags代替）"),
+    include_tags: Optional[str] = Query(None, description="必须包含的标签，多个用逗号分隔"),
+    exclude_tags: Optional[str] = Query(None, description="必须不包含的标签，多个用逗号分隔"),
     refresh_status: Optional[str] = Query(None, description="刷新状态筛选 (all, never_refreshed, success, failed, pending, custom)"),
     time_filter: Optional[str] = Query(None, description="时间过滤器 (today, week, month, custom)"),
     after_date: Optional[str] = Query(None, description="自定义日期（ISO格式）"),
@@ -108,9 +117,14 @@ async def get_accounts(
 ):
     """获取已加载的邮箱账户列表，支持分页和多维度搜索（根据用户权限过滤）"""
     try:
+        # 解析标签列表
+        include_tag_list = [tag.strip() for tag in include_tags.split(",")] if include_tags else None
+        exclude_tag_list = [tag.strip() for tag in exclude_tags.split(",")] if exclude_tags else None
+        
         logger.info(f"[API] GET /accounts 收到请求 (user: {user.get('username')}, role: {user.get('role')})")
         logger.info(f"  page={page}, page_size={page_size}")
         logger.info(f"  email_search={email_search}, tag_search={tag_search}")
+        logger.info(f"  include_tags={include_tag_list}, exclude_tags={exclude_tag_list}")
         logger.info(f"  refresh_status={refresh_status}, time_filter={time_filter}")
         logger.info(f"  after_date={after_date}")
         logger.info(f"  refresh_start_date={refresh_start_date}")
@@ -122,6 +136,8 @@ async def get_accounts(
             page_size=page_size,
             email_search=email_search,
             tag_search=tag_search,
+            include_tags=include_tag_list,
+            exclude_tags=exclude_tag_list,
             refresh_status=refresh_status,
             time_filter=time_filter,
             after_date=after_date,
@@ -573,4 +589,177 @@ async def detect_api_method_route(
     except Exception as e:
         logger.error(f"Error detecting API method for {email_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to detect API method")
+
+
+# 线程池执行器（用于批量导入任务）
+executor = ThreadPoolExecutor(max_workers=5)
+
+
+async def process_batch_import_task(task_id: str):
+    """
+    后台处理批量导入任务
+    
+    Args:
+        task_id: 任务ID
+    """
+    try:
+        logger.info(f"Starting batch import task: {task_id}")
+        
+        # 更新任务状态为处理中
+        db.update_batch_import_task_progress(task_id, status="processing")
+        
+        # 获取任务信息
+        task = db.get_batch_import_task(task_id)
+        if not task:
+            logger.error(f"Task {task_id} not found")
+            return
+        
+        # 获取任务项
+        items = db.get_batch_import_task_items(task_id, status="pending")
+        total = len(items)
+        
+        logger.info(f"Processing {total} items for task {task_id}")
+        
+        success_count = 0
+        failed_count = 0
+        
+        # 处理每个任务项
+        for item in items:
+            try:
+                # 构建凭证对象
+                credentials = AccountCredentials(
+                    email=item['email'],
+                    refresh_token=item['refresh_token'],
+                    client_id=item['client_id'],
+                    tags=json.loads(task['tags']) if task.get('tags') else [],
+                    api_method=task.get('api_method', 'imap')
+                )
+                
+                # 验证凭证有效性
+                await get_access_token(credentials)
+                
+                # 保存凭证
+                await save_account_credentials(credentials.email, credentials)
+                
+                # 更新任务项状态
+                db.update_batch_import_task_item(task_id, item['email'], "success")
+                success_count += 1
+                
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Failed to import {item['email']}: {error_msg}")
+                db.update_batch_import_task_item(task_id, item['email'], "failed", error_msg)
+                failed_count += 1
+            
+            # 更新任务进度
+            processed_count = success_count + failed_count
+            db.update_batch_import_task_progress(
+                task_id,
+                success_count=success_count,
+                failed_count=failed_count,
+                processed_count=processed_count
+            )
+        
+        # 更新任务状态为完成
+        db.update_batch_import_task_progress(task_id, status="completed")
+        logger.info(f"Batch import task {task_id} completed: {success_count} success, {failed_count} failed")
+        
+    except Exception as e:
+        logger.error(f"Error processing batch import task {task_id}: {e}")
+        db.update_batch_import_task_progress(task_id, status="failed")
+
+
+@router.post("/batch-import", response_model=BatchImportTaskResponse)
+async def create_batch_import_task(
+    request: BatchImportRequest,
+    background_tasks: BackgroundTasks,
+    admin: dict = Depends(auth.get_current_admin),
+):
+    """创建批量导入任务"""
+    try:
+        if not request.items:
+            raise HTTPException(status_code=400, detail="Items list cannot be empty")
+        
+        # 生成任务ID
+        task_id = str(uuid.uuid4())
+        
+        # 创建任务
+        success = db.create_batch_import_task(
+            task_id=task_id,
+            total_count=len(request.items),
+            api_method=request.api_method,
+            tags=request.tags,
+            created_by=admin.get('username')
+        )
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to create batch import task")
+        
+        # 添加任务项
+        task_items = [
+            {
+                'email': item.email,
+                'refresh_token': item.refresh_token,
+                'client_id': item.client_id
+            }
+            for item in request.items
+        ]
+        
+        success = db.add_batch_import_task_items(task_id, task_items)
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to add batch import task items")
+        
+        # 启动后台任务
+        background_tasks.add_task(process_batch_import_task, task_id)
+        
+        logger.info(f"Created batch import task {task_id} with {len(request.items)} items by {admin['username']}")
+        
+        return BatchImportTaskResponse(
+            task_id=task_id,
+            total_count=len(request.items),
+            status="pending",
+            message="Batch import task created successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating batch import task: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create batch import task: {str(e)}")
+
+
+@router.get("/batch-import/{task_id}", response_model=BatchImportTaskProgress)
+async def get_batch_import_task_progress(
+    task_id: str,
+    admin: dict = Depends(auth.get_current_admin),
+):
+    """获取批量导入任务进度"""
+    try:
+        task = db.get_batch_import_task(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        total = task['total_count']
+        processed = task['processed_count']
+        success = task['success_count']
+        failed = task['failed_count']
+        status = task['status']
+        
+        progress_percent = (processed / total * 100) if total > 0 else 0
+        
+        return BatchImportTaskProgress(
+            task_id=task_id,
+            total_count=total,
+            success_count=success,
+            failed_count=failed,
+            processed_count=processed,
+            status=status,
+            progress_percent=round(progress_percent, 2)
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting batch import task progress: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get task progress")
 
