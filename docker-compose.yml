@@ -1,46 +1,53 @@
 version: "3.8"
 
 services:
-  outlook-email-client:
+  outlook-email-api:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        - BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+    image: outlook-email-api:latest
     container_name: outlook-email-api
     ports:
-      - "8001:8000"
+      - "${PORT:-8001}:8000"
     volumes:
       # 数据持久化 - SQLite数据库文件
       - ./data.db:/app/data.db
       # 日志持久化 - 保留30天日志
       - ./logs:/app/logs
       # 可选：旧版JSON文件（用于迁移）
-      - ./accounts.json:/app/accounts.json
-      # 时区配置 - 挂载宿主机时区文件
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
+      - ./accounts.json:/app/accounts.json:ro
+      # 注意：时区配置在 Dockerfile 中已设置，以下挂载仅适用于 Linux/Mac
+      # Windows 用户请注释掉以下两行，或使用环境变量 TZ=Asia/Shanghai
+      # - /etc/localtime:/etc/localtime:ro
+      # - /etc/timezone:/etc/timezone:ro
+    env_file:
+      - .env
     environment:
       # 可以通过环境变量覆盖默认配置
       - PYTHONUNBUFFERED=1
-      - HOST=0.0.0.0
-      - PORT=8000
+      - PYTHONDONTWRITEBYTECODE=1
+      - HOST=${HOST:-0.0.0.0}
+      - PORT=${PORT:-8000}
       # 时区设置为东8区
-      - TZ=Asia/Shanghai
+      - TZ=${TZ:-Asia/Shanghai}
+      # 日志级别
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     restart: unless-stopped
     healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api')",
-        ]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     networks:
       - outlook-network
+    labels:
+      - "com.outlook.email.description=Outlook邮件管理系统API服务"
+      - "com.outlook.email.version=latest"
 
 networks:
   outlook-network:
     driver: bridge
+    name: outlook-network

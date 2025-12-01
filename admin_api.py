@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 import auth
 import database as db
+import cache_service
 from models import (
     UserCreateRequest,
     UserUpdateRequest,
@@ -390,7 +391,14 @@ async def get_cache_statistics(admin: dict = Depends(auth.get_current_admin)):
     返回缓存大小、记录数、命中率等统计数据
     """
     try:
+        # 获取SQLite缓存统计
         stats = db.check_cache_size()
+        
+        # 获取内存LRU缓存统计
+        lru_stats = cache_service.get_cache_stats()
+        
+        # 合并统计信息
+        stats['lru_cache'] = lru_stats
         
         # 计算缓存命中率（基于access_count）
         with db.get_db_connection() as conn:
@@ -450,7 +458,9 @@ async def clear_account_cache(
             cursor.execute("SELECT COUNT(*) FROM email_details_cache WHERE email_account = ?", (email_id,))
             details_count = cursor.fetchone()[0]
         
-        # 清除缓存
+        # 清除缓存（包括LRU内存缓存和SQLite缓存）
+        cache_service.clear_email_cache(email_id)
+        cache_service.clear_cached_access_token(email_id)
         success = db.clear_email_cache_db(email_id)
         
         if success:
@@ -487,7 +497,9 @@ async def clear_all_cache(admin: dict = Depends(auth.get_current_admin)):
             cursor.execute("SELECT COUNT(*) FROM email_details_cache")
             details_count = cursor.fetchone()[0]
         
-        # 清除所有缓存
+        # 清除所有缓存（包括LRU内存缓存和SQLite缓存）
+        cache_service.clear_all_cache()
+        
         with db.get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM emails_cache")
@@ -495,7 +507,7 @@ async def clear_all_cache(admin: dict = Depends(auth.get_current_admin)):
             conn.commit()
         
         return CacheManagementResponse(
-            message="已清除所有缓存",
+            message="已清除所有缓存（包括LRU内存缓存和SQLite缓存）",
             deleted_count=emails_count + details_count,
             details={
                 'emails_deleted': emails_count,

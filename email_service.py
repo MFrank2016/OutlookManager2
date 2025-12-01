@@ -16,7 +16,7 @@ from email.utils import parsedate_to_datetime
 from fastapi import HTTPException
 
 import database as db
-from cache_service import get_cache_key, get_cached_emails, set_cached_emails
+import cache_service
 from email_utils import decode_header_value, extract_email_content
 from imap_pool import imap_pool
 from models import AccountCredentials, EmailDetailsResponse, EmailItem, EmailListResponse
@@ -55,7 +55,29 @@ async def list_emails(
             start_time, end_time
         )
 
-    # 优先从 SQLite 缓存获取
+    # 优先从内存LRU缓存获取
+    if not force_refresh:
+        cached_data = cache_service.get_cached_email_list(
+            email=credentials.email,
+            folder=folder,
+            page=page,
+            page_size=page_size,
+            sender_search=sender_search,
+            subject_search=subject_search,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            start_time=start_time,
+            end_time=end_time,
+            force_refresh=force_refresh
+        )
+        
+        if cached_data:
+            from_cache = True
+            fetch_time_ms = int((time.time() - start_time_ms) * 1000)
+            logger.info(f"Returning {len(cached_data.get('emails', []))} cached emails from LRU cache for {credentials.email} ({fetch_time_ms}ms)")
+            return EmailListResponse(**cached_data)
+    
+    # 从 SQLite 缓存获取
     if not force_refresh:
         try:
             cached_emails, total = db.get_cached_emails(
@@ -78,7 +100,7 @@ async def list_emails(
                 email_items = [
                     EmailItem(**email) for email in cached_emails
                 ]
-                return EmailListResponse(
+                response = EmailListResponse(
                     email_id=credentials.email,
                     folder_view=folder,
                     page=page,
@@ -88,6 +110,21 @@ async def list_emails(
                     from_cache=from_cache,
                     fetch_time_ms=fetch_time_ms
                 )
+                # 缓存到内存LRU缓存
+                cache_service.set_cached_email_list(
+                    email=credentials.email,
+                    folder=folder,
+                    page=page,
+                    page_size=page_size,
+                    data=response.dict(),
+                    sender_search=sender_search,
+                    subject_search=subject_search,
+                    sort_by=sort_by,
+                    sort_order=sort_order,
+                    start_time=start_time,
+                    end_time=end_time
+                )
+                return response
         except Exception as e:
             logger.warning(f"Failed to load from cache, fetching from IMAP: {e}")
 
@@ -311,9 +348,23 @@ async def list_emails(
                 fetch_time_ms=fetch_time_ms
             )
 
-            # 保留内存缓存（用于向后兼容）
-            cache_key = get_cache_key(credentials.email, folder, page, page_size)
-            set_cached_emails(cache_key, result)
+            # 缓存到内存LRU缓存
+            try:
+                cache_service.set_cached_email_list(
+                    email=credentials.email,
+                    folder=folder,
+                    page=page,
+                    page_size=page_size,
+                    data=result.dict(),
+                    sender_search=sender_search,
+                    subject_search=subject_search,
+                    sort_by=sort_by,
+                    sort_order=sort_order,
+                    start_time=start_time,
+                    end_time=end_time
+                )
+            except Exception as e:
+                logger.warning(f"Failed to cache emails to LRU cache: {e}")
             
             logger.info(f"Fetched {len(email_items)} emails from IMAP for {credentials.email} ({fetch_time_ms}ms)")
 
@@ -368,11 +419,19 @@ async def get_email_details(
         from graph_api_service import get_email_details_graph
         return await get_email_details_graph(credentials, message_id)
     
-    # 先尝试从 SQLite 缓存获取
+    # 优先从内存LRU缓存获取
+    cached_detail = cache_service.get_cached_email_detail(credentials.email, message_id)
+    if cached_detail:
+        logger.info(f"Returning cached email detail from LRU cache for {message_id}")
+        return EmailDetailsResponse(**cached_detail)
+    
+    # 从 SQLite 缓存获取
     try:
         cached_detail = db.get_cached_email_detail(credentials.email, message_id)
         if cached_detail:
             logger.info(f"Returning cached email detail from SQLite for {message_id}")
+            # 缓存到内存LRU缓存
+            cache_service.set_cached_email_detail(credentials.email, message_id, cached_detail)
             return EmailDetailsResponse(**cached_detail)
     except Exception as e:
         logger.warning(f"Failed to load email detail from cache: {e}")
@@ -459,6 +518,16 @@ async def get_email_details(
             except Exception as e:
                 logger.warning(f"Failed to cache email detail to SQLite: {e}")
             
+            # 缓存到内存LRU缓存
+            try:
+                cache_service.set_cached_email_detail(
+                    credentials.email, 
+                    message_id, 
+                    email_detail_response.dict()
+                )
+            except Exception as e:
+                logger.warning(f"Failed to cache email detail to LRU cache: {e}")
+            
             return email_detail_response
 
         except HTTPException:
@@ -517,7 +586,28 @@ async def list_emails_via_graph_api(
     from graph_api_service import list_emails_graph
     import time
     
-    # 优先从 SQLite 缓存获取
+    # 优先从内存LRU缓存获取
+    if not force_refresh:
+        cached_data = cache_service.get_cached_email_list(
+            email=credentials.email,
+            folder=folder,
+            page=page,
+            page_size=page_size,
+            sender_search=sender_search,
+            subject_search=subject_search,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            start_time=start_time,
+            end_time=end_time,
+            force_refresh=force_refresh
+        )
+        
+        if cached_data:
+            fetch_time_ms = int((time.time() - start_time_ms) * 1000)
+            logger.info(f"Returning cached emails from LRU cache for {credentials.email} ({fetch_time_ms}ms)")
+            return EmailListResponse(**cached_data)
+    
+    # 从 SQLite 缓存获取
     if not force_refresh:
         try:
             cached_emails, total = db.get_cached_emails(
@@ -537,7 +627,7 @@ async def list_emails_via_graph_api(
                 fetch_time_ms = int((time.time() - start_time_ms) * 1000)
                 logger.info(f"Returning {len(cached_emails)} cached emails from SQLite for {credentials.email} ({fetch_time_ms}ms)")
                 email_items = [EmailItem(**email) for email in cached_emails]
-                return EmailListResponse(
+                response = EmailListResponse(
                     email_id=credentials.email,
                     folder_view=folder,
                     page=page,
@@ -547,6 +637,21 @@ async def list_emails_via_graph_api(
                     from_cache=True,
                     fetch_time_ms=fetch_time_ms
                 )
+                # 缓存到内存LRU缓存
+                cache_service.set_cached_email_list(
+                    email=credentials.email,
+                    folder=folder,
+                    page=page,
+                    page_size=page_size,
+                    data=response.dict(),
+                    sender_search=sender_search,
+                    subject_search=subject_search,
+                    sort_by=sort_by,
+                    sort_order=sort_order,
+                    start_time=start_time,
+                    end_time=end_time
+                )
+                return response
         except Exception as e:
             logger.warning(f"Failed to load from cache, fetching from Graph API: {e}")
     
@@ -640,8 +745,7 @@ async def delete_email_via_imap(
                 db.delete_email_from_cache(credentials.email, message_id)
                 
                 # 清除内存缓存，因为页面内容变了
-                from cache_service import clear_email_cache
-                clear_email_cache(credentials.email)
+                cache_service.clear_email_cache(credentials.email)
             except Exception as e:
                 logger.warning(f"Failed to delete email from cache: {e}")
                 

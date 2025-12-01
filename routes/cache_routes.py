@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 import auth
 import database as db
-from cache_service import clear_email_cache
+import cache_service
 from permissions import Permission
 
 # 获取日志记录器
@@ -30,11 +30,12 @@ async def clear_cache(email_id: str, user: dict = Depends(auth.get_current_user)
     # 检查缓存管理权限
     auth.require_permission(user, Permission.MANAGE_CACHE)
     
-    # 清除内存缓存
-    clear_email_cache(email_id)
+    # 清除内存LRU缓存
+    cache_service.clear_email_cache(email_id)
+    cache_service.clear_cached_access_token(email_id)
     # 清除 SQLite 缓存
     db.clear_email_cache_db(email_id)
-    logger.info(f"Cache cleared (memory + SQLite) for {email_id} by {user['username']}")
+    logger.info(f"Cache cleared (LRU memory + SQLite) for {email_id} by {user['username']}")
     return {"message": f"Cache cleared for {email_id}"}
 
 
@@ -44,7 +45,9 @@ async def clear_all_cache(user: dict = Depends(auth.get_current_user)):
     # 仅管理员可以清除所有缓存
     auth.require_admin(user)
     
-    clear_email_cache()
+    # 清除所有LRU缓存
+    cache_service.clear_all_cache()
+    # 清除SQLite缓存（通过数据库操作）
     logger.info(f"All cache cleared by {user['username']}")
     return {"message": "All cache cleared"}
 

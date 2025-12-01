@@ -201,10 +201,19 @@ async def register_account(
 ):
     """注册或更新邮箱账户"""
     try:
-        # 验证凭证有效性
+        # 验证凭证有效性并获取access token
         await get_access_token(credentials)
 
-        # 保存凭证
+        # 更新凭证的刷新时间和状态
+        current_time = datetime.now().isoformat()
+        next_refresh = datetime.now() + timedelta(days=3)
+        
+        credentials.last_refresh_time = current_time
+        credentials.next_refresh_time = next_refresh.isoformat()
+        credentials.refresh_status = "success"
+        credentials.refresh_error = None
+
+        # 保存凭证（包含access token和刷新时间）
         await save_account_credentials(credentials.email, credentials)
 
         return AccountResponse(
@@ -640,10 +649,19 @@ async def process_batch_import_task(task_id: str):
                     api_method=task.get('api_method', 'imap')
                 )
                 
-                # 验证凭证有效性
+                # 验证凭证有效性并获取access token
                 await get_access_token(credentials)
                 
-                # 保存凭证
+                # 更新凭证的刷新时间和状态
+                current_time = datetime.now().isoformat()
+                next_refresh = datetime.now() + timedelta(days=3)
+                
+                credentials.last_refresh_time = current_time
+                credentials.next_refresh_time = next_refresh.isoformat()
+                credentials.refresh_status = "success"
+                credentials.refresh_error = None
+                
+                # 保存凭证（包含access token和刷新时间）
                 await save_account_credentials(credentials.email, credentials)
                 
                 # 更新任务项状态

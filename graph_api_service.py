@@ -15,6 +15,8 @@ from fastapi import HTTPException
 from config import GRAPH_API_BASE_URL, GRAPH_API_SCOPE, TOKEN_URL
 from models import AccountCredentials, EmailItem, EmailDetailsResponse
 from verification_code_detector import detect_verification_code
+import database as db
+import cache_service
 
 # 获取日志记录器
 logger = logging.getLogger(__name__)
@@ -294,6 +296,23 @@ async def get_email_details_graph(
     Returns:
         EmailDetailsResponse: 邮件详情
     """
+    # 优先从内存LRU缓存获取
+    cached_detail = cache_service.get_cached_email_detail(credentials.email, message_id)
+    if cached_detail:
+        logger.info(f"Returning cached email detail from LRU cache for {message_id}")
+        return EmailDetailsResponse(**cached_detail)
+    
+    # 从 SQLite 缓存获取
+    try:
+        cached_detail = db.get_cached_email_detail(credentials.email, message_id)
+        if cached_detail:
+            logger.info(f"Returning cached email detail from SQLite for {message_id}")
+            # 缓存到内存LRU缓存
+            cache_service.set_cached_email_detail(credentials.email, message_id, cached_detail)
+            return EmailDetailsResponse(**cached_detail)
+    except Exception as e:
+        logger.warning(f"Failed to load email detail from cache: {e}")
+    
     access_token = await get_graph_access_token(credentials)
     
     headers = {
@@ -355,7 +374,7 @@ async def get_email_details_graph(
             except Exception as e:
                 logger.warning(f"Failed to detect verification code: {e}")
             
-            return EmailDetailsResponse(
+            email_detail_response = EmailDetailsResponse(
                 message_id=message_id,
                 subject=subject,
                 from_email=from_email,
@@ -365,6 +384,25 @@ async def get_email_details_graph(
                 body_html=body_html,
                 verification_code=verification_code
             )
+            
+            # 缓存到 SQLite
+            try:
+                db.cache_email_detail(credentials.email, email_detail_response.dict())
+                logger.info(f"Cached email detail to SQLite for {message_id}")
+            except Exception as e:
+                logger.warning(f"Failed to cache email detail to SQLite: {e}")
+            
+            # 缓存到内存LRU缓存
+            try:
+                cache_service.set_cached_email_detail(
+                    credentials.email, 
+                    message_id, 
+                    email_detail_response.dict()
+                )
+            except Exception as e:
+                logger.warning(f"Failed to cache email detail to LRU cache: {e}")
+            
+            return email_detail_response
             
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
@@ -411,8 +449,7 @@ async def delete_email_graph(
                 db.delete_email_from_cache(credentials.email, message_id)
                 
                 # 清除内存缓存
-                from cache_service import clear_email_cache
-                clear_email_cache(credentials.email)
+                cache_service.clear_email_cache(credentials.email)
             except Exception as e:
                 logger.warning(f"Failed to delete email from cache: {e}")
             
