@@ -39,9 +39,9 @@ def setup_logger():
 
     # 控制台处理器
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
+    console_handler.setLevel(logging.DEBUG)  # 改为 DEBUG 级别以捕获更多信息
     console_formatter = logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        "%(asctime)s - %(name)s - [%(levelname)s] - %(filename)s:%(lineno)d - %(message)s"
     )
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)

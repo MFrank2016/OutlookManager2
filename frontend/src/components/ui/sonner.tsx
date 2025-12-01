@@ -15,14 +15,19 @@ const Toaster = ({ ...props }: ToasterProps) => {
   const { theme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
-  // 避免 hydration mismatch
+  // 避免 hydration mismatch - 只在客户端挂载后渲染
   useEffect(() => {
     setMounted(true)
   }, [])
 
+  // 服务器端不渲染，避免 hydration mismatch
+  if (!mounted) {
+    return null
+  }
+
   return (
     <Sonner
-      theme={mounted ? (theme as ToasterProps["theme"]) : "light"}
+      theme={theme as ToasterProps["theme"]}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

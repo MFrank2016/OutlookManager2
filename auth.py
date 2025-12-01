@@ -4,6 +4,7 @@ JWT认证模块
 提供用户认证、JWT token生成和验证、密码加密等功能
 """
 
+import asyncio
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
@@ -12,7 +13,7 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import database as db
 
@@ -71,8 +72,8 @@ class UserInfo(BaseModel):
     username: str
     email: Optional[str] = None
     role: str  # admin or user
-    bound_accounts: list = []
-    permissions: list = []
+    bound_accounts: list = Field(default_factory=list)
+    permissions: list = Field(default_factory=list)
     is_active: bool
     created_at: str
     last_login: Optional[str] = None
@@ -201,18 +202,38 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
     Returns:
         用户信息字典或None
     """
-    user = db.get_user_by_username(username)
+    import logging
+    auth_logger = logging.getLogger(__name__)
     
-    if not user:
+    try:
+        user = db.get_user_by_username(username)
+        
+        if not user:
+            auth_logger.debug(f"User not found: {username}")
+            return None
+        
+        # 检查账户是否激活（SQLite返回0/1，需要转换为布尔值）
+        is_active = bool(user.get('is_active')) if user.get('is_active') is not None else False
+        if not is_active:
+            auth_logger.debug(f"User account is inactive: {username}")
+            return None
+        
+        # 验证密码
+        try:
+            password_valid = verify_password(password, user['password_hash'])
+            if not password_valid:
+                auth_logger.debug(f"Password verification failed for user: {username}")
+                return None
+        except Exception as e:
+            auth_logger.error(f"Error verifying password for {username}: {e}", exc_info=True)
+            return None
+        
+        auth_logger.debug(f"Authentication successful for user: {username}")
+        return user
+        
+    except Exception as e:
+        auth_logger.error(f"Unexpected error in authenticate_user for {username}: {e}", exc_info=True)
         return None
-    
-    if not verify_password(password, user['password_hash']):
-        return None
-    
-    if not user['is_active']:
-        return None
-    
-    return user
 
 
 # 向后兼容的别名
@@ -258,7 +279,10 @@ async def get_current_user(
     if api_key:
         if verify_api_key(api_key):
             # API Key认证成功，返回默认管理员（第一个管理员）
-            admins = db.get_users_by_role("admin")
+            # 使用API请求专用线程池，避免被后台任务阻塞（延迟导入避免循环依赖）
+            loop = asyncio.get_event_loop()
+            import main
+            admins = await loop.run_in_executor(main.api_requests_executor, db.get_users_by_role, "admin")
             if admins:
                 user = admins[0]
                 if user.get('is_active'):
@@ -273,7 +297,10 @@ async def get_current_user(
     if credentials and credentials.scheme.lower() == "apikey":
         if verify_api_key(credentials.credentials):
             # API Key认证成功
-            admins = db.get_users_by_role("admin")
+            # 使用API请求专用线程池，避免被后台任务阻塞（延迟导入避免循环依赖）
+            loop = asyncio.get_event_loop()
+            import main
+            admins = await loop.run_in_executor(main.api_requests_executor, db.get_users_by_role, "admin")
             if admins:
                 user = admins[0]
                 if user.get('is_active'):
@@ -289,7 +316,10 @@ async def get_current_user(
         token = credentials.credentials
         token_data = verify_token(token)
         
-        user = db.get_user_by_username(token_data.username)
+        # 使用API请求专用线程池，避免被后台任务阻塞（延迟导入避免循环依赖）
+        loop = asyncio.get_event_loop()
+        import main
+        user = await loop.run_in_executor(main.api_requests_executor, db.get_user_by_username, token_data.username)
         
         if user is None:
             raise HTTPException(

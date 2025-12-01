@@ -130,19 +130,24 @@ async def get_accounts(
         logger.info(f"  refresh_start_date={refresh_start_date}")
         logger.info(f"  refresh_end_date={refresh_end_date}")
         
-        # 使用新的筛选函数
-        accounts_data, total_accounts = db.get_accounts_by_filters(
-            page=page,
-            page_size=page_size,
-            email_search=email_search,
-            tag_search=tag_search,
-            include_tags=include_tag_list,
-            exclude_tags=exclude_tag_list,
-            refresh_status=refresh_status,
-            time_filter=time_filter,
-            after_date=after_date,
-            refresh_start_date=refresh_start_date,
-            refresh_end_date=refresh_end_date,
+        # 使用新的筛选函数（使用API请求专用线程池，避免被后台任务阻塞）
+        import asyncio
+        from main import api_requests_executor
+        loop = asyncio.get_event_loop()
+        accounts_data, total_accounts = await loop.run_in_executor(
+            api_requests_executor,
+            db.get_accounts_by_filters,
+            page,
+            page_size,
+            email_search,
+            tag_search,
+            include_tag_list,
+            exclude_tag_list,
+            refresh_status,
+            time_filter,
+            after_date,
+            refresh_start_date,
+            refresh_end_date,
         )
         
         # 根据用户权限过滤账户

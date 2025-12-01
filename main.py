@@ -10,13 +10,14 @@ Version: 2.0.0
 
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -50,6 +51,14 @@ logger = setup_logger()
 # 初始化Jinja2模板
 templates = Jinja2Templates(directory="static/templates")
 
+# API请求专用的线程池执行器（用于处理API请求中的同步数据库操作）
+# 限制并发数为5，确保API请求能及时响应
+api_requests_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="api-request")
+
+# 后台任务专用的线程池执行器（独立于API请求的线程池）
+# 限制并发数为2，避免占用过多资源
+background_tasks_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="bg-task")
+
 
 # ============================================================================
 # 后台任务
@@ -60,108 +69,200 @@ async def token_refresh_background_task():
     """后台定时任务：每天刷新所有账户的token"""
     logger.info("Token refresh background task started")
 
-    while True:
-        try:
-            logger.info("Starting scheduled token refresh for all accounts...")
+    try:
+        while True:
+            try:
+                logger.info("Starting scheduled token refresh for all accounts...")
 
-            # 分批获取所有账户（避免一次性加载过多数据）
-            page = 1
-            page_size = 1000
-            all_accounts = []
-            
-            while True:
-                accounts_data, total = db.get_all_accounts_db(page=page, page_size=page_size)
-                if not accounts_data:
-                    break
-                all_accounts.extend(accounts_data)
-                logger.info(f"Loaded {len(accounts_data)} accounts from page {page}, total loaded: {len(all_accounts)}/{total}")
+                # 分批获取所有账户（避免一次性加载过多数据）
+                # 使用后台任务专用线程池执行同步数据库操作，避免阻塞事件循环
+                page = 1
+                page_size = 1000
+                all_accounts = []
+                loop = asyncio.get_event_loop()
                 
-                # 如果已经获取了所有账户，退出循环
-                if len(all_accounts) >= total:
-                    break
-                page += 1
+                while True:
+                    accounts_data, total = await loop.run_in_executor(
+                        background_tasks_executor,
+                        db.get_all_accounts_db, page, page_size
+                    )
+                    if not accounts_data:
+                        break
+                    all_accounts.extend(accounts_data)
+                    logger.info(f"Loaded {len(accounts_data)} accounts from page {page}, total loaded: {len(all_accounts)}/{total}")
+                    
+                    # 如果已经获取了所有账户，退出循环
+                    if len(all_accounts) >= total:
+                        break
+                    page += 1
 
-            if not all_accounts:
-                logger.info("No accounts to refresh")
-                await asyncio.sleep(24 * 60 * 60)  # 等待1天
-                continue
+                if not all_accounts:
+                    logger.info("No accounts to refresh")
+                    # 使用可中断的sleep，每10分钟检查一次取消信号
+                    for _ in range(144):  # 24小时 = 144个10分钟
+                        await asyncio.sleep(600)  # 10分钟
+                    continue
 
-            logger.info(f"Total accounts to refresh: {len(all_accounts)}")
+                logger.info(f"Total accounts loaded: {len(all_accounts)}")
 
-            # 使用信号量限制并发数为10
-            semaphore = asyncio.Semaphore(10)
-            
-            async def refresh_single_token(account_data: dict):
-                """刷新单个账户的token（使用信号量限制并发）"""
-                async with semaphore:
+                # 过滤需要刷新的账户（检查24小时最小刷新间隔）
+                accounts_to_refresh = []
+                current_time = datetime.now()
+                min_refresh_interval = timedelta(hours=24)
+                
+                for account_data in all_accounts:
                     email_id = account_data["email"]
+                    last_refresh_time_str = account_data.get("last_refresh_time")
+                    
+                    # 如果没有最后刷新时间，需要刷新
+                    if not last_refresh_time_str:
+                        accounts_to_refresh.append(account_data)
+                        continue
+                    
                     try:
-                        # 构建凭证对象
-                        credentials = AccountCredentials(
-                            email=email_id,
-                            refresh_token=account_data["refresh_token"],
-                            client_id=account_data["client_id"],
-                            tags=account_data.get("tags", []),
-                            last_refresh_time=account_data.get("last_refresh_time"),
-                            next_refresh_time=account_data.get("next_refresh_time"),
-                            refresh_status=account_data.get("refresh_status", "pending"),
-                            refresh_error=account_data.get("refresh_error"),
-                            api_method=account_data.get("api_method", "imap"),  # 支持graph邮箱刷新
-                        )
-
-                        # 刷新token
-                        result = await refresh_account_token(credentials)
-
-                        # 更新账户信息
-                        current_time = datetime.now().isoformat()
-                        next_refresh = datetime.now() + timedelta(days=3)
-
-                        if result["success"]:
-                            db.update_account(
-                                email_id,
-                                refresh_token=result["new_refresh_token"],
-                                last_refresh_time=current_time,
-                                next_refresh_time=next_refresh.isoformat(),
-                                refresh_status="success",
-                                refresh_error=None,
-                            )
-                            logger.info(f"Successfully refreshed token for {email_id}")
-                            return True
+                        # 解析最后刷新时间
+                        last_refresh_time = datetime.fromisoformat(last_refresh_time_str.replace('Z', '+00:00'))
+                        # 处理时区问题（如果时间戳没有时区信息，假设为本地时间）
+                        if last_refresh_time.tzinfo is None:
+                            last_refresh_time = last_refresh_time.replace(tzinfo=None)
+                            current_time_local = current_time.replace(tzinfo=None)
                         else:
-                            db.update_account(
-                                email_id,
-                                refresh_status="failed",
-                                refresh_error=result.get("error", "Unknown error"),
+                            current_time_local = current_time
+                        
+                        # 计算距离上次刷新的时间间隔
+                        time_since_refresh = current_time_local - last_refresh_time
+                        
+                        # 如果距离上次刷新超过24小时，则需要刷新
+                        if time_since_refresh >= min_refresh_interval:
+                            accounts_to_refresh.append(account_data)
+                        else:
+                            hours_remaining = (min_refresh_interval - time_since_refresh).total_seconds() / 3600
+                            logger.debug(
+                                f"Skipping {email_id}: last refreshed {time_since_refresh.total_seconds() / 3600:.1f}h ago, "
+                                f"need to wait {hours_remaining:.1f}h more"
                             )
-                            logger.error(
-                                f"Failed to refresh token for {email_id}: {result.get('error')}"
+                    except (ValueError, TypeError) as e:
+                        # 如果时间解析失败，需要刷新
+                        logger.warning(f"Failed to parse last_refresh_time for {email_id}: {e}, will refresh")
+                        accounts_to_refresh.append(account_data)
+                
+                logger.info(
+                    f"Accounts to refresh: {len(accounts_to_refresh)}/{len(all_accounts)} "
+                    f"(skipped {len(all_accounts) - len(accounts_to_refresh)} within 24h interval)"
+                )
+                
+                if not accounts_to_refresh:
+                    logger.info("No accounts need token refresh (all within 24h interval)")
+                    # 等待1小时后再次检查
+                    for _ in range(6):  # 1小时 = 6个10分钟
+                        await asyncio.sleep(600)  # 10分钟
+                    continue
+
+                # 使用信号量限制并发数为2
+                semaphore = asyncio.Semaphore(2)
+                
+                async def refresh_single_token(account_data: dict):
+                    """刷新单个账户的token（使用信号量限制并发）"""
+                    async with semaphore:
+                        email_id = account_data["email"]
+                        try:
+                            # 构建凭证对象
+                            credentials = AccountCredentials(
+                                email=email_id,
+                                refresh_token=account_data["refresh_token"],
+                                client_id=account_data["client_id"],
+                                tags=account_data.get("tags", []),
+                                last_refresh_time=account_data.get("last_refresh_time"),
+                                next_refresh_time=account_data.get("next_refresh_time"),
+                                refresh_status=account_data.get("refresh_status", "pending"),
+                                refresh_error=account_data.get("refresh_error"),
+                                api_method=account_data.get("api_method", "imap"),  # 支持graph邮箱刷新
+                            )
+
+                            # 刷新token
+                            result = await refresh_account_token(credentials)
+
+                            # 更新账户信息
+                            current_time = datetime.now().isoformat()
+                            next_refresh = datetime.now() + timedelta(days=3)
+
+                            if result["success"]:
+                                # 使用后台任务专用线程池执行同步数据库操作
+                                loop = asyncio.get_event_loop()
+                                await loop.run_in_executor(
+                                    background_tasks_executor,
+                                    db.update_account,
+                                    email_id,
+                                    refresh_token=result["new_refresh_token"],
+                                    last_refresh_time=current_time,
+                                    next_refresh_time=next_refresh.isoformat(),
+                                    refresh_status="success",
+                                    refresh_error=None,
+                                )
+                                logger.info(f"Successfully refreshed token for {email_id}")
+                                return True
+                            else:
+                                # 使用后台任务专用线程池执行同步数据库操作
+                                loop = asyncio.get_event_loop()
+                                await loop.run_in_executor(
+                                    background_tasks_executor,
+                                    db.update_account,
+                                    email_id,
+                                    refresh_status="failed",
+                                    refresh_error=result.get("error", "Unknown error"),
+                                )
+                                logger.error(
+                                    f"Failed to refresh token for {email_id}: {result.get('error')}"
+                                )
+                                return False
+
+                        except Exception as e:
+                            logger.error(f"Error refreshing token for {email_id}: {e}")
+                            # 使用后台任务专用线程池执行同步数据库操作
+                            loop = asyncio.get_event_loop()
+                            await loop.run_in_executor(
+                                background_tasks_executor,
+                                db.update_account,
+                                email_id, 
+                                refresh_status="failed", 
+                                refresh_error=str(e)
                             )
                             return False
-
-                    except Exception as e:
-                        logger.error(f"Error refreshing token for {email_id}: {e}")
-                        db.update_account(
-                            email_id, refresh_status="failed", refresh_error=str(e)
-                        )
-                        return False
-            
-            # 并发执行所有token刷新任务
-            logger.info(f"Starting concurrent token refresh for {len(all_accounts)} accounts (max 10 concurrent)")
-            tasks = [refresh_single_token(account_data) for account_data in all_accounts]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # 统计结果
-            refresh_count = sum(1 for r in results if r is True)
-            failed_count = len(results) - refresh_count
-            
-            logger.info(
-                f"Token refresh completed: {refresh_count} succeeded, {failed_count} failed"
-            )
-            # 等待1天
-            await asyncio.sleep(24 * 60 * 60)  # 1天 = 86400秒
-        except Exception as e:
-            logger.error(f"Error in token refresh background task: {e}")
-            await asyncio.sleep(60 * 60)  # 出错后等待1小时再重试
+                
+                # 并发执行所有token刷新任务
+                logger.info(f"Starting concurrent token refresh for {len(accounts_to_refresh)} accounts (max 2 concurrent)")
+                tasks = [refresh_single_token(account_data) for account_data in accounts_to_refresh]
+                try:
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                except asyncio.CancelledError:
+                    logger.info("Token refresh task cancelled, stopping...")
+                    # 取消所有正在运行的任务
+                    for task in tasks:
+                        if not task.done():
+                            task.cancel()
+                    raise
+                
+                # 统计结果
+                refresh_count = sum(1 for r in results if r is True)
+                failed_count = len(results) - refresh_count
+                
+                logger.info(
+                    f"Token refresh completed: {refresh_count} succeeded, {failed_count} failed"
+                )
+                # 等待1天（使用可中断的sleep）
+                for _ in range(144):  # 24小时 = 144个10分钟
+                    await asyncio.sleep(600)  # 10分钟
+            except asyncio.CancelledError:
+                logger.info("Token refresh background task cancelled")
+                raise
+            except Exception as e:
+                logger.error(f"Error in token refresh background task: {e}")
+                # 出错后等待1小时再重试（使用可中断的sleep）
+                for _ in range(6):  # 1小时 = 6个10分钟
+                    await asyncio.sleep(600)  # 10分钟
+    except asyncio.CancelledError:
+        logger.info("Token refresh background task stopped")
+        raise
 
 
 async def email_sync_background_task():
@@ -175,102 +276,138 @@ async def email_sync_background_task():
     logger.info(f"Sync interval: {EMAIL_SYNC_INTERVAL} seconds ({EMAIL_SYNC_INTERVAL // 60} minutes)")
     
     # 首次启动延迟30秒，等待服务完全启动
-    await asyncio.sleep(30)
+    try:
+        await asyncio.sleep(30)
+    except asyncio.CancelledError:
+        logger.info("Email sync background task cancelled during startup")
+        raise
 
-    while True:
-        try:
-            logger.info("=== Running scheduled email sync ===")
+    try:
+        while True:
+            try:
+                logger.info("=== Running scheduled email sync ===")
 
-            # 分批获取所有账户（避免一次性加载过多数据）
-            page = 1
-            page_size = 1000
-            all_accounts = []
-            total = 0
-            
-            while True:
-                accounts, total = db.get_all_accounts_db(page=page, page_size=page_size)
-                if not accounts:
-                    break
-                all_accounts.extend(accounts)
-                logger.info(f"Loaded {len(accounts)} accounts from page {page}, total loaded: {len(all_accounts)}/{total}")
+                # 分批获取所有账户（避免一次性加载过多数据）
+                # 使用后台任务专用线程池执行同步数据库操作，避免阻塞事件循环
+                page = 1
+                page_size = 1000
+                all_accounts = []
+                total = 0
+                loop = asyncio.get_event_loop()
                 
-                # 如果已经获取了所有账户，退出循环
-                if len(all_accounts) >= total:
-                    break
-                page += 1
-            
-            if total == 0:
-                logger.info("No accounts found, skipping sync")
-                await asyncio.sleep(EMAIL_SYNC_INTERVAL)
-                continue
+                while True:
+                    accounts, total = await loop.run_in_executor(
+                        background_tasks_executor,
+                        db.get_all_accounts_db, page, page_size
+                    )
+                    if not accounts:
+                        break
+                    all_accounts.extend(accounts)
+                    logger.info(f"Loaded {len(accounts)} accounts from page {page}, total loaded: {len(all_accounts)}/{total}")
+                    
+                    # 如果已经获取了所有账户，退出循环
+                    if len(all_accounts) >= total:
+                        break
+                    page += 1
+                
+                if total == 0:
+                    logger.info("No accounts found, skipping sync")
+                    # 使用可中断的sleep
+                    sleep_interval = min(EMAIL_SYNC_INTERVAL, 60)  # 最多等待60秒
+                    sleep_count = EMAIL_SYNC_INTERVAL // sleep_interval
+                    for _ in range(sleep_count):
+                        await asyncio.sleep(sleep_interval)
+                    continue
 
-            logger.info(f"Found {total} accounts to sync")
+                logger.info(f"Found {total} accounts to sync")
 
-            # 使用信号量限制并发数为5
-            semaphore = asyncio.Semaphore(5)
-            
-            async def sync_single_account(account: dict):
-                """同步单个账户的邮件（使用信号量限制并发）"""
-                async with semaphore:
-                    email = account.get("email")
-                    try:
-                        logger.info(f"[{email}] Starting email sync...")
+                # 使用信号量限制并发数为2
+                semaphore = asyncio.Semaphore(2)
+                
+                async def sync_single_account(account: dict):
+                    """同步单个账户的邮件（使用信号量限制并发）"""
+                    async with semaphore:
+                        email = account.get("email")
+                        try:
+                            logger.info(f"[{email}] Starting email sync...")
 
-                        # 获取账户凭证
-                        credentials = await get_account_credentials(email)
+                            # 获取账户凭证
+                            credentials = await get_account_credentials(email)
 
-                        # 获取邮件列表（包含收件箱和垃圾邮件）
-                        result = await list_emails(
-                            credentials=credentials,
-                            folder="all",  # 获取所有文件夹
-                            page=1,
-                            page_size=EMAIL_SYNC_PAGE_SIZE,
-                            force_refresh=True,  # 强制从服务器获取最新数据
-                            sender_search=None,
-                            subject_search=None,
-                            sort_by="date",
-                            sort_order="desc",
-                        )
+                            # 获取邮件列表（包含收件箱和垃圾邮件）
+                            result = await list_emails(
+                                credentials=credentials,
+                                folder="all",  # 获取所有文件夹
+                                page=1,
+                                page_size=EMAIL_SYNC_PAGE_SIZE,
+                                force_refresh=True,  # 强制从服务器获取最新数据
+                                sender_search=None,
+                                subject_search=None,
+                                sort_by="date",
+                                sort_order="desc",
+                            )
 
-                        logger.info(
-                            f"[{email}] Successfully synced {len(result.emails)} emails "
-                            f"(total: {result.total_emails})"
-                        )
-                        return True
+                            logger.info(
+                                f"[{email}] Successfully synced {len(result.emails)} emails "
+                                f"(total: {result.total_emails})"
+                            )
+                            return True
 
-                    except Exception as e:
-                        logger.error(f"[{email}] Failed to sync emails: {e}")
-                        # 继续处理下一个账户，不中断整个流程
-                        return False
-                    finally:
-                        # 每个账户之间间隔2秒，避免过于频繁
-                        await asyncio.sleep(2)
-            
-            # 并发执行所有邮件同步任务
-            logger.info(f"Starting concurrent email sync for {total} accounts (max 5 concurrent)")
-            tasks = [sync_single_account(account) for account in all_accounts]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            # 统计结果
-            sync_count = sum(1 for r in results if r is True)
-            error_count = len(results) - sync_count
+                        except Exception as e:
+                            logger.error(f"[{email}] Failed to sync emails: {e}")
+                            # 继续处理下一个账户，不中断整个流程
+                            return False
+                        finally:
+                            # 每个账户之间间隔2秒，避免过于频繁
+                            try:
+                                await asyncio.sleep(2)
+                            except asyncio.CancelledError:
+                                logger.info(f"Email sync for {email} cancelled")
+                                raise
+                
+                # 并发执行所有邮件同步任务
+                logger.info(f"Starting concurrent email sync for {total} accounts (max 2 concurrent)")
+                tasks = [sync_single_account(account) for account in all_accounts]
+                try:
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
+                except asyncio.CancelledError:
+                    logger.info("Email sync task cancelled, stopping...")
+                    # 取消所有正在运行的任务
+                    for task in tasks:
+                        if not task.done():
+                            task.cancel()
+                    raise
+                
+                # 统计结果
+                sync_count = sum(1 for r in results if r is True)
+                error_count = len(results) - sync_count
 
-            logger.info(
-                f"=== Email sync completed. Success: {sync_count}/{total}, "
-                f"Errors: {error_count} ==="
-            )
+                logger.info(
+                    f"=== Email sync completed. Success: {sync_count}/{total}, "
+                    f"Errors: {error_count} ==="
+                )
 
-            # 等待下一次同步
-            await asyncio.sleep(EMAIL_SYNC_INTERVAL)
+                # 等待下一次同步（使用可中断的sleep）
+                sleep_interval = min(EMAIL_SYNC_INTERVAL, 60)  # 最多等待60秒
+                sleep_count = EMAIL_SYNC_INTERVAL // sleep_interval
+                for _ in range(sleep_count):
+                    await asyncio.sleep(sleep_interval)
 
-        except asyncio.CancelledError:
-            logger.info("Email sync task cancelled")
-            raise
+            except asyncio.CancelledError:
+                logger.info("Email sync task cancelled")
+                raise
 
-        except Exception as e:
-            logger.error(f"Error in email sync background task: {e}")
-            # 出错后等待一段时间再重试
-            await asyncio.sleep(60)
+            except Exception as e:
+                logger.error(f"Error in email sync background task: {e}")
+                # 出错后等待一段时间再重试（使用可中断的sleep）
+                try:
+                    await asyncio.sleep(60)
+                except asyncio.CancelledError:
+                    logger.info("Email sync background task cancelled during error recovery")
+                    raise
+    except asyncio.CancelledError:
+        logger.info("Email sync background task stopped")
+        raise
 
 
 # ============================================================================
@@ -295,8 +432,12 @@ async def warmup_cache():
     try:
         logger.info("Starting cache warmup...")
         
-        # 获取所有账户
-        accounts_data, total_accounts = db.get_all_accounts_db(page=1, page_size=10000)
+        # 获取所有账户（使用后台任务专用线程池执行同步数据库操作）
+        loop = asyncio.get_event_loop()
+        accounts_data, total_accounts = await loop.run_in_executor(
+            background_tasks_executor,
+            db.get_all_accounts_db, 1, 10000
+        )
         if not accounts_data:
             logger.info("No accounts found for cache warmup")
             return
@@ -369,20 +510,20 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     print(f"系统API Key: {api_key}")
     print(f"使用方式: 在请求头中添加 X-API-Key: {api_key}")
 
-    # 启动后台Token刷新任务
+    # 启动后台Token刷新任务（已优化：使用线程池执行同步数据库操作）
     refresh_task = asyncio.create_task(token_refresh_background_task())
-    logger.info("Token refresh background task scheduled")
+    logger.info("Token refresh background task scheduled (using thread pool for DB operations)")
     
-    # 启动后台邮件同步任务
+    # 启动后台邮件同步任务（已优化：使用线程池执行同步数据库操作）
     email_sync_task = None
     if AUTO_SYNC_EMAILS_ENABLED:
         email_sync_task = asyncio.create_task(email_sync_background_task())
-        logger.info("Email sync background task scheduled")
+        logger.info("Email sync background task scheduled (using thread pool for DB operations)")
         logger.info(f"Auto sync interval: {EMAIL_SYNC_INTERVAL} seconds ({EMAIL_SYNC_INTERVAL // 60} minutes)")
     else:
         logger.info("Email auto sync is disabled")
     
-    # 启动缓存预热（异步，不阻塞启动）
+    # 启动缓存预热（已优化：使用线程池执行同步数据库操作）
     asyncio.create_task(warmup_cache())
 
     yield
@@ -391,20 +532,48 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"Shutting down {APP_TITLE}...")
 
     # 取消后台任务（带超时）
-    tasks_to_cancel = [refresh_task]
+    tasks_to_cancel = []
+    if refresh_task:
+        tasks_to_cancel.append(refresh_task)
     if email_sync_task:
         tasks_to_cancel.append(email_sync_task)
     
+    # 取消所有任务
     for task in tasks_to_cancel:
-        task.cancel()
+        if not task.done():
+            task.cancel()
+            logger.debug(f"Cancelled task: {task.get_name()}")
     
+    # 等待任务取消完成（带超时）
+    if tasks_to_cancel:
+        try:
+            # 等待任务完成或取消，最多等待3秒
+            done, pending = await asyncio.wait(
+                tasks_to_cancel,
+                timeout=3.0,
+                return_when=asyncio.ALL_COMPLETED
+            )
+            
+            if pending:
+                logger.warning(f"{len(pending)} background tasks still pending after timeout, forcing shutdown")
+                # 强制取消剩余任务（不等待）
+                for task in pending:
+                    if not task.done():
+                        task.cancel()
+            else:
+                logger.info("All background tasks cancelled successfully")
+        except Exception as e:
+            logger.error(f"Error cancelling background tasks: {e}")
+            # 即使出错也继续关闭流程
+
+    # 关闭线程池
+    logger.info("Shutting down thread pools...")
     try:
-        await asyncio.wait_for(asyncio.gather(*tasks_to_cancel, return_exceptions=True), timeout=3.0)
-        logger.info("All background tasks cancelled")
-    except asyncio.TimeoutError:
-        logger.warning("Background tasks cancellation timeout, forcing shutdown")
+        api_requests_executor.shutdown(wait=False)
+        background_tasks_executor.shutdown(wait=False)
+        logger.info("Thread pools shut down successfully")
     except Exception as e:
-        logger.error(f"Error cancelling background tasks: {e}")
+        logger.error(f"Error shutting down thread pools: {e}")
 
     # 关闭IMAP连接池（使用线程，防止阻塞）
     logger.info("Closing IMAP connection pool...")
@@ -435,6 +604,23 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# 添加请求日志中间件
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """记录所有HTTP请求"""
+    start_time = asyncio.get_event_loop().time()
+    logger.info(f"→ {request.method} {request.url.path} - Client: {request.client.host if request.client else 'unknown'}")
+    
+    try:
+        response = await call_next(request)
+        process_time = asyncio.get_event_loop().time() - start_time
+        logger.info(f"← {request.method} {request.url.path} - Status: {response.status_code} - Time: {process_time:.3f}s")
+        return response
+    except Exception as e:
+        process_time = asyncio.get_event_loop().time() - start_time
+        logger.error(f"✗ {request.method} {request.url.path} - Error: {e} - Time: {process_time:.3f}s", exc_info=True)
+        raise
+
 # 添加CORS中间件
 app.add_middleware(
     CORSMiddleware,
@@ -452,6 +638,27 @@ app.include_router(admin_api.router)
 
 # 注册主路由（包含所有业务路由）
 app.include_router(main_router)
+
+# 添加全局异常处理器（在路由注册之后）
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """全局异常处理器，确保所有异常都被记录"""
+    import traceback
+    from fastapi import HTTPException
+    
+    # 如果是 HTTPException，直接抛出（不记录，因为这是预期的错误）
+    if isinstance(exc, HTTPException):
+        raise exc
+    
+    # 其他未预期的异常才记录
+    error_msg = f"Unhandled exception: {type(exc).__name__}: {str(exc)}"
+    logger.error(f"{error_msg}\nURL: {request.url}\nMethod: {request.method}\n{traceback.format_exc()}")
+    
+    # 返回 500 错误
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"内部服务器错误: {str(exc)}"}
+    )
 
 
 # ============================================================================
