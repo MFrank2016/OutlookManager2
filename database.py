@@ -398,87 +398,96 @@ def init_database() -> None:
 
 
 # ============================================================================
-# Accounts 表操作
+# 原实现已迁移到 dao 目录
+# 所有函数现在通过向后兼容层（文件末尾）委托给对应的 DAO
 # ============================================================================
 
+
+# ============================================================================
+# 向后兼容层 - 将所有函数委托给对应的 DAO
+# ============================================================================
+
+# 延迟导入 DAO 以避免循环依赖
+_account_dao = None
+_user_dao = None
+_config_dao = None
+_email_cache_dao = None
+_email_detail_cache_dao = None
+_share_token_dao = None
+_batch_import_task_dao = None
+_batch_import_task_item_dao = None
+
+def _get_account_dao():
+    """获取 AccountDAO 实例（单例）"""
+    global _account_dao
+    if _account_dao is None:
+        from dao.account_dao import AccountDAO
+        _account_dao = AccountDAO()
+    return _account_dao
+
+def _get_user_dao():
+    """获取 UserDAO 实例（单例）"""
+    global _user_dao
+    if _user_dao is None:
+        from dao.user_dao import UserDAO
+        _user_dao = UserDAO()
+    return _user_dao
+
+def _get_config_dao():
+    """获取 ConfigDAO 实例（单例）"""
+    global _config_dao
+    if _config_dao is None:
+        from dao.config_dao import ConfigDAO
+        _config_dao = ConfigDAO()
+    return _config_dao
+
+def _get_email_cache_dao():
+    """获取 EmailCacheDAO 实例（单例）"""
+    global _email_cache_dao
+    if _email_cache_dao is None:
+        from dao.email_cache_dao import EmailCacheDAO
+        _email_cache_dao = EmailCacheDAO()
+    return _email_cache_dao
+
+def _get_email_detail_cache_dao():
+    """获取 EmailDetailCacheDAO 实例（单例）"""
+    global _email_detail_cache_dao
+    if _email_detail_cache_dao is None:
+        from dao.email_detail_cache_dao import EmailDetailCacheDAO
+        _email_detail_cache_dao = EmailDetailCacheDAO()
+    return _email_detail_cache_dao
+
+def _get_share_token_dao():
+    """获取 ShareTokenDAO 实例（单例）"""
+    global _share_token_dao
+    if _share_token_dao is None:
+        from dao.share_token_dao import ShareTokenDAO
+        _share_token_dao = ShareTokenDAO()
+    return _share_token_dao
+
+def _get_batch_import_task_dao():
+    """获取 BatchImportTaskDAO 实例（单例）"""
+    global _batch_import_task_dao
+    if _batch_import_task_dao is None:
+        from dao.batch_import_task_dao import BatchImportTaskDAO
+        _batch_import_task_dao = BatchImportTaskDAO()
+    return _batch_import_task_dao
+
+def _get_batch_import_task_item_dao():
+    """获取 BatchImportTaskItemDAO 实例（单例）"""
+    global _batch_import_task_item_dao
+    if _batch_import_task_item_dao is None:
+        from dao.batch_import_task_dao import BatchImportTaskItemDAO
+        _batch_import_task_item_dao = BatchImportTaskItemDAO()
+    return _batch_import_task_item_dao
+
+
+# Accounts 表操作 - 委托给 AccountDAO
 def get_account_by_email(email: str) -> Optional[Dict[str, Any]]:
-    """
-    根据邮箱地址获取账户信息
-    
-    Args:
-        email: 邮箱地址
-        
-    Returns:
-        账户信息字典或None
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM accounts WHERE email = ?", (email,))
-        row = cursor.fetchone()
-        
-        if row:
-            account = dict(row)
-            # 解析 tags JSON
-            account['tags'] = json.loads(account['tags']) if account['tags'] else []
-            return account
-        return None
+    return _get_account_dao().get_by_email(email)
 
-
-def get_all_accounts_db(
-    page: int = 1,
-    page_size: int = 10,
-    email_search: Optional[str] = None,
-    tag_search: Optional[str] = None
-) -> Tuple[List[Dict[str, Any]], int]:
-    """
-    获取所有账户列表（支持分页和搜索）
-    
-    Args:
-        page: 页码（从1开始）
-        page_size: 每页数量
-        email_search: 邮箱模糊搜索
-        tag_search: 标签模糊搜索
-        
-    Returns:
-        (账户列表, 总数)
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        # 构建查询条件
-        conditions = []
-        params = []
-        
-        if email_search:
-            conditions.append("email LIKE ?")
-            params.append(f"%{email_search}%")
-        
-        if tag_search:
-            conditions.append("tags LIKE ?")
-            params.append(f"%{tag_search}%")
-        
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-        
-        # 获取总数
-        cursor.execute(f"SELECT COUNT(*) FROM accounts WHERE {where_clause}", params)
-        total = cursor.fetchone()[0]
-        
-        # 获取分页数据
-        offset = (page - 1) * page_size
-        cursor.execute(
-            f"SELECT * FROM accounts WHERE {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            params + [page_size, offset]
-        )
-        rows = cursor.fetchall()
-        
-        accounts = []
-        for row in rows:
-            account = dict(row)
-            account['tags'] = json.loads(account['tags']) if account['tags'] else []
-            accounts.append(account)
-        
-        return accounts, total
-
+def get_all_accounts_db(page: int = 1, page_size: int = 10, email_search: Optional[str] = None, tag_search: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
+    return _get_account_dao().get_all(page, page_size, email_search, tag_search)
 
 def get_accounts_by_filters(
     page: int = 1,
@@ -493,881 +502,180 @@ def get_accounts_by_filters(
     refresh_start_date: Optional[str] = None,
     refresh_end_date: Optional[str] = None
 ) -> Tuple[List[Dict[str, Any]], int]:
-    """
-    获取符合筛选条件的账户列表（支持分页和多维度筛选）
-    
-    Args:
-        page: 页码（从1开始）
-        page_size: 每页数量
-        email_search: 邮箱模糊搜索
-        tag_search: 标签模糊搜索（已废弃，使用include_tags代替）
-        include_tags: 必须包含的标签列表（同时包含所有指定标签）
-        exclude_tags: 必须不包含的标签列表（不包含任何指定标签）
-        refresh_status: 刷新状态筛选 (never_refreshed, failed, success, pending, all)
-        time_filter: 时间过滤器 (today, week, month, custom)
-        after_date: 自定义日期（用于custom时间过滤，ISO格式）
-        refresh_start_date: 刷新起始日期（ISO格式）
-        refresh_end_date: 刷新截止日期（ISO格式）
-        
-    Returns:
-        (账户列表, 总数)
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        # 构建查询条件
-        conditions = []
-        params = []
-        
-        # 邮箱搜索
-        if email_search:
-            conditions.append("email LIKE ?")
-            params.append(f"%{email_search}%")
-        
-        # 标签搜索（向后兼容，如果提供了tag_search，转换为include_tags）
-        if tag_search and not include_tags:
-            include_tags = [tag.strip() for tag in tag_search.split(",") if tag.strip()]
-        
-        # 包含标签筛选（必须同时包含所有指定标签）
-        if include_tags:
-            for tag in include_tags:
-                conditions.append("tags LIKE ?")
-                params.append(f'%"{tag}"%')  # JSON格式的标签匹配
-        
-        # 排除标签筛选（必须不包含任何指定标签）
-        if exclude_tags:
-            for tag in exclude_tags:
-                conditions.append("tags NOT LIKE ?")
-                params.append(f'%"{tag}"%')  # JSON格式的标签匹配
-        
-        # 刷新状态筛选
-        if refresh_status and refresh_status != 'all':
-            if refresh_status == 'never_refreshed':
-                conditions.append("last_refresh_time IS NULL")
-            elif refresh_status == 'failed':
-                conditions.append("refresh_status = 'failed'")
-            elif refresh_status == 'success':
-                conditions.append("refresh_status = 'success'")
-            elif refresh_status == 'pending':
-                conditions.append("refresh_status = 'pending'")
-        
-        # 时间范围筛选
-        if time_filter:
-            current_time = datetime.now()
-            
-            if time_filter == 'today':
-                # 今日未更新
-                today_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
-                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
-                params.append(today_start.isoformat())
-            
-            elif time_filter == 'week':
-                # 一周内未更新
-                week_ago = current_time - timedelta(days=7)
-                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
-                params.append(week_ago.isoformat())
-            
-            elif time_filter == 'month':
-                # 一月内未更新
-                month_ago = current_time - timedelta(days=30)
-                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
-                params.append(month_ago.isoformat())
-            
-            elif time_filter == 'custom' and after_date:
-                # 指定日期后未更新
-                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
-                params.append(after_date)
-        
-        # 自定义日期范围筛选（指定刷新条件）
-        if refresh_start_date and refresh_end_date:
-            conditions.append("(last_refresh_time >= ? AND last_refresh_time <= ?)")
-            params.append(refresh_start_date)
-            params.append(refresh_end_date)
-            logger.info(f"[筛选] 添加日期范围筛选: {refresh_start_date} 至 {refresh_end_date}")
-        
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-        
-        logger.info(f"[筛选] SQL WHERE子句: {where_clause}")
-        logger.info(f"[筛选] SQL参数: {params}")
-        
-        # 获取总数
-        cursor.execute(f"SELECT COUNT(*) FROM accounts WHERE {where_clause}", params)
-        total = cursor.fetchone()[0]
-        
-        logger.info(f"[筛选] 符合条件的总数: {total}")
-        
-        # 获取分页数据
-        offset = (page - 1) * page_size
-        cursor.execute(
-            f"SELECT * FROM accounts WHERE {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-            params + [page_size, offset]
-        )
-        rows = cursor.fetchall()
-        
-        accounts = []
-        for row in rows:
-            account = dict(row)
-            account['tags'] = json.loads(account['tags']) if account['tags'] else []
-            accounts.append(account)
-        
-        return accounts, total
+    return _get_account_dao().get_by_filters(
+        page, page_size, email_search, tag_search, include_tags, exclude_tags,
+        refresh_status, time_filter, after_date, refresh_start_date, refresh_end_date
+    )
 
-
-def create_account(
-    email: str,
-    refresh_token: str,
-    client_id: str,
-    tags: List[str] = None,
-    api_method: str = "imap"
-) -> Dict[str, Any]:
-    """
-    创建新账户
-    
-    Args:
-        email: 邮箱地址
-        refresh_token: 刷新令牌
-        client_id: 客户端ID
-        tags: 标签列表
-        
-    Returns:
-        创建的账户信息
-    """
-    tags = tags or []
-    tags_json = json.dumps(tags, ensure_ascii=False)
-    
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO accounts (email, refresh_token, client_id, tags, api_method)
-            VALUES (?, ?, ?, ?, ?)
-        """, (email, refresh_token, client_id, tags_json, api_method))
-        
-        conn.commit()
-        
-        logger.info(f"Created account: {email}")
-        return get_account_by_email(email)
-
+def create_account(email: str, refresh_token: str, client_id: str, tags: List[str] = None, api_method: str = "imap") -> Dict[str, Any]:
+    return _get_account_dao().create(email, refresh_token, client_id, tags, api_method)
 
 def update_account(email: str, **kwargs) -> bool:
-    """
-    更新账户信息
-    
-    Args:
-        email: 邮箱地址
-        **kwargs: 要更新的字段
-        
-    Returns:
-        是否更新成功
-    """
-    if not kwargs:
-        return False
-    
-    # 处理 tags 字段
-    if 'tags' in kwargs:
-        kwargs['tags'] = json.dumps(kwargs['tags'], ensure_ascii=False)
-    
-    # 添加更新时间
-    kwargs['updated_at'] = datetime.now().isoformat()
-    
-    # 构建 UPDATE 语句
-    set_clause = ", ".join([f"{key} = ?" for key in kwargs.keys()])
-    values = list(kwargs.values()) + [email]
-    
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            f"UPDATE accounts SET {set_clause} WHERE email = ?",
-            values
-        )
-        conn.commit()
-        
-        success = cursor.rowcount > 0
-        if success:
-            logger.info(f"Updated account: {email}")
-        return success
-
+    return _get_account_dao().update_account(email, **kwargs)
 
 def delete_account(email: str) -> bool:
-    """
-    删除账户
-    
-    Args:
-        email: 邮箱地址
-        
-    Returns:
-        是否删除成功
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM accounts WHERE email = ?", (email,))
-        conn.commit()
-        
-        success = cursor.rowcount > 0
-        if success:
-            logger.info(f"Deleted account: {email}")
-        return success
-
+    return _get_account_dao().delete_account(email)
 
 def get_account_access_token(email: str) -> Optional[Dict[str, str]]:
-    """
-    获取账户的缓存 access token 信息
-    
-    Args:
-        email: 邮箱地址
-        
-    Returns:
-        包含 access_token 和 token_expires_at 的字典，如果不存在则返回 None
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT access_token, token_expires_at FROM accounts WHERE email = ?",
-            (email,)
-        )
-        row = cursor.fetchone()
-        
-        if row and row['access_token'] and row['token_expires_at']:
-            return {
-                'access_token': row['access_token'],
-                'token_expires_at': row['token_expires_at']
-            }
-        return None
-
+    return _get_account_dao().get_access_token(email)
 
 def update_account_access_token(email: str, access_token: str, expires_at: str) -> bool:
-    """
-    更新账户的 access token 和过期时间
-    
-    Args:
-        email: 邮箱地址
-        access_token: OAuth2 访问令牌
-        expires_at: 令牌过期时间（ISO格式字符串）
-        
-    Returns:
-        是否更新成功
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            UPDATE accounts 
-            SET access_token = ?, token_expires_at = ?, updated_at = ?
-            WHERE email = ?
-            """,
-            (access_token, expires_at, datetime.now().isoformat(), email)
-        )
-        conn.commit()
-        
-        success = cursor.rowcount > 0
-        if success:
-            logger.info(f"Updated access token for account: {email}, expires at: {expires_at}")
-        return success
+    return _get_account_dao().update_access_token(email, access_token, expires_at)
 
-
-def get_random_accounts(
-    include_tags: Optional[List[str]] = None,
-    exclude_tags: Optional[List[str]] = None,
-    page: int = 1,
-    page_size: int = 10
-) -> Tuple[List[Dict[str, Any]], int]:
-    """
-    随机获取账户列表（支持标签筛选和分页）
-    
-    Args:
-        include_tags: 必须包含的标签列表
-        exclude_tags: 必须不包含的标签列表
-        page: 页码（从1开始）
-        page_size: 每页数量
-        
-    Returns:
-        (账户列表, 总数)
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        # 构建查询条件
-        conditions = []
-        params = []
-        
-        # 包含标签筛选
-        if include_tags:
-            for tag in include_tags:
-                conditions.append("tags LIKE ?")
-                params.append(f"%{tag}%")
-        
-        # 排除标签筛选
-        if exclude_tags:
-            for tag in exclude_tags:
-                conditions.append("tags NOT LIKE ?")
-                params.append(f"%{tag}%")
-        
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-        
-        # 获取总数
-        cursor.execute(f"SELECT COUNT(*) FROM accounts WHERE {where_clause}", params)
-        total = cursor.fetchone()[0]
-        
-        # 获取随机分页数据
-        offset = (page - 1) * page_size
-        cursor.execute(
-            f"SELECT * FROM accounts WHERE {where_clause} ORDER BY RANDOM() LIMIT ? OFFSET ?",
-            params + [page_size, offset]
-        )
-        rows = cursor.fetchall()
-        
-        accounts = []
-        for row in rows:
-            account = dict(row)
-            account['tags'] = json.loads(account['tags']) if account['tags'] else []
-            accounts.append(account)
-        
-        logger.info(f"Random accounts query: {len(accounts)} accounts found (total: {total})")
-        return accounts, total
-
+def get_random_accounts(include_tags: Optional[List[str]] = None, exclude_tags: Optional[List[str]] = None, page: int = 1, page_size: int = 10) -> Tuple[List[Dict[str, Any]], int]:
+    return _get_account_dao().get_random(include_tags, exclude_tags, page, page_size)
 
 def add_tag_to_account(email: str, tag: str) -> bool:
-    """
-    为账户添加标签（如果标签已存在则不处理）
-    
-    Args:
-        email: 邮箱地址
-        tag: 要添加的标签
-        
-    Returns:
-        是否成功（账户不存在返回False）
-    """
-    account = get_account_by_email(email)
-    
-    if not account:
-        logger.warning(f"Account {email} not found, cannot add tag")
-        return False
-    
-    current_tags = account.get('tags', [])
-    
-    # 如果标签已存在，不处理
-    if tag in current_tags:
-        logger.info(f"Tag '{tag}' already exists for account {email}")
-        return True
-    
-    # 添加新标签
-    current_tags.append(tag)
-    
-    # 更新账户
-    success = update_account(email, tags=current_tags)
-    
-    if success:
-        logger.info(f"Added tag '{tag}' to account {email}")
-    
-    return success
+    return _get_account_dao().add_tag(email, tag)
 
 
-# ============================================================================
-# Users 表操作（原 Admins 表）
-# ============================================================================
-
+# Users 表操作 - 委托给 UserDAO
 def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
-    """
-    根据用户名获取用户信息
-    
-    Args:
-        username: 用户名
-        
-    Returns:
-        用户信息字典或None
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-        row = cursor.fetchone()
-        
-        if row:
-            user = dict(row)
-            # 解析 JSON 字段
-            user['bound_accounts'] = json.loads(user.get('bound_accounts') or '[]')
-            user['permissions'] = json.loads(user.get('permissions') or '[]')
-            return user
-        return None
+    return _get_user_dao().get_by_username(username)
 
-
-# 向后兼容的别名
 def get_admin_by_username(username: str) -> Optional[Dict[str, Any]]:
-    """
-    根据用户名获取管理员信息（向后兼容）
-    
-    Args:
-        username: 用户名
-        
-    Returns:
-        管理员信息字典或None
-    """
-    return get_user_by_username(username)
+    return _get_user_dao().get_by_username(username)
 
+def create_user(username: str, password_hash: str, email: str = None, role: str = "user", bound_accounts: List[str] = None, permissions: List[str] = None, is_active: bool = True) -> Dict[str, Any]:
+    return _get_user_dao().create(username, password_hash, email, role, bound_accounts, permissions, is_active)
 
-def create_user(
-    username: str,
-    password_hash: str,
-    email: str = None,
-    role: str = "user",
-    bound_accounts: List[str] = None,
-    permissions: List[str] = None,
-    is_active: bool = True
-) -> Dict[str, Any]:
-    """
-    创建用户账户
-    
-    Args:
-        username: 用户名
-        password_hash: 密码哈希
-        email: 邮箱（可选）
-        role: 角色 (admin/user)
-        bound_accounts: 绑定的邮箱账户列表
-        permissions: 权限列表
-        is_active: 账户是否启用
-        
-    Returns:
-        创建的用户信息
-    """
-    from permissions import get_default_permissions
-    
-    bound_accounts = bound_accounts or []
-    permissions = permissions or get_default_permissions(role)
-    
-    bound_accounts_json = json.dumps(bound_accounts, ensure_ascii=False)
-    permissions_json = json.dumps(permissions, ensure_ascii=False)
-    
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO users (username, password_hash, email, role, bound_accounts, permissions, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (username, password_hash, email, role, bound_accounts_json, permissions_json, 1 if is_active else 0))
-        
-        conn.commit()
-        logger.info(f"Created user: {username} (role: {role})")
-        return get_user_by_username(username)
-
-
-# 向后兼容的别名
 def create_admin(username: str, password_hash: str, email: str = None) -> Dict[str, Any]:
-    """
-    创建管理员账户（向后兼容）
-    
-    Args:
-        username: 用户名
-        password_hash: 密码哈希
-        email: 邮箱（可选）
-        
-    Returns:
-        创建的管理员信息
-    """
-    return create_user(username, password_hash, email, role="admin")
-
+    return _get_user_dao().create(username, password_hash, email, role="admin")
 
 def update_user_login_time(username: str) -> bool:
-    """
-    更新用户最后登录时间
-    
-    Args:
-        username: 用户名
-        
-    Returns:
-        是否更新成功
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE users SET last_login = ? WHERE username = ?",
-            (datetime.now().isoformat(), username)
-        )
-        conn.commit()
-        return cursor.rowcount > 0
+    return _get_user_dao().update_login_time(username)
 
-
-# 向后兼容的别名
 def update_admin_login_time(username: str) -> bool:
-    """
-    更新管理员最后登录时间（向后兼容）
-    
-    Args:
-        username: 用户名
-        
-    Returns:
-        是否更新成功
-    """
-    return update_user_login_time(username)
-
+    return _get_user_dao().update_login_time(username)
 
 def update_user_password(username: str, new_password_hash: str) -> bool:
-    """
-    更新用户密码
-    
-    Args:
-        username: 用户名
-        new_password_hash: 新密码哈希
-        
-    Returns:
-        是否更新成功
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE users SET password_hash = ? WHERE username = ?",
-            (new_password_hash, username)
-        )
-        conn.commit()
-        
-        success = cursor.rowcount > 0
-        if success:
-            logger.info(f"Updated password for user: {username}")
-        return success
+    return _get_user_dao().update_password(username, new_password_hash)
 
-
-# 向后兼容的别名
 def update_admin_password(username: str, new_password_hash: str) -> bool:
-    """
-    更新管理员密码（向后兼容）
-    
-    Args:
-        username: 用户名
-        new_password_hash: 新密码哈希
-        
-    Returns:
-        是否更新成功
-    """
-    return update_user_password(username, new_password_hash)
+    return _get_user_dao().update_password(username, new_password_hash)
 
+def get_all_users(page: int = 1, page_size: int = 50, role_filter: Optional[str] = None, search: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
+    return _get_user_dao().get_all(page, page_size, role_filter, search)
 
-def get_all_users(
-    page: int = 1,
-    page_size: int = 50,
-    role_filter: Optional[str] = None,
-    search: Optional[str] = None
-) -> Tuple[List[Dict[str, Any]], int]:
-    """
-    获取所有用户列表（支持分页和筛选）
-    
-    Args:
-        page: 页码（从1开始）
-        page_size: 每页数量
-        role_filter: 角色筛选 (admin/user)
-        search: 搜索关键词（用户名或邮箱）
-        
-    Returns:
-        (用户列表, 总数)
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        # 构建查询条件
-        conditions = []
-        params = []
-        
-        if role_filter:
-            conditions.append("role = ?")
-            params.append(role_filter)
-        
-        if search:
-            conditions.append("(username LIKE ? OR email LIKE ?)")
-            params.extend([f"%{search}%", f"%{search}%"])
-        
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-        
-        # 获取总数
-        cursor.execute(f"SELECT COUNT(*) FROM users WHERE {where_clause}", params)
-        total = cursor.fetchone()[0]
-        
-        # 获取分页数据
-        offset = (page - 1) * page_size
-        cursor.execute(
-            f"""SELECT id, username, email, role, bound_accounts, permissions, 
-                       is_active, created_at, last_login 
-                FROM users WHERE {where_clause} 
-                ORDER BY created_at DESC LIMIT ? OFFSET ?""",
-            params + [page_size, offset]
-        )
-        rows = cursor.fetchall()
-        
-        users = []
-        for row in rows:
-            user = dict(row)
-            # 解析 JSON 字段
-            user['bound_accounts'] = json.loads(user.get('bound_accounts') or '[]')
-            user['permissions'] = json.loads(user.get('permissions') or '[]')
-            users.append(user)
-        
-        return users, total
-
-
-# 向后兼容的别名
 def get_all_admins() -> List[Dict[str, Any]]:
-    """
-    获取所有管理员列表（向后兼容）
-    
-    Returns:
-        管理员列表
-    """
-    users, _ = get_all_users(role_filter="admin", page_size=1000)
-    return users
-
+    return _get_user_dao().get_by_role("admin")
 
 def get_users_by_role(role: str) -> List[Dict[str, Any]]:
-    """
-    按角色获取用户列表
-    
-    Args:
-        role: 角色 (admin/user)
-        
-    Returns:
-        用户列表
-    """
-    users, _ = get_all_users(role_filter=role, page_size=1000)
-    return users
-
+    return _get_user_dao().get_by_role(role)
 
 def update_user(username: str, **kwargs) -> bool:
-    """
-    更新用户信息
-    
-    Args:
-        username: 用户名
-        **kwargs: 要更新的字段
-        
-    Returns:
-        是否更新成功
-    """
-    if not kwargs:
-        return False
-    
-    # 处理 JSON 字段
-    if 'bound_accounts' in kwargs:
-        kwargs['bound_accounts'] = json.dumps(kwargs['bound_accounts'], ensure_ascii=False)
-    
-    if 'permissions' in kwargs:
-        kwargs['permissions'] = json.dumps(kwargs['permissions'], ensure_ascii=False)
-    
-    # 构建 UPDATE 语句
-    set_clause = ", ".join([f"{key} = ?" for key in kwargs.keys()])
-    values = list(kwargs.values()) + [username]
-    
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            f"UPDATE users SET {set_clause} WHERE username = ?",
-            values
-        )
-        conn.commit()
-        
-        success = cursor.rowcount > 0
-        if success:
-            logger.info(f"Updated user: {username}")
-        return success
-
+    return _get_user_dao().update_user(username, **kwargs)
 
 def update_user_permissions(username: str, permissions: List[str]) -> bool:
-    """
-    更新用户权限
-    
-    Args:
-        username: 用户名
-        permissions: 权限列表
-        
-    Returns:
-        是否更新成功
-    """
-    return update_user(username, permissions=permissions)
-
+    return _get_user_dao().update_user(username, permissions=permissions)
 
 def bind_accounts_to_user(username: str, account_emails: List[str]) -> bool:
-    """
-    绑定邮箱账户到用户
-    
-    Args:
-        username: 用户名
-        account_emails: 邮箱账户列表
-        
-    Returns:
-        是否更新成功
-    """
-    return update_user(username, bound_accounts=account_emails)
-
+    return _get_user_dao().update_user(username, bound_accounts=account_emails)
 
 def get_user_bound_accounts(username: str) -> List[str]:
-    """
-    获取用户绑定的邮箱账户列表
-    
-    Args:
-        username: 用户名
-        
-    Returns:
-        邮箱账户列表
-    """
-    user = get_user_by_username(username)
+    user = _get_user_dao().get_by_username(username)
     if user:
         return user.get('bound_accounts', [])
     return []
 
-
 def delete_user(username: str) -> bool:
-    """
-    删除用户
-    
-    Args:
-        username: 用户名
-        
-    Returns:
-        是否删除成功
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM users WHERE username = ?", (username,))
-        conn.commit()
-        
-        success = cursor.rowcount > 0
-        if success:
-            logger.info(f"Deleted user: {username}")
-        return success
+    return _get_user_dao().delete_user(username)
 
 
-# ============================================================================
-# System Config 表操作
-# ============================================================================
-
+# System Config 表操作 - 委托给 ConfigDAO
 def get_config(key: str) -> Optional[str]:
-    """
-    获取系统配置值
-    
-    Args:
-        key: 配置键
-        
-    Returns:
-        配置值或None
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM system_config WHERE key = ?", (key,))
-        row = cursor.fetchone()
-        
-        if row:
-            return row['value']
-        return None
-
+    return _get_config_dao().get(key)
 
 def get_all_configs() -> List[Dict[str, Any]]:
-    """
-    获取所有系统配置
-    
-    Returns:
-        配置列表
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM system_config ORDER BY key")
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
-
+    return _get_config_dao().get_all()
 
 def set_config(key: str, value: str, description: str = None) -> bool:
-    """
-    设置系统配置
-    
-    Args:
-        key: 配置键
-        value: 配置值
-        description: 描述
-        
-    Returns:
-        是否设置成功
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO system_config (key, value, description, updated_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(key) DO UPDATE SET
-                value = excluded.value,
-                description = excluded.description,
-                updated_at = excluded.updated_at
-        """, (key, value, description, datetime.now().isoformat()))
-        
-        conn.commit()
-        logger.info(f"Set config: {key} = {value}")
-        return cursor.rowcount > 0
-
+    return _get_config_dao().set(key, value, description)
 
 def delete_config(key: str) -> bool:
-    """
-    删除系统配置
-    
-    Args:
-        key: 配置键
-        
-    Returns:
-        是否删除成功
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM system_config WHERE key = ?", (key,))
-        conn.commit()
-        
-        success = cursor.rowcount > 0
-        if success:
-            logger.info(f"Deleted config: {key}")
-        return success
-
-
-# ============================================================================
-# API Key 管理函数
-# ============================================================================
+    return _get_config_dao().delete_config(key)
 
 def get_api_key() -> Optional[str]:
-    """
-    获取系统API Key
-    
-    Returns:
-        API Key或None
-    """
-    return get_config("api_key")
-
+    return _get_config_dao().get_api_key()
 
 def set_api_key(api_key: str) -> bool:
-    """
-    设置系统API Key
-    
-    Args:
-        api_key: API Key值
-        
-    Returns:
-        是否设置成功
-    """
-    return set_config("api_key", api_key, "系统API Key，用于API访问认证")
-
+    return _get_config_dao().set_api_key(api_key)
 
 def init_default_api_key() -> str:
-    """
-    初始化默认API Key（如果不存在）
-    
-    Returns:
-        API Key
-    """
-    import secrets
-    
-    existing_key = get_api_key()
-    if existing_key:
-        logger.info("API Key already exists")
-        return existing_key
-    
-    # 生成新的API Key
-    new_key = secrets.token_urlsafe(32)
-    set_api_key(new_key)
-    logger.info(f"Generated new API Key: {new_key}")
-    
-    return new_key
+    return _get_config_dao().init_default_api_key()
 
 
-# ============================================================================
-# 通用表操作（用于管理面板）
-# ============================================================================
+# Share Tokens 表操作 - 委托给 ShareTokenDAO
+def create_share_token(token: str, email_account_id: str, start_time: str, end_time: Optional[str] = None, subject_keyword: Optional[str] = None, sender_keyword: Optional[str] = None, expiry_time: Optional[str] = None, is_active: bool = True) -> int:
+    return _get_share_token_dao().create(token, email_account_id, start_time, end_time, subject_keyword, sender_keyword, expiry_time, is_active)
 
+def get_share_token(token: str) -> Optional[Dict[str, Any]]:
+    return _get_share_token_dao().get_by_token(token)
+
+def update_share_token(token_id: int, **kwargs) -> bool:
+    return _get_share_token_dao().update_token(token_id, **kwargs)
+
+def delete_share_token(token_id: int) -> bool:
+    return _get_share_token_dao().delete_token(token_id)
+
+def list_share_tokens(email_account_id: Optional[str] = None, page: int = 1, page_size: int = 50) -> Tuple[List[Dict[str, Any]], int]:
+    return _get_share_token_dao().list_tokens(email_account_id, page, page_size)
+
+
+# 邮件缓存操作 - 委托给 EmailCacheDAO 和 EmailDetailCacheDAO
+def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
+    return _get_email_cache_dao().cache_emails(email_account, emails)
+
+def get_cached_emails(email_account: str, page: int = 1, page_size: int = 100, folder: Optional[str] = None, sender_search: Optional[str] = None, subject_search: Optional[str] = None, sort_by: str = 'date', sort_order: str = 'desc', start_time: Optional[str] = None, end_time: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
+    return _get_email_cache_dao().get_cached_emails(email_account, page, page_size, folder, sender_search, subject_search, sort_by, sort_order, start_time, end_time)
+
+def cache_email_detail(email_account: str, email_detail: Dict[str, Any]) -> bool:
+    return _get_email_detail_cache_dao().cache_detail(email_account, email_detail)
+
+def get_cached_email_detail(email_account: str, message_id: str) -> Optional[Dict[str, Any]]:
+    return _get_email_detail_cache_dao().get_cached_detail(email_account, message_id)
+
+def check_cache_size() -> Dict[str, Any]:
+    return _get_email_detail_cache_dao().check_cache_size()
+
+def cleanup_lru_cache() -> Dict[str, int]:
+    return _get_email_detail_cache_dao().cleanup_lru_cache()
+
+def clear_email_cache_db(email_account: str) -> bool:
+    result1 = _get_email_cache_dao().clear_by_account(email_account)
+    result2 = _get_email_detail_cache_dao().clear_by_account(email_account)
+    return result1 or result2
+
+def delete_email_from_cache(email_account: str, message_id: str) -> bool:
+    result1 = _get_email_cache_dao().delete_email(email_account, message_id)
+    result2 = _get_email_detail_cache_dao().delete_email(email_account, message_id)
+    return result1 or result2
+
+def get_email_count_by_account(email_account: str, folder: Optional[str] = None) -> int:
+    return _get_email_cache_dao().get_count_by_account(email_account, folder)
+
+
+# 批量导入任务操作 - 委托给 BatchImportTaskDAO
+def create_batch_import_task(task_id: str, total_count: int, api_method: str = "imap", tags: List[str] = None, created_by: str = None) -> bool:
+    return _get_batch_import_task_dao().create(task_id, total_count, api_method, tags, created_by)
+
+def add_batch_import_task_items(task_id: str, items: List[Dict[str, str]]) -> bool:
+    return _get_batch_import_task_item_dao().add_items(task_id, items)
+
+def get_batch_import_task(task_id: str) -> Optional[Dict[str, Any]]:
+    return _get_batch_import_task_dao().get_by_task_id(task_id)
+
+def update_batch_import_task_progress(task_id: str, success_count: int = None, failed_count: int = None, processed_count: int = None, status: str = None) -> bool:
+    return _get_batch_import_task_dao().update_progress(task_id, success_count, failed_count, processed_count, status)
+
+def update_batch_import_task_item(task_id: str, email: str, status: str, error_message: str = None) -> bool:
+    return _get_batch_import_task_item_dao().update_item(task_id, email, status, error_message)
+
+def get_batch_import_task_items(task_id: str, status: str = None) -> List[Dict[str, Any]]:
+    return _get_batch_import_task_item_dao().get_by_task_id(task_id, status)
+
+
+# 通用表操作（用于管理面板）- 保留原实现
 def get_all_tables() -> List[str]:
     """
     获取数据库中所有表名
@@ -1385,7 +693,6 @@ def get_all_tables() -> List[str]:
         rows = cursor.fetchall()
         return [row['name'] for row in rows]
 
-
 def get_table_schema(table_name: str) -> List[Dict[str, Any]]:
     """
     获取表结构信息
@@ -1402,13 +709,7 @@ def get_table_schema(table_name: str) -> List[Dict[str, Any]]:
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
-
-def get_table_data(
-    table_name: str,
-    page: int = 1,
-    page_size: int = 50,
-    search: Optional[str] = None
-) -> Tuple[List[Dict[str, Any]], int]:
+def get_table_data(table_name: str, page: int = 1, page_size: int = 50, search: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
     """
     获取表数据（支持分页和搜索）
     
@@ -1452,7 +753,6 @@ def get_table_data(
         
         return [dict(row) for row in rows], total
 
-
 def insert_table_record(table_name: str, data: Dict[str, Any]) -> int:
     """
     插入表记录
@@ -1476,7 +776,6 @@ def insert_table_record(table_name: str, data: Dict[str, Any]) -> int:
         )
         conn.commit()
         return cursor.lastrowid
-
 
 def update_table_record(table_name: str, record_id: int, data: Dict[str, Any]) -> bool:
     """
@@ -1502,7 +801,6 @@ def update_table_record(table_name: str, record_id: int, data: Dict[str, Any]) -
         conn.commit()
         return cursor.rowcount > 0
 
-
 def delete_table_record(table_name: str, record_id: int) -> bool:
     """
     删除表记录
@@ -1519,830 +817,4 @@ def delete_table_record(table_name: str, record_id: int) -> bool:
         cursor.execute(f"DELETE FROM {table_name} WHERE id = ?", (record_id,))
         conn.commit()
         return cursor.rowcount > 0
-
-
-# ============================================================================
-# Share Tokens 表操作
-# ============================================================================
-
-def create_share_token(
-    token: str,
-    email_account_id: str,
-    start_time: str,
-    end_time: Optional[str] = None,
-    subject_keyword: Optional[str] = None,
-    sender_keyword: Optional[str] = None,
-    expiry_time: Optional[str] = None,
-    is_active: bool = True
-) -> int:
-    """
-    创建分享码
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO share_tokens (
-                token, email_account_id, start_time, end_time, 
-                subject_keyword, sender_keyword, expiry_time, is_active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            token, email_account_id, start_time, end_time,
-            subject_keyword, sender_keyword, expiry_time, 1 if is_active else 0
-        ))
-        conn.commit()
-        return cursor.lastrowid
-
-def get_share_token(token: str) -> Optional[Dict[str, Any]]:
-    """
-    获取分享码信息
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM share_tokens WHERE token = ?", (token,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-
-def update_share_token(token_id: int, **kwargs) -> bool:
-    """
-    更新分享码信息
-    """
-    if not kwargs:
-        return False
-        
-    set_clause = ", ".join([f"{key} = ?" for key in kwargs.keys()])
-    values = list(kwargs.values()) + [token_id]
-    
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute(f"UPDATE share_tokens SET {set_clause} WHERE id = ?", values)
-        conn.commit()
-        return cursor.rowcount > 0
-
-def delete_share_token(token_id: int) -> bool:
-    """
-    删除分享码
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM share_tokens WHERE id = ?", (token_id,))
-        conn.commit()
-        return cursor.rowcount > 0
-
-def list_share_tokens(
-    email_account_id: Optional[str] = None,
-    page: int = 1, 
-    page_size: int = 50
-) -> Tuple[List[Dict[str, Any]], int]:
-    """
-    列出分享码
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        conditions = []
-        params = []
-        
-        if email_account_id:
-            conditions.append("email_account_id = ?")
-            params.append(email_account_id)
-            
-        where_clause = " AND ".join(conditions) if conditions else "1=1"
-        
-        # 获取总数
-        cursor.execute(f"SELECT COUNT(*) FROM share_tokens WHERE {where_clause}", params)
-        total = cursor.fetchone()[0]
-        
-        # 分页查询
-        offset = (page - 1) * page_size
-        cursor.execute(
-            f"SELECT * FROM share_tokens WHERE {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?", 
-            params + [page_size, offset]
-        )
-        
-        return [dict(row) for row in cursor.fetchall()], total
-
-
-# ============================================================================
-# 邮件缓存操作
-# ============================================================================
-
-def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
-    """
-    批量缓存邮件列表（带LRU清理）
-    
-    Args:
-        email_account: 邮箱账号
-        emails: 邮件列表数据
-        
-    Returns:
-        是否缓存成功
-    """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            for email in emails:
-                # 计算缓存大小（估算）
-                cache_size = (
-                    len(email.get('subject') or '') +
-                    len(email.get('from_email') or '') +
-                    len(email.get('verification_code') or '')
-                )
-                
-                cursor.execute("""
-                    INSERT OR REPLACE INTO emails_cache 
-                    (email_account, message_id, folder, subject, from_email, date, 
-                     is_read, has_attachments, sender_initial, verification_code, body_preview, cache_size, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """, (
-                    email_account,
-                    email.get('message_id'),
-                    email.get('folder'),
-                    email.get('subject'),
-                    email.get('from_email'),
-                    email.get('date'),
-                    1 if email.get('is_read') else 0,
-                    1 if email.get('has_attachments') else 0,
-                    email.get('sender_initial', '?'),
-                    email.get('verification_code'),
-                    email.get('body_preview'),
-                    cache_size
-                ))
-            
-            conn.commit()
-            logger.info(f"Cached {len(emails)} emails for account {email_account}")
-        
-        # 检查并触发LRU清理
-        cache_stats = check_cache_size()
-        if (cache_stats['emails_cache']['usage_percent'] > 90 or 
-            cache_stats['details_cache']['usage_percent'] > 90):
-            logger.info("Cache usage high, triggering LRU cleanup")
-            cleanup_result = cleanup_lru_cache()
-            logger.info(f"LRU cleanup completed: {cleanup_result}")
-        
-        return True
-    except Exception as e:
-        logger.error(f"Error caching emails: {e}")
-        return False
-
-
-def get_cached_emails(
-    email_account: str,
-    page: int = 1,
-    page_size: int = 100,
-    folder: Optional[str] = None,
-    sender_search: Optional[str] = None,
-    subject_search: Optional[str] = None,
-    sort_by: str = 'date',
-    sort_order: str = 'desc',
-    start_time: Optional[str] = None,
-    end_time: Optional[str] = None
-) -> Tuple[List[Dict[str, Any]], int]:
-    """
-    从缓存获取邮件列表（支持搜索、排序、分页、时间范围）
-    
-    Args:
-        email_account: 邮箱账号
-        page: 页码（从1开始）
-        page_size: 每页数量
-        folder: 文件夹过滤
-        sender_search: 发件人模糊搜索
-        subject_search: 主题模糊搜索
-        sort_by: 排序字段（默认date）
-        sort_order: 排序方向（asc或desc）
-        start_time: 开始时间 (ISO格式)
-        end_time: 结束时间 (ISO格式)
-        
-    Returns:
-        (邮件列表, 总数)
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        # 构建查询条件
-        conditions = ["email_account = ?"]
-        params = [email_account]
-        
-        if folder and folder != 'all':
-            conditions.append("folder = ?")
-            params.append(folder)
-        
-        if sender_search:
-            conditions.append("from_email LIKE ?")
-            params.append(f"%{sender_search}%")
-        
-        if subject_search:
-            conditions.append("subject LIKE ?")
-            params.append(f"%{subject_search}%")
-            
-        if start_time:
-            conditions.append("date >= ?")
-            params.append(start_time)
-            
-        if end_time:
-            conditions.append("date <= ?")
-            params.append(end_time)
-        
-        where_clause = " AND ".join(conditions)
-        
-        # 验证排序字段
-        allowed_sort_fields = ['date', 'subject', 'from_email']
-        if sort_by not in allowed_sort_fields:
-            sort_by = 'date'
-        
-        # 验证排序方向
-        if sort_order.lower() not in ['asc', 'desc']:
-            sort_order = 'desc'
-        
-        # 获取总数
-        cursor.execute(
-            f"SELECT COUNT(*) FROM emails_cache WHERE {where_clause}",
-            params
-        )
-        total = cursor.fetchone()[0]
-        
-        # 获取分页数据
-        offset = (page - 1) * page_size
-        cursor.execute(f"""
-            SELECT message_id, folder, subject, from_email, date, 
-                   is_read, has_attachments, sender_initial, verification_code, body_preview
-            FROM emails_cache 
-            WHERE {where_clause}
-            ORDER BY {sort_by} {sort_order.upper()}
-            LIMIT ? OFFSET ?
-        """, params + [page_size, offset])
-        
-        rows = cursor.fetchall()
-        
-        # 更新访问统计（批量更新）
-        if rows:
-            message_ids = [row[0] for row in rows]
-            placeholders = ','.join(['?'] * len(message_ids))
-            cursor.execute(f"""
-                UPDATE emails_cache 
-                SET access_count = access_count + 1,
-                last_accessed_at = CURRENT_TIMESTAMP
-                WHERE email_account = ? AND message_id IN ({placeholders})
-            """, [email_account] + message_ids)
-        
-        emails = []
-        for row in rows:
-            emails.append({
-                'message_id': row[0],
-                'folder': row[1],
-                'subject': row[2],
-                'from_email': row[3],
-                'date': row[4],
-                'is_read': bool(row[5]),
-                'has_attachments': bool(row[6]),
-                'sender_initial': row[7],
-                'verification_code': row[8],
-                'body_preview': row[9]
-            })
-        
-        return emails, total
-
-
-def cache_email_detail(email_account: str, email_detail: Dict[str, Any]) -> bool:
-    """
-    缓存单封邮件详情（带压缩）
-    
-    Args:
-        email_account: 邮箱账号
-        email_detail: 邮件详情数据
-        
-    Returns:
-        是否缓存成功
-    """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # 压缩邮件正文
-            body_plain = email_detail.get('body_plain')
-            body_html = email_detail.get('body_html')
-            
-            original_size = (len(body_plain) if body_plain else 0) + (len(body_html) if body_html else 0)
-            
-            compressed_plain = compress_text(body_plain)
-            compressed_html = compress_text(body_html)
-            
-            compressed_size = (len(compressed_plain) if compressed_plain else 0) + (len(compressed_html) if compressed_html else 0)
-            
-            cursor.execute("""
-                INSERT OR REPLACE INTO email_details_cache 
-                (email_account, message_id, subject, from_email, to_email, 
-                 date, body_plain, body_html, verification_code, body_size, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, (
-                email_account,
-                email_detail.get('message_id'),
-                email_detail.get('subject'),
-                email_detail.get('from_email'),
-                email_detail.get('to_email'),
-                email_detail.get('date'),
-                compressed_plain,
-                compressed_html,
-                email_detail.get('verification_code'),
-                compressed_size
-            ))
-            
-            conn.commit()
-            
-            if original_size > 0:
-                compression_ratio = (1 - compressed_size / original_size) * 100
-                logger.info(f"Cached email detail for {email_account}: {email_detail.get('message_id')} "
-                           f"(compressed {original_size} -> {compressed_size} bytes, {compression_ratio:.1f}% reduction)")
-            else:
-                logger.info(f"Cached email detail for {email_account}: {email_detail.get('message_id')}")
-            
-            return True
-    except Exception as e:
-        logger.error(f"Error caching email detail: {e}")
-        return False
-
-
-def get_cached_email_detail(email_account: str, message_id: str) -> Optional[Dict[str, Any]]:
-    """
-    获取缓存的邮件详情（自动解压缩）
-    
-    Args:
-        email_account: 邮箱账号
-        message_id: 邮件ID
-        
-    Returns:
-        邮件详情字典或None
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        # 更新访问统计
-        cursor.execute("""
-            UPDATE email_details_cache 
-            SET access_count = access_count + 1,
-                last_accessed_at = CURRENT_TIMESTAMP
-            WHERE email_account = ? AND message_id = ?
-        """, (email_account, message_id))
-        
-        cursor.execute("""
-            SELECT message_id, subject, from_email, to_email, date, 
-                   body_plain, body_html, verification_code
-            FROM email_details_cache 
-            WHERE email_account = ? AND message_id = ?
-        """, (email_account, message_id))
-        
-        row = cursor.fetchone()
-        
-        if row:
-            return {
-                'message_id': row[0],
-                'subject': row[1],
-                'from_email': row[2],
-                'to_email': row[3],
-                'date': row[4],
-                'body_plain': decompress_text(row[5]),
-                'body_html': decompress_text(row[6]),
-                'verification_code': row[7]
-            }
-        return None
-
-
-def check_cache_size() -> Dict[str, Any]:
-    """
-    检查缓存大小和记录数
-    
-    Returns:
-        缓存统计信息字典
-    """
-    from config import MAX_CACHE_SIZE_MB, MAX_EMAILS_CACHE_COUNT, MAX_EMAIL_DETAILS_CACHE_COUNT
-    
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        # 获取数据库文件大小
-        cursor.execute("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()")
-        db_size_bytes = cursor.fetchone()[0]
-        db_size_mb = db_size_bytes / (1024 * 1024)
-        
-        # 获取邮件列表缓存统计
-        cursor.execute("SELECT COUNT(*), COALESCE(SUM(cache_size), 0) FROM emails_cache")
-        emails_count, emails_size = cursor.fetchone()
-        
-        # 获取邮件详情缓存统计
-        cursor.execute("SELECT COUNT(*), COALESCE(SUM(body_size), 0) FROM email_details_cache")
-        details_count, details_size = cursor.fetchone()
-        
-        return {
-            'db_size_mb': round(db_size_mb, 2),
-            'max_size_mb': MAX_CACHE_SIZE_MB,
-            'size_usage_percent': round((db_size_mb / MAX_CACHE_SIZE_MB) * 100, 2),
-            'emails_cache': {
-                'count': emails_count,
-                'max_count': MAX_EMAILS_CACHE_COUNT,
-                'size_bytes': emails_size,
-                'usage_percent': round((emails_count / MAX_EMAILS_CACHE_COUNT) * 100, 2)
-            },
-            'details_cache': {
-                'count': details_count,
-                'max_count': MAX_EMAIL_DETAILS_CACHE_COUNT,
-                'size_bytes': details_size,
-                'usage_percent': round((details_count / MAX_EMAIL_DETAILS_CACHE_COUNT) * 100, 2)
-            }
-        }
-
-
-def cleanup_lru_cache() -> Dict[str, int]:
-    """
-    基于LRU策略清理缓存
-    
-    当缓存超过阈值时，删除最少访问的20%记录
-    保留 access_count 高和 last_accessed_at 新的记录
-    
-    Returns:
-        清理统计信息
-    """
-    from config import (
-        MAX_EMAILS_CACHE_COUNT, 
-        MAX_EMAIL_DETAILS_CACHE_COUNT,
-        LRU_CLEANUP_THRESHOLD
-    )
-    
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            deleted_emails = 0
-            deleted_details = 0
-            
-            # 检查邮件列表缓存是否需要清理
-            cursor.execute("SELECT COUNT(*) FROM emails_cache")
-            emails_count = cursor.fetchone()[0]
-            
-            if emails_count > MAX_EMAILS_CACHE_COUNT * LRU_CLEANUP_THRESHOLD:
-                # 删除最少访问的20%
-                delete_count = int(emails_count * 0.2)
-                cursor.execute("""
-                    DELETE FROM emails_cache 
-                    WHERE id IN (
-                        SELECT id FROM emails_cache 
-                        ORDER BY 
-                            COALESCE(access_count, 0) ASC,
-                            COALESCE(last_accessed_at, created_at) ASC
-                        LIMIT ?
-                    )
-                """, (delete_count,))
-                deleted_emails = cursor.rowcount
-                logger.info(f"LRU cleanup: deleted {deleted_emails} emails from cache")
-            
-            # 检查邮件详情缓存是否需要清理
-            cursor.execute("SELECT COUNT(*) FROM email_details_cache")
-            details_count = cursor.fetchone()[0]
-            
-            if details_count > MAX_EMAIL_DETAILS_CACHE_COUNT * LRU_CLEANUP_THRESHOLD:
-                # 删除最少访问的20%
-                delete_count = int(details_count * 0.2)
-                cursor.execute("""
-                    DELETE FROM email_details_cache 
-                    WHERE id IN (
-                        SELECT id FROM email_details_cache 
-                        ORDER BY 
-                            COALESCE(access_count, 0) ASC,
-                            COALESCE(last_accessed_at, created_at) ASC
-                        LIMIT ?
-                    )
-                """, (delete_count,))
-                deleted_details = cursor.rowcount
-                logger.info(f"LRU cleanup: deleted {deleted_details} email details from cache")
-            
-            conn.commit()
-            
-            return {
-                'deleted_emails': deleted_emails,
-                'deleted_details': deleted_details,
-                'remaining_emails': emails_count - deleted_emails,
-                'remaining_details': details_count - deleted_details
-            }
-    except Exception as e:
-        logger.error(f"Error during LRU cleanup: {e}")
-        return {
-            'deleted_emails': 0,
-            'deleted_details': 0,
-            'error': str(e)
-        }
-
-
-def clear_email_cache_db(email_account: str) -> bool:
-    """
-    清除指定账户的邮件缓存
-    
-    Args:
-        email_account: 邮箱账号
-        
-    Returns:
-        是否清除成功
-    """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # 清除邮件列表缓存
-            cursor.execute("DELETE FROM emails_cache WHERE email_account = ?", (email_account,))
-            list_count = cursor.rowcount
-            
-            # 清除邮件详情缓存
-            cursor.execute("DELETE FROM email_details_cache WHERE email_account = ?", (email_account,))
-            detail_count = cursor.rowcount
-            
-            conn.commit()
-            logger.info(f"Cleared cache for {email_account}: {list_count} emails, {detail_count} details")
-            return True
-    except Exception as e:
-        logger.error(f"Error clearing email cache: {e}")
-        return False
-
-
-def delete_email_from_cache(email_account: str, message_id: str) -> bool:
-    """
-    从缓存中删除指定邮件
-    
-    Args:
-        email_account: 邮箱账号
-        message_id: 邮件ID
-        
-    Returns:
-        是否删除成功
-    """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # 删除列表缓存
-            cursor.execute(
-                "DELETE FROM emails_cache WHERE email_account = ? AND message_id = ?", 
-                (email_account, message_id)
-            )
-            
-            # 删除详情缓存
-            cursor.execute(
-                "DELETE FROM email_details_cache WHERE email_account = ? AND message_id = ?", 
-                (email_account, message_id)
-            )
-            
-            conn.commit()
-            logger.info(f"Deleted email {message_id} from cache for {email_account}")
-            return True
-    except Exception as e:
-        logger.error(f"Error deleting email from cache: {e}")
-        return False
-
-
-def get_email_count_by_account(email_account: str, folder: Optional[str] = None) -> int:
-    """
-    获取账户的邮件总数（用于检测新邮件）
-    
-    Args:
-        email_account: 邮箱账号
-        folder: 文件夹（可选）
-        
-    Returns:
-        邮件总数
-    """
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        if folder and folder != 'all':
-            cursor.execute("""
-                SELECT COUNT(*) FROM emails_cache 
-                WHERE email_account = ? AND folder = ?
-            """, (email_account, folder))
-        else:
-            cursor.execute("""
-                SELECT COUNT(*) FROM emails_cache 
-                WHERE email_account = ?
-            """, (email_account,))
-        
-        return cursor.fetchone()[0]
-
-
-# ============================================================================
-# 批量导入任务表操作
-# ============================================================================
-
-def create_batch_import_task(
-    task_id: str,
-    total_count: int,
-    api_method: str = "imap",
-    tags: List[str] = None,
-    created_by: str = None
-) -> bool:
-    """
-    创建批量导入任务
-    
-    Args:
-        task_id: 任务ID
-        total_count: 总数量
-        api_method: API方法 (imap/graph)
-        tags: 标签列表
-        created_by: 创建者用户名
-        
-    Returns:
-        是否创建成功
-    """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            tags_json = json.dumps(tags or [])
-            cursor.execute("""
-                INSERT INTO batch_import_tasks 
-                (task_id, total_count, api_method, tags, created_by)
-                VALUES (?, ?, ?, ?, ?)
-            """, (task_id, total_count, api_method, tags_json, created_by))
-            conn.commit()
-            logger.info(f"Created batch import task: {task_id}, total: {total_count}")
-            return True
-    except Exception as e:
-        logger.error(f"Error creating batch import task: {e}")
-        return False
-
-
-def add_batch_import_task_items(
-    task_id: str,
-    items: List[Dict[str, str]]
-) -> bool:
-    """
-    添加批量导入任务项
-    
-    Args:
-        task_id: 任务ID
-        items: 任务项列表，每个项包含 email, refresh_token, client_id
-        
-    Returns:
-        是否添加成功
-    """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            for item in items:
-                cursor.execute("""
-                    INSERT INTO batch_import_task_items 
-                    (task_id, email, refresh_token, client_id)
-                    VALUES (?, ?, ?, ?)
-                """, (task_id, item['email'], item['refresh_token'], item['client_id']))
-            conn.commit()
-            logger.info(f"Added {len(items)} items to batch import task: {task_id}")
-            return True
-    except Exception as e:
-        logger.error(f"Error adding batch import task items: {e}")
-        return False
-
-
-def get_batch_import_task(task_id: str) -> Optional[Dict[str, Any]]:
-    """
-    获取批量导入任务信息
-    
-    Args:
-        task_id: 任务ID
-        
-    Returns:
-        任务信息字典或None
-    """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM batch_import_tasks WHERE task_id = ?", (task_id,))
-            row = cursor.fetchone()
-            if row:
-                task = dict(row)
-                task['tags'] = json.loads(task['tags']) if task['tags'] else []
-                return task
-            return None
-    except Exception as e:
-        logger.error(f"Error getting batch import task: {e}")
-        return None
-
-
-def update_batch_import_task_progress(
-    task_id: str,
-    success_count: int = None,
-    failed_count: int = None,
-    processed_count: int = None,
-    status: str = None
-) -> bool:
-    """
-    更新批量导入任务进度
-    
-    Args:
-        task_id: 任务ID
-        success_count: 成功数量
-        failed_count: 失败数量
-        processed_count: 已处理数量
-        status: 状态 (pending, processing, completed, failed)
-        
-    Returns:
-        是否更新成功
-    """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            updates = []
-            params = []
-            
-            if success_count is not None:
-                updates.append("success_count = ?")
-                params.append(success_count)
-            if failed_count is not None:
-                updates.append("failed_count = ?")
-                params.append(failed_count)
-            if processed_count is not None:
-                updates.append("processed_count = ?")
-                params.append(processed_count)
-            if status:
-                updates.append("status = ?")
-                params.append(status)
-                if status == 'completed' or status == 'failed':
-                    updates.append("completed_at = ?")
-                    params.append(datetime.now().isoformat())
-            
-            updates.append("updated_at = ?")
-            params.append(datetime.now().isoformat())
-            params.append(task_id)
-            
-            cursor.execute(
-                f"UPDATE batch_import_tasks SET {', '.join(updates)} WHERE task_id = ?",
-                params
-            )
-            conn.commit()
-            return True
-    except Exception as e:
-        logger.error(f"Error updating batch import task progress: {e}")
-        return False
-
-
-def update_batch_import_task_item(
-    task_id: str,
-    email: str,
-    status: str,
-    error_message: str = None
-) -> bool:
-    """
-    更新批量导入任务项状态
-    
-    Args:
-        task_id: 任务ID
-        email: 邮箱地址
-        status: 状态 (pending, success, failed)
-        error_message: 错误消息
-        
-    Returns:
-        是否更新成功
-    """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE batch_import_task_items 
-                SET status = ?, error_message = ?, processed_at = ?
-                WHERE task_id = ? AND email = ?
-            """, (status, error_message, datetime.now().isoformat(), task_id, email))
-            conn.commit()
-            return True
-    except Exception as e:
-        logger.error(f"Error updating batch import task item: {e}")
-        return False
-
-
-def get_batch_import_task_items(
-    task_id: str,
-    status: str = None
-) -> List[Dict[str, Any]]:
-    """
-    获取批量导入任务项列表
-    
-    Args:
-        task_id: 任务ID
-        status: 状态筛选（可选）
-        
-    Returns:
-        任务项列表
-    """
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            if status:
-                cursor.execute("""
-                    SELECT * FROM batch_import_task_items 
-                    WHERE task_id = ? AND status = ?
-                    ORDER BY created_at
-                """, (task_id, status))
-            else:
-                cursor.execute("""
-                    SELECT * FROM batch_import_task_items 
-                    WHERE task_id = ?
-                    ORDER BY created_at
-                """, (task_id,))
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
-    except Exception as e:
-        logger.error(f"Error getting batch import task items: {e}")
-        return []
 

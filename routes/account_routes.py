@@ -603,19 +603,24 @@ async def process_batch_import_task(task_id: str):
         task_id: 任务ID
     """
     try:
+        from dao.batch_import_task_dao import BatchImportTaskDAO, BatchImportTaskItemDAO
+        
+        task_dao = BatchImportTaskDAO()
+        item_dao = BatchImportTaskItemDAO()
+        
         logger.info(f"Starting batch import task: {task_id}")
         
         # 更新任务状态为处理中
-        db.update_batch_import_task_progress(task_id, status="processing")
+        task_dao.update_progress(task_id, status="processing")
         
         # 获取任务信息
-        task = db.get_batch_import_task(task_id)
+        task = task_dao.get_by_task_id(task_id)
         if not task:
             logger.error(f"Task {task_id} not found")
             return
         
         # 获取任务项
-        items = db.get_batch_import_task_items(task_id, status="pending")
+        items = item_dao.get_by_task_id(task_id, status="pending")
         total = len(items)
         
         logger.info(f"Processing {total} items for task {task_id}")
@@ -642,18 +647,18 @@ async def process_batch_import_task(task_id: str):
                 await save_account_credentials(credentials.email, credentials)
                 
                 # 更新任务项状态
-                db.update_batch_import_task_item(task_id, item['email'], "success")
+                item_dao.update_item(task_id, item['email'], "success")
                 success_count += 1
                 
             except Exception as e:
                 error_msg = str(e)
                 logger.error(f"Failed to import {item['email']}: {error_msg}")
-                db.update_batch_import_task_item(task_id, item['email'], "failed", error_msg)
+                item_dao.update_item(task_id, item['email'], "failed", error_msg)
                 failed_count += 1
             
             # 更新任务进度
             processed_count = success_count + failed_count
-            db.update_batch_import_task_progress(
+            task_dao.update_progress(
                 task_id,
                 success_count=success_count,
                 failed_count=failed_count,
@@ -661,12 +666,14 @@ async def process_batch_import_task(task_id: str):
             )
         
         # 更新任务状态为完成
-        db.update_batch_import_task_progress(task_id, status="completed")
+        task_dao.update_progress(task_id, status="completed")
         logger.info(f"Batch import task {task_id} completed: {success_count} success, {failed_count} failed")
         
     except Exception as e:
         logger.error(f"Error processing batch import task {task_id}: {e}")
-        db.update_batch_import_task_progress(task_id, status="failed")
+        from dao.batch_import_task_dao import BatchImportTaskDAO
+        task_dao = BatchImportTaskDAO()
+        task_dao.update_progress(task_id, status="failed")
 
 
 @router.post("/batch-import", response_model=BatchImportTaskResponse)
@@ -680,11 +687,16 @@ async def create_batch_import_task(
         if not request.items:
             raise HTTPException(status_code=400, detail="Items list cannot be empty")
         
+        from dao.batch_import_task_dao import BatchImportTaskDAO, BatchImportTaskItemDAO
+        
+        task_dao = BatchImportTaskDAO()
+        item_dao = BatchImportTaskItemDAO()
+        
         # 生成任务ID
         task_id = str(uuid.uuid4())
         
         # 创建任务
-        success = db.create_batch_import_task(
+        success = task_dao.create(
             task_id=task_id,
             total_count=len(request.items),
             api_method=request.api_method,
@@ -705,7 +717,7 @@ async def create_batch_import_task(
             for item in request.items
         ]
         
-        success = db.add_batch_import_task_items(task_id, task_items)
+        success = item_dao.add_items(task_id, task_items)
         if not success:
             raise HTTPException(status_code=500, detail="Failed to add batch import task items")
         
@@ -735,7 +747,10 @@ async def get_batch_import_task_progress(
 ):
     """获取批量导入任务进度"""
     try:
-        task = db.get_batch_import_task(task_id)
+        from dao.batch_import_task_dao import BatchImportTaskDAO
+        
+        task_dao = BatchImportTaskDAO()
+        task = task_dao.get_by_task_id(task_id)
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
         

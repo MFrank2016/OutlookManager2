@@ -1,0 +1,134 @@
+"""
+ShareTokenDAO - 分享码表数据访问对象
+"""
+
+from typing import Any, Dict, List, Optional, Tuple
+import logging
+
+from .base_dao import BaseDAO, get_db_connection
+
+logger = logging.getLogger(__name__)
+
+
+class ShareTokenDAO(BaseDAO):
+    """分享码表 DAO"""
+    
+    def __init__(self):
+        super().__init__("share_tokens")
+        self.default_page_size = 50
+        self.max_page_size = 100
+    
+    def get_by_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """
+        获取分享码信息
+        
+        Args:
+            token: 分享码
+            
+        Returns:
+            分享码信息字典或None
+        """
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM share_tokens WHERE token = ?", (token,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    
+    def create(
+        self,
+        token: str,
+        email_account_id: str,
+        start_time: str,
+        end_time: Optional[str] = None,
+        subject_keyword: Optional[str] = None,
+        sender_keyword: Optional[str] = None,
+        expiry_time: Optional[str] = None,
+        is_active: bool = True
+    ) -> int:
+        """
+        创建分享码
+        
+        Args:
+            token: 分享码
+            email_account_id: 邮箱账户ID
+            start_time: 开始时间
+            end_time: 结束时间
+            subject_keyword: 主题关键词
+            sender_keyword: 发件人关键词
+            expiry_time: 过期时间
+            is_active: 是否激活
+            
+        Returns:
+            新记录的 ID
+        """
+        data = {
+            'token': token,
+            'email_account_id': email_account_id,
+            'start_time': start_time,
+            'end_time': end_time,
+            'subject_keyword': subject_keyword,
+            'sender_keyword': sender_keyword,
+            'expiry_time': expiry_time,
+            'is_active': 1 if is_active else 0
+        }
+        return self.insert(data)
+    
+    def update_token(self, token_id: int, **kwargs) -> bool:
+        """
+        更新分享码信息
+        
+        Args:
+            token_id: 分享码ID
+            **kwargs: 要更新的字段
+            
+        Returns:
+            是否更新成功
+        """
+        return self.update(token_id, kwargs)
+    
+    def delete_token(self, token_id: int) -> bool:
+        """
+        删除分享码
+        
+        Args:
+            token_id: 分享码ID
+            
+        Returns:
+            是否删除成功
+        """
+        return self.delete(token_id)
+    
+    def list_tokens(
+        self,
+        email_account_id: Optional[str] = None,
+        page: int = 1,
+        page_size: Optional[int] = None
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """
+        列出分享码
+        
+        Args:
+            email_account_id: 邮箱账户ID（可选）
+            page: 页码
+            page_size: 每页数量
+            
+        Returns:
+            (分享码列表, 总数)
+        """
+        conditions = []
+        params = []
+        
+        if email_account_id:
+            conditions.append("email_account_id = ?")
+            params.append(email_account_id)
+        
+        where_clause = self._build_where_clause(conditions, params)
+        
+        return self.find_paginated(
+            page=page,
+            page_size=page_size,
+            where_clause=where_clause,
+            params=params,
+            order_by="created_at DESC"
+        )
+

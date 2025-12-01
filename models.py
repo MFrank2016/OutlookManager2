@@ -14,7 +14,7 @@ class AccountCredentials(BaseModel):
     email: EmailStr
     refresh_token: str
     client_id: str
-    tags: Optional[List[str]] = Field(default=[])
+    tags: Optional[List[str]] = Field(default_factory=list)
     last_refresh_time: Optional[str] = None
     next_refresh_time: Optional[str] = None
     refresh_status: str = "pending"
@@ -113,7 +113,7 @@ class AccountInfo(BaseModel):
     email_id: str
     client_id: str
     status: str = "active"
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
     last_refresh_time: Optional[str] = None
     next_refresh_time: Optional[str] = None
     refresh_status: str = "pending"
@@ -185,7 +185,7 @@ class BatchImportRequest(BaseModel):
     
     items: List[BatchImportItem]
     api_method: str = "imap"
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
 
 
 class BatchImportTaskResponse(BaseModel):
@@ -255,8 +255,8 @@ class UserCreateRequest(BaseModel):
     password: str = Field(..., description="密码")
     email: Optional[str] = Field(None, description="邮箱")
     role: str = Field("user", description="角色 (admin/user)")
-    bound_accounts: Optional[List[str]] = Field(default=[], description="绑定的邮箱账户列表")
-    permissions: Optional[List[str]] = Field(default=[], description="权限列表")
+    bound_accounts: Optional[List[str]] = Field(default_factory=list, description="绑定的邮箱账户列表")
+    permissions: Optional[List[str]] = Field(default_factory=list, description="权限列表")
     is_active: bool = Field(True, description="账户是否启用")
     
     class Config:
@@ -301,8 +301,8 @@ class UserInfo(BaseModel):
     username: str
     email: Optional[str] = None
     role: str
-    bound_accounts: List[str] = []
-    permissions: List[str] = []
+    bound_accounts: List[str] = Field(default_factory=list)
+    permissions: List[str] = Field(default_factory=list)
     is_active: bool
     created_at: str
     last_login: Optional[str] = None

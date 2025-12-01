@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { AccountsTable } from "@/components/accounts/AccountsTable";
 import { AddAccountDialog } from "@/components/accounts/AddAccountDialog";
@@ -30,7 +30,7 @@ export default function DashboardPage() {
     exclude_tags: "",
     refresh_status: undefined as string | undefined,
   });
-  const [shouldQuery, setShouldQuery] = useState(false);
+  const [shouldQuery, setShouldQuery] = useState(true); // 初始为 true，页面加载时自动请求
   const queryClient = useQueryClient();
   
   const { data, isLoading, refetch } = useAccounts({ 
@@ -59,12 +59,12 @@ export default function DashboardPage() {
   };
 
   const handlePageChange = (newPage: number) => {
-    if (!shouldQuery) {
-      toast.warning("请先点击查询按钮");
-      return;
-    }
     setPage(newPage);
     setQueryParams(prev => ({ ...prev, page: newPage }));
+    // 如果已经查询过，直接更新页码并重新请求
+    if (shouldQuery) {
+      refetch();
+    }
   };
 
   const handleBatchRefresh = async () => {
