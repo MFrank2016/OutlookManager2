@@ -5,6 +5,7 @@
 """
 
 from typing import Any, Dict, List, Optional
+import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -113,15 +114,33 @@ async def get_tables(admin: dict = Depends(auth.get_current_admin)):
     """
     获取所有数据表列表
     """
-    tables = db.get_all_tables()
-    
-    table_info_list = []
-    for table_name in tables:
-        # 获取表记录数
-        data, total = db.get_table_data(table_name, page=1, page_size=1)
-        table_info_list.append(TableInfo(name=table_name, record_count=total))
-    
-    return TableListResponse(tables=table_info_list)
+    try:
+        tables = db.get_all_tables()
+        
+        table_info_list = []
+        for table_name in tables:
+            try:
+                # 获取表记录数
+                data, total = db.get_table_data(table_name, page=1, page_size=1)
+                table_info_list.append(TableInfo(name=table_name, record_count=total))
+            except sqlite3.DatabaseError as e:
+                # 如果某个表损坏，记录错误但继续处理其他表
+                error_msg = str(e)
+                if "malformed" in error_msg.lower() or "corrupt" in error_msg.lower():
+                    logger.error(f"Table {table_name} is corrupted, skipping: {e}")
+                    # 仍然添加表信息，但标记为错误
+                    table_info_list.append(TableInfo(name=table_name, record_count=-1))
+                else:
+                    raise
+            except Exception as e:
+                logger.error(f"Error getting data for table {table_name}: {e}")
+                # 仍然添加表信息，但标记为错误
+                table_info_list.append(TableInfo(name=table_name, record_count=-1))
+        
+        return TableListResponse(tables=table_info_list)
+    except Exception as e:
+        logger.error(f"Error getting tables: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取表列表失败: {str(e)}")
 
 
 @router.get("/tables/{table_name}/schema", response_model=TableSchemaResponse)

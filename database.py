@@ -77,18 +77,64 @@ def get_db_connection():
     获取数据库连接的上下文管理器
     
     自动处理连接的创建和关闭
+    包含数据库完整性检查和错误处理
     """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row  # 返回字典式结果
+    conn = None
     try:
+        # 尝试连接数据库
+        conn = sqlite3.connect(DB_FILE, timeout=10.0)
+        conn.row_factory = sqlite3.Row  # 返回字典式结果
+        
+        # 启用外键约束
+        conn.execute("PRAGMA foreign_keys = ON")
+        
+        # 快速完整性检查（仅在连接时检查一次，避免每次查询都检查）
+        # 注意：完整检查可能很慢，所以只在连接时做快速检查
+        try:
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA quick_check")
+            result = cursor.fetchone()
+            if result and result[0] != "ok":
+                logger.error(f"Database quick check failed: {result[0]}")
+                raise sqlite3.DatabaseError(f"Database integrity check failed: {result[0]}")
+        except sqlite3.DatabaseError as e:
+            logger.error(f"Database integrity error: {e}")
+            if conn:
+                conn.close()
+            raise
+        except Exception as e:
+            # 如果 quick_check 不可用，尝试 integrity_check（可能较慢）
+            logger.warning(f"Quick check failed, trying integrity_check: {e}")
+            try:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA integrity_check(1)")
+                result = cursor.fetchone()
+                if result and result[0] != "ok":
+                    logger.error(f"Database integrity check failed: {result[0]}")
+                    raise sqlite3.DatabaseError(f"Database integrity check failed: {result[0]}")
+            except Exception:
+                # 如果检查也失败，记录警告但继续（可能是旧版本SQLite）
+                logger.warning("Could not perform database integrity check")
+        
         yield conn
         conn.commit()
+    except sqlite3.DatabaseError as e:
+        if conn:
+            conn.rollback()
+        error_msg = str(e)
+        if "malformed" in error_msg.lower() or "corrupt" in error_msg.lower():
+            logger.error(f"Database corruption detected: {e}")
+            logger.error("Please run scripts/repair_database.py to repair the database")
+        logger.error(f"Database error: {e}")
+        raise
     except Exception as e:
-        conn.rollback()
+        if conn:
+            conn.rollback()
         logger.error(f"Database error: {e}")
         raise
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 def init_database() -> None:
@@ -703,11 +749,23 @@ def get_table_schema(table_name: str) -> List[Dict[str, Any]]:
     Returns:
         表结构列表
     """
+    # 验证表名，防止SQL注入
+    if not table_name or not table_name.replace('_', '').replace('-', '').isalnum():
+        raise ValueError(f"Invalid table name: {table_name}")
+    
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(f"PRAGMA table_info({table_name})")
-        rows = cursor.fetchall()
-        return [dict(row) for row in rows]
+        try:
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+        except sqlite3.DatabaseError as e:
+            error_msg = str(e)
+            if "malformed" in error_msg.lower() or "corrupt" in error_msg.lower():
+                logger.error(f"Database corruption detected when accessing table schema for {table_name}: {e}")
+                logger.error("Please run scripts/repair_database.py to repair the database")
+                raise sqlite3.DatabaseError(f"数据库表 {table_name} 可能已损坏，请运行修复脚本: {e}")
+            raise
 
 def get_table_data(table_name: str, page: int = 1, page_size: int = 50, search: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
     """
@@ -722,36 +780,48 @@ def get_table_data(table_name: str, page: int = 1, page_size: int = 50, search: 
     Returns:
         (数据列表, 总数)
     """
+    # 验证表名，防止SQL注入
+    if not table_name or not table_name.replace('_', '').replace('-', '').isalnum():
+        raise ValueError(f"Invalid table name: {table_name}")
+    
     with get_db_connection() as conn:
         cursor = conn.cursor()
         
-        # 获取表结构，用于构建搜索条件
-        schema = get_table_schema(table_name)
-        columns = [col['name'] for col in schema]
-        
-        # 构建搜索条件
-        where_clause = "1=1"
-        params = []
-        
-        if search:
-            # 在所有文本列中搜索
-            search_conditions = " OR ".join([f"{col} LIKE ?" for col in columns])
-            where_clause = f"({search_conditions})"
-            params = [f"%{search}%"] * len(columns)
-        
-        # 获取总数
-        cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {where_clause}", params)
-        total = cursor.fetchone()[0]
-        
-        # 获取分页数据
-        offset = (page - 1) * page_size
-        cursor.execute(
-            f"SELECT * FROM {table_name} WHERE {where_clause} LIMIT ? OFFSET ?",
-            params + [page_size, offset]
-        )
-        rows = cursor.fetchall()
-        
-        return [dict(row) for row in rows], total
+        try:
+            # 获取表结构，用于构建搜索条件
+            schema = get_table_schema(table_name)
+            columns = [col['name'] for col in schema]
+            
+            # 构建搜索条件
+            where_clause = "1=1"
+            params = []
+            
+            if search:
+                # 在所有文本列中搜索
+                search_conditions = " OR ".join([f"{col} LIKE ?" for col in columns])
+                where_clause = f"({search_conditions})"
+                params = [f"%{search}%"] * len(columns)
+            
+            # 获取总数
+            cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {where_clause}", params)
+            total = cursor.fetchone()[0]
+            
+            # 获取分页数据
+            offset = (page - 1) * page_size
+            cursor.execute(
+                f"SELECT * FROM {table_name} WHERE {where_clause} LIMIT ? OFFSET ?",
+                params + [page_size, offset]
+            )
+            rows = cursor.fetchall()
+            
+            return [dict(row) for row in rows], total
+        except sqlite3.DatabaseError as e:
+            error_msg = str(e)
+            if "malformed" in error_msg.lower() or "corrupt" in error_msg.lower():
+                logger.error(f"Database corruption detected when accessing table {table_name}: {e}")
+                logger.error("Please run scripts/repair_database.py to repair the database")
+                raise sqlite3.DatabaseError(f"数据库表 {table_name} 可能已损坏，请运行修复脚本: {e}")
+            raise
 
 def insert_table_record(table_name: str, data: Dict[str, Any]) -> int:
     """
