@@ -19,6 +19,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
 import { ShareToken } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAccounts } from "@/hooks/useAccounts";
 
 export default function ShareManagementPage() {
   const queryClient = useQueryClient();
@@ -28,16 +29,13 @@ export default function ShareManagementPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<string>("");
 
-  // 获取账户列表
-  const { data: accountsData } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: async () => {
-      const res = await api.get("/accounts", {
-        params: { page: 1, page_size: 1000 }
-      });
-      return res.data.accounts || [];
-    }
+  // 获取账户列表（使用现有的hook）
+  const { data: accountsResponse } = useAccounts({
+    page: 1,
+    page_size: 100
   });
+  
+  const accountsData = accountsResponse?.accounts || [];
 
   const { data: tokens, isLoading } = useQuery({
     queryKey: ["share-tokens", page],
