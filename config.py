@@ -20,7 +20,7 @@ GRAPH_API_BASE_URL = "https://graph.microsoft.com/v1.0"
 # IMAP服务器配置
 # ============================================================================
 
-IMAP_SERVER = "outlook.live.com"
+IMAP_SERVER = "outlook.office365.com"  # 使用 office365.com 而不是 live.com，更稳定
 IMAP_PORT = 993
 
 # ============================================================================

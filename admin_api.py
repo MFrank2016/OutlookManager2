@@ -960,12 +960,26 @@ async def update_user_password(
     
     try:
         # 哈希新密码
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Updating password for user: {username}")
         new_password_hash = auth.hash_password(request.new_password)
+        logger.debug(f"Password hashed successfully for {username}, hash length: {len(new_password_hash)}")
         
         # 更新密码
         success = db.update_user_password(username, new_password_hash)
         
         if success:
+            logger.info(f"Password updated successfully for user: {username}")
+            # 验证密码是否正确保存（可选，用于调试）
+            updated_user = db.get_user_by_username(username)
+            if updated_user and updated_user.get('password_hash'):
+                # 验证哈希后的密码是否能正确验证
+                test_verify = auth.verify_password(request.new_password, updated_user['password_hash'])
+                if not test_verify:
+                    logger.error(f"WARNING: Password hash verification failed immediately after update for {username}")
+                else:
+                    logger.debug(f"Password hash verification passed for {username}")
             return MessageResponse(message=f"用户 {username} 密码修改成功")
         else:
             raise HTTPException(status_code=500, detail="修改密码失败")

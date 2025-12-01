@@ -11,7 +11,8 @@ import re
 from datetime import datetime
 from itertools import groupby
 from typing import Optional
-
+import time
+import database as db
 from email.utils import parsedate_to_datetime
 from fastapi import HTTPException
 
@@ -25,6 +26,42 @@ from verification_code_detector import detect_verification_code
 
 # 获取日志记录器
 logger = logging.getLogger(__name__)
+
+
+def _format_token_info(token: str, expires_at: Optional[str] = None) -> str:
+    """
+    格式化 token 信息用于日志（只显示前8位和后8位，中间用...代替）
+    
+    Args:
+        token: access token
+        expires_at: token 过期时间（可选）
+        
+    Returns:
+        格式化的 token 信息字符串
+    """
+    if not token:
+        return "None"
+    
+    if len(token) <= 16:
+        masked_token = token[:4] + "..." + token[-4:]
+    else:
+        masked_token = token[:8] + "..." + token[-8:]
+    
+    info = f"Token: {masked_token}"
+    if expires_at:
+        try:
+            from datetime import datetime
+            expires_dt = datetime.fromisoformat(expires_at)
+            now = datetime.now()
+            time_until_expiry = (expires_dt - now).total_seconds()
+            if time_until_expiry > 0:
+                info += f", Expires in: {int(time_until_expiry/60)} minutes"
+            else:
+                info += f", Expired: {int(abs(time_until_expiry)/60)} minutes ago"
+        except:
+            info += f", Expires at: {expires_at}"
+    
+    return info
 
 
 async def list_emails(
@@ -42,18 +79,11 @@ async def list_emails(
 ) -> EmailListResponse:
     """获取邮件列表 - 优化版本（支持SQLite缓存、搜索、排序）"""
     
-    import time
+
+
     start_time_ms = time.time()
     from_cache = False
     
-    # 检查是否使用 Graph API
-    if credentials.api_method in ["graph", "graph_api"]:
-        logger.info(f"Using Graph API for {credentials.email}")
-        return await list_emails_via_graph_api(
-            credentials, folder, page, page_size, force_refresh,
-            sender_search, subject_search, sort_by, sort_order, start_time_ms,
-            start_time, end_time
-        )
 
     # 优先从内存LRU缓存获取
     if not force_refresh:
@@ -74,7 +104,8 @@ async def list_emails(
         if cached_data:
             from_cache = True
             fetch_time_ms = int((time.time() - start_time_ms) * 1000)
-            logger.info(f"Returning {len(cached_data.get('emails', []))} cached emails from LRU cache for {credentials.email} ({fetch_time_ms}ms)")
+            email_count = len(cached_data.get('emails', []))
+            logger.info(f"[数据来源: 内存LRU缓存] 账户: {credentials.email}, 返回邮件数: {email_count}, 耗时: {fetch_time_ms}ms")
             return EmailListResponse(**cached_data)
     
     # 从 SQLite 缓存获取
@@ -96,7 +127,7 @@ async def list_emails(
             if cached_emails:
                 from_cache = True
                 fetch_time_ms = int((time.time() - start_time_ms) * 1000)
-                logger.info(f"Returning {len(cached_emails)} cached emails from SQLite for {credentials.email} ({fetch_time_ms}ms)")
+                logger.info(f"[数据来源: SQLite数据库] 账户: {credentials.email}, 返回邮件数: {len(cached_emails)}, 总数: {total}, 耗时: {fetch_time_ms}ms")
                 email_items = [
                     EmailItem(**email) for email in cached_emails
                 ]
@@ -127,9 +158,68 @@ async def list_emails(
                 return response
         except Exception as e:
             logger.warning(f"Failed to load from cache, fetching from IMAP: {e}")
+    
+
+    # 自动检测并选择最佳 API（参考 mail-all.js 的实现）
+    # 优化策略：
+    # 1. 如果 api_method 已明确设置为 graph_api，直接使用（避免重复检测）
+    # 2. 如果 api_method 未设置或为 'imap'，尝试检测 Graph API 是否可用
+    # 3. 检测成功后，可以更新数据库中的 api_method（可选，避免下次重复检测）
+    use_graph_api = False
+    
+    if credentials.api_method in ["graph", "graph_api"]:
+        use_graph_api = True
+        logger.info(f"[API选择] 账户: {credentials.email}, 使用预设的 Graph API")
+    elif credentials.api_method == "imap":
+        # api_method 明确设置为 imap，直接使用（不检测）
+        use_graph_api = False
+        logger.info(f"[API选择] 账户: {credentials.email}, 使用预设的 IMAP")
+    else:
+        # api_method 未设置或为空，动态检测 Graph API 是否可用（参考 mail-all.js 的 graph_api 函数）
+        try:
+            from graph_api_service import check_graph_api_availability
+            logger.info(f"[API选择] 账户: {credentials.email}, api_method 未设置，正在检测 Graph API 支持...")
+            graph_result = await check_graph_api_availability(credentials)
+            if graph_result.get("available", False):
+                use_graph_api = True
+                logger.info(f"[API选择] 账户: {credentials.email}, Graph API 可用，优先使用 Graph API")
+                # 可选：更新数据库中的 api_method，避免下次重复检测
+                try:
+                    db.update_account(credentials.email, api_method="graph_api")
+                    logger.info(f"[API选择] 账户: {credentials.email}, 已更新数据库 api_method 为 graph_api")
+                except Exception as update_error:
+                    logger.warning(f"[API选择] 账户: {credentials.email}, 更新 api_method 失败: {update_error}")
+            else:
+                logger.info(f"[API选择] 账户: {credentials.email}, Graph API 不可用，使用 IMAP")
+                # 可选：更新数据库中的 api_method
+                try:
+                    db.update_account(credentials.email, api_method="imap")
+                    logger.info(f"[API选择] 账户: {credentials.email}, 已更新数据库 api_method 为 imap")
+                except Exception as update_error:
+                    logger.warning(f"[API选择] 账户: {credentials.email}, 更新 api_method 失败: {update_error}")
+        except Exception as e:
+            logger.warning(f"[API选择] 账户: {credentials.email}, Graph API 检测失败: {e}，使用 IMAP")
+            use_graph_api = False
+    
+    if use_graph_api:
+        logger.info(f"[邮件列表请求] 账户: {credentials.email}, 访问方式: GRAPH API, 文件夹: {folder}, 页码: {page}, 每页: {page_size}")
+        return await list_emails_via_graph_api(
+            credentials, folder, page, page_size, force_refresh,
+            sender_search, subject_search, sort_by, sort_order, start_time_ms,
+            start_time, end_time
+        )
+    
+    logger.info(f"[邮件列表请求] 账户: {credentials.email}, 访问方式: IMAP, 文件夹: {folder}, 页码: {page}, 每页: {page_size}")
 
     # 如果没有缓存或强制刷新，从 IMAP 获取
+    logger.info(f"[数据来源: 微软IMAP服务器] 账户: {credentials.email}, 开始获取邮件列表...")
     access_token = await get_cached_access_token(credentials)
+    
+    # 获取 token 信息用于日志
+    token_info = db.get_account_access_token(credentials.email)
+    token_expires_at = token_info.get('token_expires_at') if token_info else None
+    logger.info(f"[Token信息] 账户: {credentials.email}, {_format_token_info(access_token, token_expires_at)}")
+    
     retry_count = 0
     max_retries = 1
 
@@ -366,7 +456,7 @@ async def list_emails(
             except Exception as e:
                 logger.warning(f"Failed to cache emails to LRU cache: {e}")
             
-            logger.info(f"Fetched {len(email_items)} emails from IMAP for {credentials.email} ({fetch_time_ms}ms)")
+            logger.info(f"[数据来源: 微软IMAP服务器] 账户: {credentials.email}, 返回邮件数: {len(email_items)}, 总数: {total_emails}, 耗时: {fetch_time_ms}ms")
 
             return result
 
@@ -383,29 +473,82 @@ async def list_emails(
                 except Exception:
                     pass
             
-            # 检查是否是认证错误，如果是且未重试过，则清除缓存的 token 并重试
+            # 检查是否是认证错误或 SSL 错误，如果是且未重试过，则清除缓存的 token 并重试
             error_msg = str(e).lower()
-            if retry_count < max_retries and any(keyword in error_msg for keyword in ['auth', 'authentication', 'login', 'credential']):
-                logger.warning(f"Authentication error detected for {credentials.email}, clearing cached token and retrying...")
+            is_auth_error = any(keyword in error_msg for keyword in ['auth', 'authentication', 'login', 'credential'])
+            is_ssl_error = any(keyword in error_msg for keyword in ['ssl', 'unexpected_eof', 'eof', 'protocol'])
+            
+            if retry_count < max_retries and (is_auth_error or is_ssl_error):
+                logger.warning(f"Connection error detected for {credentials.email} (auth: {is_auth_error}, ssl: {is_ssl_error}), clearing cached token and retrying...")
                 retry_count += 1
                 # 这里需要在异步上下文中清除 token，但我们在同步函数中，所以标记需要重试
-                raise Exception("AUTH_RETRY_NEEDED")
+                raise Exception("TOKEN_RETRY_NEEDED")
             
-            raise HTTPException(status_code=500, detail="Failed to retrieve emails")
+            # 其他错误，标记为需要从缓存返回
+            raise Exception("FALLBACK_TO_CACHE")
 
     # 在线程池中运行同步代码，添加重试逻辑
     try:
         return await asyncio.to_thread(_sync_list_emails)
     except Exception as e:
-        if "AUTH_RETRY_NEEDED" in str(e):
+        error_str = str(e)
+        if "TOKEN_RETRY_NEEDED" in error_str:
             # 清除缓存的 token
             await clear_cached_access_token(credentials.email)
             # 获取新 token
             access_token = await get_cached_access_token(credentials)
+            # 重置重试计数
+            retry_count = 0
             # 重试
             logger.info(f"Retrying with fresh token for {credentials.email}")
-            return await asyncio.to_thread(_sync_list_emails)
-        raise
+            try:
+                return await asyncio.to_thread(_sync_list_emails)
+            except Exception as retry_error:
+                logger.error(f"Retry failed for {credentials.email}: {retry_error}")
+                # 重试失败，尝试从缓存返回
+                pass
+        elif "FALLBACK_TO_CACHE" in error_str:
+            logger.warning(f"IMAP connection failed for {credentials.email}, attempting to return cached data")
+        else:
+            logger.error(f"Unexpected error for {credentials.email}: {e}")
+        
+        # 尝试从缓存返回数据作为降级方案
+        try:
+            # 先尝试从 SQLite 缓存获取
+            cached_emails, total = db.get_cached_emails(
+                email_account=credentials.email,
+                page=page,
+                page_size=page_size,
+                folder=folder if folder != 'all' else None,
+                sender_search=sender_search,
+                subject_search=subject_search,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                start_time=start_time,
+                end_time=end_time
+            )
+            
+            if cached_emails:
+                logger.info(f"[数据来源: SQLite数据库(降级)] 账户: {credentials.email}, 返回邮件数: {len(cached_emails)}, 总数: {total}, IMAP连接失败，使用缓存数据")
+                email_items = [EmailItem(**email) for email in cached_emails]
+                return EmailListResponse(
+                    email_id=credentials.email,
+                    folder_view=folder,
+                    page=page,
+                    page_size=page_size,
+                    total_emails=total,
+                    emails=email_items,
+                    from_cache=True,
+                    fetch_time_ms=0
+                )
+        except Exception as cache_error:
+            logger.warning(f"Failed to get cached emails: {cache_error}")
+        
+        # 如果缓存也没有，返回友好的错误信息
+        raise HTTPException(
+            status_code=503,
+            detail=f"无法连接到邮箱服务器，请稍后重试。如果问题持续，请检查账户凭证是否有效。"
+        )
 
 
 async def get_email_details(
@@ -604,7 +747,8 @@ async def list_emails_via_graph_api(
         
         if cached_data:
             fetch_time_ms = int((time.time() - start_time_ms) * 1000)
-            logger.info(f"Returning cached emails from LRU cache for {credentials.email} ({fetch_time_ms}ms)")
+            email_count = len(cached_data.get('emails', []))
+            logger.info(f"[数据来源: 内存LRU缓存] 账户: {credentials.email}, 访问方式: GRAPH API, 返回邮件数: {email_count}, 耗时: {fetch_time_ms}ms")
             return EmailListResponse(**cached_data)
     
     # 从 SQLite 缓存获取
@@ -625,7 +769,7 @@ async def list_emails_via_graph_api(
             
             if cached_emails:
                 fetch_time_ms = int((time.time() - start_time_ms) * 1000)
-                logger.info(f"Returning {len(cached_emails)} cached emails from SQLite for {credentials.email} ({fetch_time_ms}ms)")
+                logger.info(f"[数据来源: SQLite数据库] 账户: {credentials.email}, 访问方式: GRAPH API, 返回邮件数: {len(cached_emails)}, 总数: {total}, 耗时: {fetch_time_ms}ms")
                 email_items = [EmailItem(**email) for email in cached_emails]
                 response = EmailListResponse(
                     email_id=credentials.email,
@@ -656,6 +800,17 @@ async def list_emails_via_graph_api(
             logger.warning(f"Failed to load from cache, fetching from Graph API: {e}")
     
     # 从 Graph API 获取
+    logger.info(f"[数据来源: 微软Graph API服务器] 账户: {credentials.email}, 开始获取邮件列表...")
+    
+    # 获取 token 信息用于日志（不重新获取 token，只查询数据库中的信息）
+    token_info = db.get_account_access_token(credentials.email)
+    if token_info:
+        access_token = token_info.get('access_token', '')
+        token_expires_at = token_info.get('token_expires_at')
+        logger.info(f"[Token信息] 账户: {credentials.email}, {_format_token_info(access_token, token_expires_at)}")
+    else:
+        logger.info(f"[Token信息] 账户: {credentials.email}, Token信息未找到，将在获取邮件时自动获取")
+    
     email_items, total = await list_emails_graph(
         credentials, folder, page, page_size,
         sender_search, subject_search, sort_by, sort_order,
@@ -671,6 +826,8 @@ async def list_emails_via_graph_api(
         logger.warning(f"Failed to cache emails to SQLite: {e}")
     
     fetch_time_ms = int((time.time() - start_time_ms) * 1000)
+    
+    logger.info(f"[数据来源: 微软Graph API服务器] 账户: {credentials.email}, 返回邮件数: {len(email_items)}, 总数: {total}, 耗时: {fetch_time_ms}ms")
     
     return EmailListResponse(
         email_id=credentials.email,

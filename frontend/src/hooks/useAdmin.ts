@@ -62,6 +62,24 @@ export function useUpdateUser() {
     });
 }
 
+export function useUpdateUserPassword() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: { username: string; new_password: string }) => {
+            return api.put(`/admin/users/${data.username}/password`, {
+                new_password: data.new_password
+            });
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["users"] });
+            toast.success("密码修改成功");
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.detail || "修改密码失败");
+        }
+    });
+}
+
 export function useDeleteUser() {
     const queryClient = useQueryClient();
     return useMutation({

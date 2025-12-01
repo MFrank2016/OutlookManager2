@@ -49,6 +49,7 @@ async def get_graph_access_token(credentials: AccountCredentials) -> str:
             
             token_data = response.json()
             access_token = token_data.get("access_token")
+            expires_in = token_data.get("expires_in", 3600)  # 默认1小时
             
             if not access_token:
                 logger.error(f"No access token in Graph API response for {credentials.email}")
@@ -57,7 +58,13 @@ async def get_graph_access_token(credentials: AccountCredentials) -> str:
                     detail="Failed to obtain Graph API access token"
                 )
             
-            logger.info(f"Successfully obtained Graph API access token for {credentials.email}")
+            # 格式化 token 信息用于日志
+            if len(access_token) <= 16:
+                masked_token = access_token[:4] + "..." + access_token[-4:]
+            else:
+                masked_token = access_token[:8] + "..." + access_token[-8:]
+            
+            logger.info(f"[Token信息] 账户: {credentials.email}, Graph API Token: {masked_token}, Expires in: {expires_in} seconds ({int(expires_in/60)} minutes)")
             return access_token
             
     except httpx.HTTPStatusError as e:
@@ -98,8 +105,14 @@ async def check_graph_api_availability(credentials: AccountCredentials) -> Dict[
             access_token = token_data.get("access_token")
             scope = token_data.get("scope", "")
             
-            # 检查是否包含 Mail.ReadWrite 权限
-            has_mail_permission = "Mail.ReadWrite" in scope or "Mail.Read" in scope
+            # 检查是否包含 Mail.ReadWrite 或 Mail.Read 权限（参考 mail-all.js 的实现）
+            # mail-all.js 中检查: data.scope.indexOf('https://graph.microsoft.com/Mail.ReadWrite') != -1
+            has_mail_permission = (
+                "Mail.ReadWrite" in scope or 
+                "Mail.Read" in scope or
+                "https://graph.microsoft.com/Mail.ReadWrite" in scope or
+                "https://graph.microsoft.com/Mail.Read" in scope
+            )
             
             logger.info(
                 f"Graph API availability check for {credentials.email}: "
@@ -177,10 +190,10 @@ async def list_emails_graph(
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             for folder_name in folders_to_query:
-                # 构建查询参数
+                # 构建查询参数（参考 mail-all.js 的实现，使用 $top=10000）
                 params = {
-                    "$top": 999,  # 获取足够多的邮件用于分页和搜索
-                    "$orderby": "receivedDateTime desc",
+                    "$top": 10000,  # 一次性获取大量邮件（参考 mail-all.js）
+                    "$orderby": "receivedDateTime desc",  # 按接收时间降序排序
                     "$select": "id,subject,from,receivedDateTime,isRead,hasAttachments,bodyPreview"
                 }
                 
@@ -270,8 +283,7 @@ async def list_emails_graph(
         end_idx = start_idx + page_size
         paginated_emails = all_emails[start_idx:end_idx]
         
-        logger.info(f"Fetched {len(paginated_emails)} emails via Graph API for {credentials.email}")
-        logger.info(f"Paginated emails: {paginated_emails}")
+        logger.debug(f"Fetched {len(paginated_emails)} emails via Graph API for {credentials.email}")
         return paginated_emails, total
         
     except httpx.HTTPStatusError as e:

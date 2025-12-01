@@ -95,6 +95,9 @@ export default function EmailsPage() {
     refetchEmailsRef.current = refetchEmails;
   }, [refetchEmails]);
 
+  // 使用 ref 跟踪上一次更新的账户，避免循环更新
+  const lastUpdatedAccountRef = useRef<string | null>(null);
+
   // 自动刷新倒计时
   useEffect(() => {
     if (!isAutoRefreshEnabled || !selectedAccount || isEmailsLoading) {
@@ -130,17 +133,36 @@ export default function EmailsPage() {
     toast.success("邮件列表已刷新");
   };
 
-  // Update URL when account changes
+  // 从 URL 同步账户选择（处理浏览器前进/后退或直接修改 URL）
   useEffect(() => {
-      if (selectedAccount) {
+      const urlAccount = searchParams.get("account");
+      if (urlAccount && urlAccount !== selectedAccount) {
+          // 验证账户是否存在，并且不是我们刚刚更新的账户（避免循环）
+          if (accountsData?.accounts?.some(acc => acc.email_id === urlAccount) && 
+              urlAccount !== lastUpdatedAccountRef.current) {
+              lastUpdatedAccountRef.current = urlAccount;
+              setSelectedAccount(urlAccount);
+          }
+      }
+  }, [searchParams, accountsData, selectedAccount]);
+
+  // Update URL when account changes (避免循环更新)
+  useEffect(() => {
+      if (selectedAccount && lastUpdatedAccountRef.current !== selectedAccount) {
+          // 检查当前 URL 中的账户是否与选择的账户一致
           const currentAccountParam = searchParams.get("account");
           if (currentAccountParam !== selectedAccount) {
+              // 标记我们已经更新了这个账户，避免循环
+              lastUpdatedAccountRef.current = selectedAccount;
               const params = new URLSearchParams(searchParams.toString());
               params.set("account", selectedAccount);
               router.replace(`?${params.toString()}`);
+          } else {
+              // URL 已经匹配，更新 ref 以避免重复检查
+              lastUpdatedAccountRef.current = selectedAccount;
           }
       }
-  }, [selectedAccount, router, searchParams]);
+  }, [selectedAccount, router]);
 
   // If no account selected and accounts loaded, select first
   useEffect(() => {

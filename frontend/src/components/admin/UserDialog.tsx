@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useCreateUser, useUpdateUser } from "@/hooks/useAdmin";
+import { useCreateUser, useUpdateUser, useUpdateUserPassword } from "@/hooks/useAdmin";
 import { useState, useEffect } from "react";
 import { Plus, Edit } from "lucide-react";
 import { User } from "@/types";
@@ -50,6 +50,7 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
   const [open, setOpen] = useState(false);
   const createUser = useCreateUser();
   const updateUser = useUpdateUser();
+  const updatePassword = useUpdateUserPassword();
   const isEdit = !!user;
 
   const form = useForm<z.infer<typeof userSchema>>({
@@ -90,20 +91,28 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
           role: values.role,
           is_active: values.is_active,
       };
-      // If password is provided, we need a separate endpoint or handle it
-      // But useUpdateUser logic in hooks uses generic update dict.
-      // However, backend `UserUpdateRequest` model doesn't have password field.
-      // Password update is a separate endpoint: `PUT /users/{username}/password`.
-      // So we should handle password separately if provided.
       
-      // Update basic info
-      updateUser.mutate({ username: user.username, update: updateData }, {
-          onSuccess: () => {
-              setOpen(false);
-          }
-      });
+      // 更新基本用户信息
+      const updatePromise = updateUser.mutateAsync({ username: user.username, update: updateData });
       
-      // TODO: Handle password update if provided (requires separate hook/call)
+      // 如果提供了密码，使用专门的密码更新端点
+      const passwordPromise = values.password && values.password.trim() 
+        ? updatePassword.mutateAsync({ 
+            username: user.username, 
+            new_password: values.password 
+          })
+        : Promise.resolve();
+      
+      // 等待所有更新完成
+      Promise.all([updatePromise, passwordPromise])
+        .then(() => {
+          setOpen(false);
+          form.reset();
+        })
+        .catch((error) => {
+          // 错误已经在各自的 mutation 中处理了
+          console.error("更新用户失败:", error);
+        });
       
     } else {
       if (!values.password) {

@@ -160,6 +160,11 @@ class UserDAO(BaseDAO):
         if not kwargs:
             return False
         
+        # 防止通过通用更新方法直接更新密码，必须使用专门的 update_password 方法
+        if 'password_hash' in kwargs or 'password' in kwargs:
+            logger.warning(f"Attempted to update password for {username} via update_user method. Use update_password instead.")
+            raise ValueError("密码不能通过 update_user 方法更新，请使用专门的 update_password 方法")
+        
         # 处理 JSON 字段
         if 'bound_accounts' in kwargs:
             kwargs['bound_accounts'] = json.dumps(kwargs['bound_accounts'], ensure_ascii=False)

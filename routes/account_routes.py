@@ -740,7 +740,11 @@ async def process_batch_import_task(task_id: str):
         logger.info(f"Processing {total} items for task {task_id} using thread pool (5 workers)")
         
         # 准备任务参数
-        task_tags = json.loads(task['tags']) if task.get('tags') else []
+        # task['tags'] 在 DAO 中已经被解析为列表，不需要再次解析
+        task_tags = task.get('tags', [])
+        if isinstance(task_tags, str):
+            # 如果仍然是字符串，则解析（兼容旧数据）
+            task_tags = json.loads(task_tags) if task_tags else []
         api_method = task.get('api_method', 'imap')
         
         # 使用线程池并发处理
