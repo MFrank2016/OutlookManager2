@@ -483,79 +483,102 @@ async def batch_refresh_tokens(
                 details=[]
             )
         
-        # 逐个刷新token
-        success_count = 0
-        failed_count = 0
-        details = []
+        # 使用信号量限制并发数为5
+        semaphore = asyncio.Semaphore(5)
         
-        for account_data in accounts_data:
-            email_id = account_data["email"]
-            try:
-                # 构建凭证对象
-                credentials = AccountCredentials(
-                    email=email_id,
-                    refresh_token=account_data["refresh_token"],
-                    client_id=account_data["client_id"],
-                    tags=account_data.get("tags", []),
-                    last_refresh_time=account_data.get("last_refresh_time"),
-                    next_refresh_time=account_data.get("next_refresh_time"),
-                    refresh_status=account_data.get("refresh_status", "pending"),
-                    refresh_error=account_data.get("refresh_error"),
-                    api_method=account_data.get("api_method", "imap"),
-                )
-                
-                # 刷新token
-                result = await refresh_account_token(credentials)
-                
-                # 更新账户信息
-                current_time = datetime.now().isoformat()
-                next_refresh = datetime.now() + timedelta(days=3)
-                
-                if result["success"]:
-                    db.update_account(
-                        email_id,
-                        refresh_token=result["new_refresh_token"],
-                        last_refresh_time=current_time,
-                        next_refresh_time=next_refresh.isoformat(),
-                        refresh_status="success",
-                        refresh_error=None,
+        async def refresh_single_token(account_data: dict) -> dict:
+            """刷新单个账户的token（使用信号量限制并发）"""
+            async with semaphore:
+                email_id = account_data["email"]
+                try:
+                    # 构建凭证对象
+                    credentials = AccountCredentials(
+                        email=email_id,
+                        refresh_token=account_data["refresh_token"],
+                        client_id=account_data["client_id"],
+                        tags=account_data.get("tags", []),
+                        last_refresh_time=account_data.get("last_refresh_time"),
+                        next_refresh_time=account_data.get("next_refresh_time"),
+                        refresh_status=account_data.get("refresh_status", "pending"),
+                        refresh_error=account_data.get("refresh_error"),
+                        api_method=account_data.get("api_method", "imap"),
                     )
-                    success_count += 1
-                    details.append({
-                        "email": email_id,
-                        "status": "success",
-                        "message": "Token refreshed successfully"
-                    })
-                    logger.info(f"Successfully refreshed token for {email_id} in batch")
-                else:
-                    error_msg = result.get("error", "Unknown error")
+                    
+                    # 刷新token
+                    result = await refresh_account_token(credentials)
+                    
+                    # 更新账户信息
+                    current_time = datetime.now().isoformat()
+                    next_refresh = datetime.now() + timedelta(days=3)
+                    
+                    if result["success"]:
+                        db.update_account(
+                            email_id,
+                            refresh_token=result["new_refresh_token"],
+                            last_refresh_time=current_time,
+                            next_refresh_time=next_refresh.isoformat(),
+                            refresh_status="success",
+                            refresh_error=None,
+                        )
+                        logger.info(f"Successfully refreshed token for {email_id} in batch")
+                        return {
+                            "email": email_id,
+                            "status": "success",
+                            "message": "Token refreshed successfully"
+                        }
+                    else:
+                        error_msg = result.get("error", "Unknown error")
+                        db.update_account(
+                            email_id,
+                            refresh_status="failed",
+                            refresh_error=error_msg,
+                        )
+                        logger.error(f"Failed to refresh token for {email_id} in batch: {error_msg}")
+                        return {
+                            "email": email_id,
+                            "status": "failed",
+                            "message": error_msg
+                        }
+                        
+                except Exception as e:
+                    error_msg = str(e)
+                    logger.error(f"Error refreshing token for {email_id} in batch: {e}")
                     db.update_account(
                         email_id,
                         refresh_status="failed",
                         refresh_error=error_msg,
                     )
-                    failed_count += 1
-                    details.append({
+                    return {
                         "email": email_id,
                         "status": "failed",
                         "message": error_msg
-                    })
-                    logger.error(f"Failed to refresh token for {email_id} in batch: {error_msg}")
-                    
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"Error refreshing token for {email_id} in batch: {e}")
-                db.update_account(
-                    email_id,
-                    refresh_status="failed",
-                    refresh_error=error_msg,
-                )
+                    }
+        
+        # 并发执行所有token刷新任务
+        logger.info(f"Starting concurrent token refresh for {total_accounts} accounts (max 5 concurrent)")
+        tasks = [refresh_single_token(account_data) for account_data in accounts_data]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 统计结果
+        success_count = 0
+        failed_count = 0
+        details = []
+        
+        for result in results:
+            if isinstance(result, Exception):
                 failed_count += 1
+                logger.error(f"Exception in token refresh: {result}")
                 details.append({
-                    "email": email_id,
+                    "email": "unknown",
                     "status": "failed",
-                    "message": error_msg
+                    "message": str(result)
                 })
+            else:
+                details.append(result)
+                if result["status"] == "success":
+                    success_count += 1
+                else:
+                    failed_count += 1
         
         logger.info(f"Batch token refresh completed by {admin['username']}: "
                    f"{success_count} succeeded, {failed_count} failed out of {total_accounts}")
@@ -600,13 +623,90 @@ async def detect_api_method_route(
         raise HTTPException(status_code=500, detail="Failed to detect API method")
 
 
-# 线程池执行器（用于批量导入任务）
+# 线程池执行器（用于批量导入任务，限制并发数为5）
 executor = ThreadPoolExecutor(max_workers=5)
+
+
+def _process_single_import_item_sync(
+    task_id: str,
+    item: dict,
+    task_tags: list,
+    api_method: str
+) -> tuple:
+    """
+    处理单个导入项（同步包装函数，在线程池中运行）
+    
+    Args:
+        task_id: 任务ID
+        item: 任务项数据
+        task_tags: 任务标签
+        api_method: API方法
+        
+    Returns:
+        (email, success, error_msg) 元组
+    """
+    try:
+        # 在新的事件循环中运行异步操作
+        import asyncio
+        
+        # 创建新的事件循环（因为在线程中运行）
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # 构建凭证对象
+        credentials = AccountCredentials(
+            email=item['email'],
+            refresh_token=item['refresh_token'],
+            client_id=item['client_id'],
+            tags=task_tags,
+            api_method=api_method
+        )
+        
+        # 运行异步操作
+        async def _async_import():
+            # 验证凭证有效性并获取access token
+            await get_access_token(credentials)
+            
+            # 更新凭证的刷新时间和状态
+            current_time = datetime.now().isoformat()
+            next_refresh = datetime.now() + timedelta(days=3)
+            
+            credentials.last_refresh_time = current_time
+            credentials.next_refresh_time = next_refresh.isoformat()
+            credentials.refresh_status = "success"
+            credentials.refresh_error = None
+            
+            # 保存凭证（包含access token和刷新时间）
+            await save_account_credentials(credentials.email, credentials)
+            
+            # 更新任务项状态
+            from dao.batch_import_task_dao import BatchImportTaskItemDAO
+            item_dao = BatchImportTaskItemDAO()
+            item_dao.update_item(task_id, item['email'], "success")
+        
+        # 执行异步操作
+        loop.run_until_complete(_async_import())
+        
+        return (item['email'], True, None)
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Failed to import {item['email']}: {error_msg}")
+        try:
+            from dao.batch_import_task_dao import BatchImportTaskItemDAO
+            item_dao = BatchImportTaskItemDAO()
+            item_dao.update_item(task_id, item['email'], "failed", error_msg)
+        except:
+            pass
+        return (item['email'], False, error_msg)
 
 
 async def process_batch_import_task(task_id: str):
     """
-    后台处理批量导入任务
+    后台处理批量导入任务（使用信号量限制并发数为5）
     
     Args:
         task_id: 任务ID
@@ -632,59 +732,72 @@ async def process_batch_import_task(task_id: str):
         items = item_dao.get_by_task_id(task_id, status="pending")
         total = len(items)
         
-        logger.info(f"Processing {total} items for task {task_id}")
+        logger.info(f"Processing {total} items for task {task_id} using thread pool (5 workers)")
         
+        # 准备任务参数
+        task_tags = json.loads(task['tags']) if task.get('tags') else []
+        api_method = task.get('api_method', 'imap')
+        
+        # 使用线程池并发处理
+        loop = asyncio.get_event_loop()
+        futures = []
+        
+        for item in items:
+            # 将任务提交到线程池
+            future = loop.run_in_executor(
+                executor,
+                _process_single_import_item_sync,
+                task_id,
+                item,
+                task_tags,
+                api_method
+            )
+            futures.append(future)
+        
+        # 等待所有任务完成，并定期更新进度
         success_count = 0
         failed_count = 0
+        completed_count = 0
         
-        # 处理每个任务项
-        for item in items:
-            try:
-                # 构建凭证对象
-                credentials = AccountCredentials(
-                    email=item['email'],
-                    refresh_token=item['refresh_token'],
-                    client_id=item['client_id'],
-                    tags=json.loads(task['tags']) if task.get('tags') else [],
-                    api_method=task.get('api_method', 'imap')
-                )
-                
-                # 验证凭证有效性并获取access token
-                await get_access_token(credentials)
-                
-                # 更新凭证的刷新时间和状态
-                current_time = datetime.now().isoformat()
-                next_refresh = datetime.now() + timedelta(days=3)
-                
-                credentials.last_refresh_time = current_time
-                credentials.next_refresh_time = next_refresh.isoformat()
-                credentials.refresh_status = "success"
-                credentials.refresh_error = None
-                
-                # 保存凭证（包含access token和刷新时间）
-                await save_account_credentials(credentials.email, credentials)
-                
-                # 更新任务项状态
-                item_dao.update_item(task_id, item['email'], "success")
-                success_count += 1
-                
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"Failed to import {item['email']}: {error_msg}")
-                item_dao.update_item(task_id, item['email'], "failed", error_msg)
-                failed_count += 1
+        # 分批处理，每完成一批就更新进度
+        batch_size = 10  # 每处理10个就更新一次进度
+        
+        for i in range(0, len(futures), batch_size):
+            batch_futures = futures[i:i + batch_size]
+            results = await asyncio.gather(*batch_futures, return_exceptions=True)
+            
+            # 统计这一批的结果
+            for result in results:
+                completed_count += 1
+                if isinstance(result, Exception):
+                    failed_count += 1
+                    logger.error(f"Exception in import task: {result}")
+                else:
+                    email, success, error_msg = result
+                    if success:
+                        success_count += 1
+                    else:
+                        failed_count += 1
             
             # 更新任务进度
-            processed_count = success_count + failed_count
             task_dao.update_progress(
                 task_id,
                 success_count=success_count,
                 failed_count=failed_count,
-                processed_count=processed_count
+                processed_count=completed_count
             )
+            
+            logger.debug(f"Progress: {completed_count}/{total} items processed")
         
         # 更新任务状态为完成
-        task_dao.update_progress(task_id, status="completed")
+        task_dao.update_progress(
+            task_id,
+            status="completed",
+            success_count=success_count,
+            failed_count=failed_count,
+            processed_count=total
+        )
+        
         logger.info(f"Batch import task {task_id} completed: {success_count} success, {failed_count} failed")
         
     except Exception as e:

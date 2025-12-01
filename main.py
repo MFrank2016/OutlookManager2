@@ -88,62 +88,72 @@ async def token_refresh_background_task():
 
             logger.info(f"Total accounts to refresh: {len(all_accounts)}")
 
-            # 逐个刷新token
-            refresh_count = 0
-            failed_count = 0
+            # 使用信号量限制并发数为10
+            semaphore = asyncio.Semaphore(10)
+            
+            async def refresh_single_token(account_data: dict):
+                """刷新单个账户的token（使用信号量限制并发）"""
+                async with semaphore:
+                    email_id = account_data["email"]
+                    try:
+                        # 构建凭证对象
+                        credentials = AccountCredentials(
+                            email=email_id,
+                            refresh_token=account_data["refresh_token"],
+                            client_id=account_data["client_id"],
+                            tags=account_data.get("tags", []),
+                            last_refresh_time=account_data.get("last_refresh_time"),
+                            next_refresh_time=account_data.get("next_refresh_time"),
+                            refresh_status=account_data.get("refresh_status", "pending"),
+                            refresh_error=account_data.get("refresh_error"),
+                            api_method=account_data.get("api_method", "imap"),  # 支持graph邮箱刷新
+                        )
 
-            for account_data in all_accounts:
-                email_id = account_data["email"]
-                try:
-                    # 构建凭证对象
-                    credentials = AccountCredentials(
-                        email=email_id,
-                        refresh_token=account_data["refresh_token"],
-                        client_id=account_data["client_id"],
-                        tags=account_data.get("tags", []),
-                        last_refresh_time=account_data.get("last_refresh_time"),
-                        next_refresh_time=account_data.get("next_refresh_time"),
-                        refresh_status=account_data.get("refresh_status", "pending"),
-                        refresh_error=account_data.get("refresh_error"),
-                        api_method=account_data.get("api_method", "imap"),  # 支持graph邮箱刷新
-                    )
+                        # 刷新token
+                        result = await refresh_account_token(credentials)
 
-                    # 刷新token
-                    result = await refresh_account_token(credentials)
+                        # 更新账户信息
+                        current_time = datetime.now().isoformat()
+                        next_refresh = datetime.now() + timedelta(days=3)
 
-                    # 更新账户信息
-                    current_time = datetime.now().isoformat()
-                    next_refresh = datetime.now() + timedelta(days=3)
+                        if result["success"]:
+                            db.update_account(
+                                email_id,
+                                refresh_token=result["new_refresh_token"],
+                                last_refresh_time=current_time,
+                                next_refresh_time=next_refresh.isoformat(),
+                                refresh_status="success",
+                                refresh_error=None,
+                            )
+                            logger.info(f"Successfully refreshed token for {email_id}")
+                            return True
+                        else:
+                            db.update_account(
+                                email_id,
+                                refresh_status="failed",
+                                refresh_error=result.get("error", "Unknown error"),
+                            )
+                            logger.error(
+                                f"Failed to refresh token for {email_id}: {result.get('error')}"
+                            )
+                            return False
 
-                    if result["success"]:
+                    except Exception as e:
+                        logger.error(f"Error refreshing token for {email_id}: {e}")
                         db.update_account(
-                            email_id,
-                            refresh_token=result["new_refresh_token"],
-                            last_refresh_time=current_time,
-                            next_refresh_time=next_refresh.isoformat(),
-                            refresh_status="success",
-                            refresh_error=None,
+                            email_id, refresh_status="failed", refresh_error=str(e)
                         )
-                        refresh_count += 1
-                        logger.info(f"Successfully refreshed token for {email_id}")
-                    else:
-                        db.update_account(
-                            email_id,
-                            refresh_status="failed",
-                            refresh_error=result.get("error", "Unknown error"),
-                        )
-                        failed_count += 1
-                        logger.error(
-                            f"Failed to refresh token for {email_id}: {result.get('error')}"
-                        )
-
-                except Exception as e:
-                    logger.error(f"Error refreshing token for {email_id}: {e}")
-                    db.update_account(
-                        email_id, refresh_status="failed", refresh_error=str(e)
-                    )
-                    failed_count += 1
-
+                        return False
+            
+            # 并发执行所有token刷新任务
+            logger.info(f"Starting concurrent token refresh for {len(all_accounts)} accounts (max 10 concurrent)")
+            tasks = [refresh_single_token(account_data) for account_data in all_accounts]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 统计结果
+            refresh_count = sum(1 for r in results if r is True)
+            failed_count = len(results) - refresh_count
+            
             logger.info(
                 f"Token refresh completed: {refresh_count} succeeded, {failed_count} failed"
             )
@@ -196,43 +206,54 @@ async def email_sync_background_task():
 
             logger.info(f"Found {total} accounts to sync")
 
-            sync_count = 0
-            error_count = 0
+            # 使用信号量限制并发数为5
+            semaphore = asyncio.Semaphore(5)
+            
+            async def sync_single_account(account: dict):
+                """同步单个账户的邮件（使用信号量限制并发）"""
+                async with semaphore:
+                    email = account.get("email")
+                    try:
+                        logger.info(f"[{email}] Starting email sync...")
 
-            for account in all_accounts:
-                email = account.get("email")
-                try:
-                    logger.info(f"[{email}] Starting email sync...")
+                        # 获取账户凭证
+                        credentials = await get_account_credentials(email)
 
-                    # 获取账户凭证
-                    credentials = await get_account_credentials(email)
+                        # 获取邮件列表（包含收件箱和垃圾邮件）
+                        result = await list_emails(
+                            credentials=credentials,
+                            folder="all",  # 获取所有文件夹
+                            page=1,
+                            page_size=EMAIL_SYNC_PAGE_SIZE,
+                            force_refresh=True,  # 强制从服务器获取最新数据
+                            sender_search=None,
+                            subject_search=None,
+                            sort_by="date",
+                            sort_order="desc",
+                        )
 
-                    # 获取邮件列表（包含收件箱和垃圾邮件）
-                    result = await list_emails(
-                        credentials=credentials,
-                        folder="all",  # 获取所有文件夹
-                        page=1,
-                        page_size=EMAIL_SYNC_PAGE_SIZE,
-                        force_refresh=True,  # 强制从服务器获取最新数据
-                        sender_search=None,
-                        subject_search=None,
-                        sort_by="date",
-                        sort_order="desc",
-                    )
+                        logger.info(
+                            f"[{email}] Successfully synced {len(result.emails)} emails "
+                            f"(total: {result.total_emails})"
+                        )
+                        return True
 
-                    sync_count += 1
-                    logger.info(
-                        f"[{email}] Successfully synced {len(result.emails)} emails "
-                        f"(total: {result.total_emails})"
-                    )
-
-                except Exception as e:
-                    error_count += 1
-                    logger.error(f"[{email}] Failed to sync emails: {e}")
-                    # 继续处理下一个账户，不中断整个流程
-
-                # 每个账户之间间隔2秒，避免过于频繁
-                await asyncio.sleep(2)
+                    except Exception as e:
+                        logger.error(f"[{email}] Failed to sync emails: {e}")
+                        # 继续处理下一个账户，不中断整个流程
+                        return False
+                    finally:
+                        # 每个账户之间间隔2秒，避免过于频繁
+                        await asyncio.sleep(2)
+            
+            # 并发执行所有邮件同步任务
+            logger.info(f"Starting concurrent email sync for {total} accounts (max 5 concurrent)")
+            tasks = [sync_single_account(account) for account in all_accounts]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 统计结果
+            sync_count = sum(1 for r in results if r is True)
+            error_count = len(results) - sync_count
 
             logger.info(
                 f"=== Email sync completed. Success: {sync_count}/{total}, "
