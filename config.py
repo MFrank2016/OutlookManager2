@@ -63,6 +63,28 @@ LOG_RETENTION_DAYS = 30
 Path(LOG_DIR).mkdir(exist_ok=True)
 
 # ============================================================================
+# 数据库配置
+# ============================================================================
+
+# 数据库类型：'sqlite' 或 'postgresql'
+DB_TYPE = os.getenv("DB_TYPE", "sqlite").lower()
+
+# PostgreSQL连接配置（当DB_TYPE='postgresql'时使用）
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", "5432"))
+DB_NAME = os.getenv("DB_NAME", "outlook_manager")
+DB_USER = os.getenv("DB_USER", "outlook_user")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+
+# PostgreSQL连接池配置
+DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "5"))  # 最小连接数
+DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "15"))  # 最大连接数 = POOL_SIZE + MAX_OVERFLOW
+DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))  # 连接超时（秒）
+
+# SQLite数据库文件路径（当DB_TYPE='sqlite'时使用）
+DB_FILE = os.getenv("DB_FILE", "data.db")
+
+# ============================================================================
 # 应用配置
 # ============================================================================
 

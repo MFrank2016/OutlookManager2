@@ -1,7 +1,8 @@
 """
-SQLite数据库管理模块
+数据库管理模块
 
 提供数据库初始化、表操作、数据查询等功能
+支持SQLite和PostgreSQL
 """
 
 import json
@@ -13,12 +14,24 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 
-from config import COMPRESS_BODY_THRESHOLD
+from config import (
+    COMPRESS_BODY_THRESHOLD,
+    DB_TYPE,
+    DB_FILE,
+    DB_HOST,
+    DB_PORT,
+    DB_NAME,
+    DB_USER,
+    DB_PASSWORD,
+    DB_POOL_SIZE,
+    DB_MAX_OVERFLOW,
+    DB_POOL_TIMEOUT
+)
 
 logger = logging.getLogger(__name__)
 
-# 数据库文件路径
-DB_FILE = "data.db"
+# PostgreSQL连接池（延迟初始化）
+_postgresql_pool = None
 
 
 # ============================================================================
@@ -71,76 +84,183 @@ def decompress_text(text: Optional[str]) -> Optional[str]:
         return text
 
 
+def _get_postgresql_connection():
+    """
+    获取PostgreSQL连接（使用psycopg2）
+    
+    Returns:
+        psycopg2连接对象（使用RealDictCursor）
+    """
+    try:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        
+        conn = psycopg2.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            database=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            connect_timeout=DB_POOL_TIMEOUT
+        )
+        # 设置cursor_factory为RealDictCursor，返回字典式结果
+        conn.cursor_factory = RealDictCursor
+        return conn
+    except ImportError:
+        logger.error("psycopg2-binary is required for PostgreSQL support. Install it with: pip install psycopg2-binary")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to connect to PostgreSQL: {e}")
+        raise
+
+
 @contextmanager
 def get_db_connection():
     """
     获取数据库连接的上下文管理器
     
+    根据DB_TYPE自动选择SQLite或PostgreSQL
     自动处理连接的创建和关闭
     包含数据库完整性检查和错误处理
     """
-    conn = None
-    try:
-        # 尝试连接数据库
-        conn = sqlite3.connect(DB_FILE, timeout=10.0)
-        conn.row_factory = sqlite3.Row  # 返回字典式结果
-        
-        # 启用外键约束
-        conn.execute("PRAGMA foreign_keys = ON")
-        
-        # 快速完整性检查（仅在连接时检查一次，避免每次查询都检查）
-        # 注意：完整检查可能很慢，所以只在连接时做快速检查
+    if DB_TYPE == "postgresql":
+        # PostgreSQL连接
+        conn = None
         try:
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA quick_check")
-            result = cursor.fetchone()
-            if result and result[0] != "ok":
-                logger.error(f"Database quick check failed: {result[0]}")
-                raise sqlite3.DatabaseError(f"Database integrity check failed: {result[0]}")
-        except sqlite3.DatabaseError as e:
-            logger.error(f"Database integrity error: {e}")
+            conn = _get_postgresql_connection()
+            yield conn
+            conn.commit()
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            logger.error(f"PostgreSQL error: {e}")
+            raise
+        finally:
             if conn:
                 conn.close()
-            raise
-        except Exception as e:
-            # 如果 quick_check 不可用，尝试 integrity_check（可能较慢）
-            logger.warning(f"Quick check failed, trying integrity_check: {e}")
+    else:
+        # SQLite连接（默认）
+        conn = None
+        try:
+            # 尝试连接数据库
+            conn = sqlite3.connect(DB_FILE, timeout=10.0)
+            conn.row_factory = sqlite3.Row  # 返回字典式结果
+            
+            # 启用外键约束
+            conn.execute("PRAGMA foreign_keys = ON")
+            
+            # 快速完整性检查（仅在连接时检查一次，避免每次查询都检查）
+            # 注意：完整检查可能很慢，所以只在连接时做快速检查
             try:
                 cursor = conn.cursor()
-                cursor.execute("PRAGMA integrity_check(1)")
+                cursor.execute("PRAGMA quick_check")
                 result = cursor.fetchone()
                 if result and result[0] != "ok":
-                    logger.error(f"Database integrity check failed: {result[0]}")
+                    logger.error(f"Database quick check failed: {result[0]}")
                     raise sqlite3.DatabaseError(f"Database integrity check failed: {result[0]}")
-            except Exception:
-                # 如果检查也失败，记录警告但继续（可能是旧版本SQLite）
-                logger.warning("Could not perform database integrity check")
+            except sqlite3.DatabaseError as e:
+                logger.error(f"Database integrity error: {e}")
+                if conn:
+                    conn.close()
+                raise
+            except Exception as e:
+                # 如果 quick_check 不可用，尝试 integrity_check（可能较慢）
+                logger.warning(f"Quick check failed, trying integrity_check: {e}")
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute("PRAGMA integrity_check(1)")
+                    result = cursor.fetchone()
+                    if result and result[0] != "ok":
+                        logger.error(f"Database integrity check failed: {result[0]}")
+                        raise sqlite3.DatabaseError(f"Database integrity check failed: {result[0]}")
+                except Exception:
+                    # 如果检查也失败，记录警告但继续（可能是旧版本SQLite）
+                    logger.warning("Could not perform database integrity check")
+            
+            yield conn
+            conn.commit()
+        except sqlite3.DatabaseError as e:
+            if conn:
+                conn.rollback()
+            error_msg = str(e)
+            if "malformed" in error_msg.lower() or "corrupt" in error_msg.lower():
+                logger.error(f"Database corruption detected: {e}")
+                logger.error("Please run scripts/repair_database.py to repair the database")
+            logger.error(f"Database error: {e}")
+            raise
+        except Exception as e:
+            if conn:
+                conn.rollback()
+            logger.error(f"Database error: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
+
+
+def _init_postgresql_database() -> None:
+    """
+    初始化PostgreSQL数据库，创建所有必要的表和索引
+    """
+    from pathlib import Path
+    
+    schema_file = Path(__file__).parent.parent / "database" / "postgresql_schema.sql"
+    indexes_file = Path(__file__).parent.parent / "database" / "postgresql_indexes.sql"
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
         
-        yield conn
+        # 读取并执行schema文件
+        if schema_file.exists():
+            logger.info("Creating PostgreSQL tables from schema file...")
+            with open(schema_file, 'r', encoding='utf-8') as f:
+                schema_sql = f.read()
+                # 执行每个SQL语句（以分号分隔）
+                for statement in schema_sql.split(';'):
+                    statement = statement.strip()
+                    if statement and not statement.startswith('--'):
+                        try:
+                            cursor.execute(statement)
+                        except Exception as e:
+                            # 忽略已存在的表错误
+                            if "already exists" not in str(e).lower():
+                                logger.warning(f"Error executing schema statement: {e}")
+        else:
+            logger.warning(f"PostgreSQL schema file not found: {schema_file}")
+        
+        # 读取并执行索引文件
+        if indexes_file.exists():
+            logger.info("Creating PostgreSQL indexes from indexes file...")
+            with open(indexes_file, 'r', encoding='utf-8') as f:
+                indexes_sql = f.read()
+                # 执行每个SQL语句（以分号分隔）
+                for statement in indexes_sql.split(';'):
+                    statement = statement.strip()
+                    if statement and not statement.startswith('--') and not statement.startswith('='):
+                        try:
+                            cursor.execute(statement)
+                        except Exception as e:
+                            # 忽略已存在的索引错误
+                            if "already exists" not in str(e).lower():
+                                logger.warning(f"Error executing index statement: {e}")
+        else:
+            logger.warning(f"PostgreSQL indexes file not found: {indexes_file}")
+        
         conn.commit()
-    except sqlite3.DatabaseError as e:
-        if conn:
-            conn.rollback()
-        error_msg = str(e)
-        if "malformed" in error_msg.lower() or "corrupt" in error_msg.lower():
-            logger.error(f"Database corruption detected: {e}")
-            logger.error("Please run scripts/repair_database.py to repair the database")
-        logger.error(f"Database error: {e}")
-        raise
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        logger.error(f"Database error: {e}")
-        raise
-    finally:
-        if conn:
-            conn.close()
+        logger.info("PostgreSQL database initialized successfully")
 
 
 def init_database() -> None:
     """
     初始化数据库，创建所有必要的表
+    
+    根据DB_TYPE自动选择SQLite或PostgreSQL初始化
     """
+    if DB_TYPE == "postgresql":
+        _init_postgresql_database()
+        return
+    
+    # SQLite初始化（原有逻辑）
     with get_db_connection() as conn:
         cursor = conn.cursor()
         
@@ -731,13 +851,22 @@ def get_all_tables() -> List[str]:
     """
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT name FROM sqlite_master 
-            WHERE type='table' AND name NOT LIKE 'sqlite_%'
-            ORDER BY name
-        """)
-        rows = cursor.fetchall()
-        return [row['name'] for row in rows]
+        if DB_TYPE == "postgresql":
+            cursor.execute("""
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+                ORDER BY table_name
+            """)
+            rows = cursor.fetchall()
+            return [row[0] for row in rows]
+        else:
+            cursor.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name NOT LIKE 'sqlite_%'
+                ORDER BY name
+            """)
+            rows = cursor.fetchall()
+            return [row['name'] for row in rows]
 
 def get_table_schema(table_name: str) -> List[Dict[str, Any]]:
     """
@@ -756,15 +885,45 @@ def get_table_schema(table_name: str) -> List[Dict[str, Any]]:
     with get_db_connection() as conn:
         cursor = conn.cursor()
         try:
-            cursor.execute(f"PRAGMA table_info({table_name})")
-            rows = cursor.fetchall()
-            return [dict(row) for row in rows]
-        except sqlite3.DatabaseError as e:
+            if DB_TYPE == "postgresql":
+                cursor.execute("""
+                    SELECT 
+                        ordinal_position as cid,
+                        column_name as name,
+                        data_type as type,
+                        CASE WHEN is_nullable = 'NO' THEN 1 ELSE 0 END as notnull,
+                        column_default as dflt_value,
+                        CASE WHEN column_name IN (
+                            SELECT column_name FROM information_schema.key_column_usage 
+                            WHERE table_name = %s AND constraint_name LIKE '%%_pkey'
+                        ) THEN 1 ELSE 0 END as pk
+                    FROM information_schema.columns
+                    WHERE table_name = %s
+                    ORDER BY ordinal_position
+                """, (table_name, table_name))
+                rows = cursor.fetchall()
+                # 转换为字典格式（兼容SQLite格式）
+                result = []
+                for row in rows:
+                    result.append({
+                        'cid': row[0],
+                        'name': row[1],
+                        'type': row[2],
+                        'notnull': row[3],
+                        'dflt_value': row[4],
+                        'pk': row[5]
+                    })
+                return result
+            else:
+                cursor.execute(f"PRAGMA table_info({table_name})")
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
             error_msg = str(e)
             if "malformed" in error_msg.lower() or "corrupt" in error_msg.lower():
                 logger.error(f"Database corruption detected when accessing table schema for {table_name}: {e}")
                 logger.error("Please run scripts/repair_database.py to repair the database")
-                raise sqlite3.DatabaseError(f"数据库表 {table_name} 可能已损坏，请运行修复脚本: {e}")
+                raise Exception(f"数据库表 {table_name} 可能已损坏，请运行修复脚本: {e}")
             raise
 
 def get_table_data(table_name: str, page: int = 1, page_size: int = 50, search: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
@@ -795,32 +954,43 @@ def get_table_data(table_name: str, page: int = 1, page_size: int = 50, search: 
             # 构建搜索条件
             where_clause = "1=1"
             params = []
+            param_placeholder = "%s" if DB_TYPE == "postgresql" else "?"
             
             if search:
                 # 在所有文本列中搜索
-                search_conditions = " OR ".join([f"{col} LIKE ?" for col in columns])
+                search_conditions = " OR ".join([f"{col}::text LIKE {param_placeholder}" if DB_TYPE == "postgresql" else f"{col} LIKE {param_placeholder}" for col in columns])
                 where_clause = f"({search_conditions})"
                 params = [f"%{search}%"] * len(columns)
             
             # 获取总数
             cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {where_clause}", params)
-            total = cursor.fetchone()[0]
+            total = cursor.fetchone()[0] if DB_TYPE == "postgresql" else cursor.fetchone()[0]
             
             # 获取分页数据
             offset = (page - 1) * page_size
-            cursor.execute(
-                f"SELECT * FROM {table_name} WHERE {where_clause} LIMIT ? OFFSET ?",
-                params + [page_size, offset]
-            )
-            rows = cursor.fetchall()
+            if DB_TYPE == "postgresql":
+                cursor.execute(
+                    f"SELECT * FROM {table_name} WHERE {where_clause} LIMIT %s OFFSET %s",
+                    params + [page_size, offset]
+                )
+                rows = cursor.fetchall()
+                # PostgreSQL使用RealDictCursor，直接返回字典
+                result = [dict(row) for row in rows]
+            else:
+                cursor.execute(
+                    f"SELECT * FROM {table_name} WHERE {where_clause} LIMIT ? OFFSET ?",
+                    params + [page_size, offset]
+                )
+                rows = cursor.fetchall()
+                result = [dict(row) for row in rows]
             
-            return [dict(row) for row in rows], total
-        except sqlite3.DatabaseError as e:
+            return result, total
+        except Exception as e:
             error_msg = str(e)
             if "malformed" in error_msg.lower() or "corrupt" in error_msg.lower():
                 logger.error(f"Database corruption detected when accessing table {table_name}: {e}")
                 logger.error("Please run scripts/repair_database.py to repair the database")
-                raise sqlite3.DatabaseError(f"数据库表 {table_name} 可能已损坏，请运行修复脚本: {e}")
+                raise Exception(f"数据库表 {table_name} 可能已损坏，请运行修复脚本: {e}")
             raise
 
 def insert_table_record(table_name: str, data: Dict[str, Any]) -> int:
@@ -835,17 +1005,27 @@ def insert_table_record(table_name: str, data: Dict[str, Any]) -> int:
         新记录的ID
     """
     columns = list(data.keys())
-    placeholders = ", ".join(["?"] * len(columns))
+    param_placeholder = "%s" if DB_TYPE == "postgresql" else "?"
+    placeholders = ", ".join([param_placeholder] * len(columns))
     columns_str = ", ".join(columns)
     
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})",
-            list(data.values())
-        )
-        conn.commit()
-        return cursor.lastrowid
+        if DB_TYPE == "postgresql":
+            cursor.execute(
+                f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders}) RETURNING id",
+                list(data.values())
+            )
+            result = cursor.fetchone()
+            conn.commit()
+            return result[0] if result else 0
+        else:
+            cursor.execute(
+                f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})",
+                list(data.values())
+            )
+            conn.commit()
+            return cursor.lastrowid
 
 def update_table_record(table_name: str, record_id: int, data: Dict[str, Any]) -> bool:
     """
@@ -859,13 +1039,14 @@ def update_table_record(table_name: str, record_id: int, data: Dict[str, Any]) -
     Returns:
         是否更新成功
     """
-    set_clause = ", ".join([f"{key} = ?" for key in data.keys()])
+    param_placeholder = "%s" if DB_TYPE == "postgresql" else "?"
+    set_clause = ", ".join([f"{key} = {param_placeholder}" for key in data.keys()])
     values = list(data.values()) + [record_id]
     
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            f"UPDATE {table_name} SET {set_clause} WHERE id = ?",
+            f"UPDATE {table_name} SET {set_clause} WHERE id = {param_placeholder}",
             values
         )
         conn.commit()
@@ -882,9 +1063,10 @@ def delete_table_record(table_name: str, record_id: int) -> bool:
     Returns:
         是否删除成功
     """
+    param_placeholder = "%s" if DB_TYPE == "postgresql" else "?"
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute(f"DELETE FROM {table_name} WHERE id = ?", (record_id,))
+        cursor.execute(f"DELETE FROM {table_name} WHERE id = {param_placeholder}", (record_id,))
         conn.commit()
         return cursor.rowcount > 0
 

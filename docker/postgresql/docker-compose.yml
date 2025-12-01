@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  postgresql:
+    image: postgres:15-alpine
+    container_name: outlook-postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-outlook_manager}
+      POSTGRES_USER: ${POSTGRES_USER:-outlook_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      # 映射端口到主机，允许远程连接
+      # 格式: "主机端口:容器端口"
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      # 初始化脚本会在容器启动时执行
+    command: >
+      postgres
+      -c listen_addresses='*'
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-outlook_user} -d ${POSTGRES_DB:-outlook_manager}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - postgres-network
+    labels:
+      - "com.outlook.email.description=PostgreSQL数据库服务（支持Docker网络和远程连接）"
+      - "com.outlook.email.version=15"
+
+volumes:
+  postgres_data:
+    driver: local
+    name: outlook_postgres_data
+
+networks:
+  postgres-network:
+    driver: bridge
+    name: outlook-postgres-network
+

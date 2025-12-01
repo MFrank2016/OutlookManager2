@@ -29,9 +29,10 @@ class ConfigDAO(BaseDAO):
         Returns:
             配置值或None
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT value FROM system_config WHERE key = ?", (key,))
+            cursor.execute(f"SELECT value FROM system_config WHERE key = {placeholder}", (key,))
             row = cursor.fetchone()
             
             if row:

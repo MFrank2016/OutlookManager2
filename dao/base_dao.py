@@ -2,42 +2,23 @@
 BaseDAO - 所有 DAO 的基类
 
 提供公共的数据访问方法，包括分页查询、默认分页大小等
+支持SQLite和PostgreSQL
 """
 
-import sqlite3
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 
-logger = logging.getLogger(__name__)
+# 导入database模块的get_db_connection和配置
+from database import get_db_connection
+from config import DB_TYPE
 
-# 数据库文件路径
-DB_FILE = "data.db"
+logger = logging.getLogger(__name__)
 
 # 默认分页配置
 DEFAULT_PAGE_SIZE = 10
 DEFAULT_MAX_PAGE_SIZE = 100
 DEFAULT_MAX_SINGLE_QUERY = 10000
-
-
-@contextmanager
-def get_db_connection():
-    """
-    获取数据库连接的上下文管理器
-    
-    自动处理连接的创建和关闭
-    """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row  # 返回字典式结果
-    try:
-        yield conn
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        logger.error(f"Database error: {e}")
-        raise
-    finally:
-        conn.close()
 
 
 class BaseDAO:
@@ -104,29 +85,54 @@ class BaseDAO:
             return "1=1"
         return " AND ".join(conditions)
     
-    def _dict_from_row(self, row: sqlite3.Row) -> Dict[str, Any]:
+    def _dict_from_row(self, row) -> Dict[str, Any]:
         """
         将 Row 对象转换为字典
         
         Args:
-            row: SQLite Row 对象
+            row: SQLite Row 或 PostgreSQL RealDictRow 对象
             
         Returns:
             字典
         """
-        return dict(row)
+        if hasattr(row, 'keys'):
+            return dict(row)
+        return dict(row) if row else {}
     
-    def _dicts_from_rows(self, rows: List[sqlite3.Row]) -> List[Dict[str, Any]]:
+    def _dicts_from_rows(self, rows: List) -> List[Dict[str, Any]]:
         """
         将 Row 对象列表转换为字典列表
         
         Args:
-            rows: SQLite Row 对象列表
+            rows: SQLite Row 或 PostgreSQL RealDictRow 对象列表
             
         Returns:
             字典列表
         """
-        return [dict(row) for row in rows]
+        return [dict(row) for row in rows] if rows else []
+    
+    def _get_param_placeholder(self) -> str:
+        """
+        获取参数占位符
+        
+        Returns:
+            '?' for SQLite, '%s' for PostgreSQL
+        """
+        return "%s" if DB_TYPE == "postgresql" else "?"
+    
+    def _replace_sql_placeholders(self, sql: str) -> str:
+        """
+        替换SQL中的占位符
+        
+        Args:
+            sql: 包含?占位符的SQL语句
+            
+        Returns:
+            替换后的SQL语句（PostgreSQL使用%s，SQLite使用?）
+        """
+        if DB_TYPE == "postgresql":
+            return sql.replace("?", "%s")
+        return sql
     
     def count(
         self,
@@ -150,7 +156,8 @@ class BaseDAO:
                 f"SELECT COUNT(*) FROM {self.table_name} WHERE {where_clause}",
                 params
             )
-            return cursor.fetchone()[0]
+            result = cursor.fetchone()
+            return result[0] if result else 0
     
     def find_by_id(self, record_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -162,10 +169,11 @@ class BaseDAO:
         Returns:
             记录字典或 None
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                f"SELECT * FROM {self.table_name} WHERE id = ?",
+                f"SELECT * FROM {self.table_name} WHERE id = {placeholder}",
                 (record_id,)
             )
             row = cursor.fetchone()
@@ -193,17 +201,18 @@ class BaseDAO:
             记录列表
         """
         params = params or []
+        placeholder = self._get_param_placeholder()
         sql = f"SELECT * FROM {self.table_name} WHERE {where_clause}"
         
         if order_by:
             sql += f" ORDER BY {order_by}"
         
         if limit is not None:
-            sql += f" LIMIT ?"
+            sql += f" LIMIT {placeholder}"
             params.append(limit)
         
         if offset is not None:
-            sql += f" OFFSET ?"
+            sql += f" OFFSET {placeholder}"
             params.append(offset)
         
         with get_db_connection() as conn:
@@ -263,17 +272,27 @@ class BaseDAO:
             新记录的 ID
         """
         columns = list(data.keys())
-        placeholders = ", ".join(["?"] * len(columns))
+        placeholder = self._get_param_placeholder()
+        placeholders = ", ".join([placeholder] * len(columns))
         columns_str = ", ".join(columns)
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                f"INSERT INTO {self.table_name} ({columns_str}) VALUES ({placeholders})",
-                list(data.values())
-            )
-            conn.commit()
-            return cursor.lastrowid
+            if DB_TYPE == "postgresql":
+                cursor.execute(
+                    f"INSERT INTO {self.table_name} ({columns_str}) VALUES ({placeholders}) RETURNING id",
+                    list(data.values())
+                )
+                result = cursor.fetchone()
+                conn.commit()
+                return result[0] if result else 0
+            else:
+                cursor.execute(
+                    f"INSERT INTO {self.table_name} ({columns_str}) VALUES ({placeholders})",
+                    list(data.values())
+                )
+                conn.commit()
+                return cursor.lastrowid
     
     def update(
         self,
@@ -293,13 +312,14 @@ class BaseDAO:
         if not data:
             return False
         
-        set_clause = ", ".join([f"{key} = ?" for key in data.keys()])
+        placeholder = self._get_param_placeholder()
+        set_clause = ", ".join([f"{key} = {placeholder}" for key in data.keys()])
         values = list(data.values()) + [record_id]
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                f"UPDATE {self.table_name} SET {set_clause} WHERE id = ?",
+                f"UPDATE {self.table_name} SET {set_clause} WHERE id = {placeholder}",
                 values
             )
             conn.commit()
@@ -315,10 +335,11 @@ class BaseDAO:
         Returns:
             是否删除成功
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                f"DELETE FROM {self.table_name} WHERE id = ?",
+                f"DELETE FROM {self.table_name} WHERE id = {placeholder}",
                 (record_id,)
             )
             conn.commit()

@@ -30,9 +30,10 @@ class UserDAO(BaseDAO):
         Returns:
             用户信息字典或None
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+            cursor.execute(f"SELECT * FROM users WHERE username = {placeholder}", (username,))
             row = cursor.fetchone()
             
             if row:

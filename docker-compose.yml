@@ -10,7 +10,7 @@ services:
     ports:
       - "${PORT:-8001}:8000"
     volumes:
-      # 数据持久化 - SQLite数据库文件
+      # 数据持久化 - SQLite数据库文件（仅在DB_TYPE=sqlite时使用）
       - ./data.db:/app/data.db
       # 日志持久化 - 保留30天日志
       - ./logs:/app/logs
@@ -33,6 +33,18 @@ services:
       - TZ=${TZ:-Asia/Shanghai}
       # 日志级别
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # 数据库配置（可选，用于连接PostgreSQL）
+      # 使用Docker网络时，DB_HOST设置为容器名"postgresql"
+      # 使用远程连接时，DB_HOST设置为服务器IP或localhost
+      - DB_TYPE=${DB_TYPE:-sqlite}
+      - DB_HOST=${DB_HOST:-postgresql}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_NAME=${DB_NAME:-outlook_manager}
+      - DB_USER=${DB_USER:-outlook_user}
+      - DB_PASSWORD=${DB_PASSWORD:-changeme}
+      - DB_POOL_SIZE=${DB_POOL_SIZE:-5}
+      - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-15}
+      - DB_POOL_TIMEOUT=${DB_POOL_TIMEOUT:-30}
     restart: unless-stopped
     healthcheck:
       test:
@@ -69,24 +81,70 @@ services:
       - TZ=${TZ:-Asia/Shanghai}
     restart: unless-stopped
     depends_on:
-      - outlook-email-api
+      outlook-email-api:
+        condition: service_started
+      # 如果使用PostgreSQL，取消下面的注释以等待PostgreSQL就绪
+      # postgresql:
+      #   condition: service_healthy
+
+  # PostgreSQL数据库服务（可选，用于本地开发）
+  # 生产环境建议在单独的服务器上部署PostgreSQL
+  # 支持Docker网络连接和远程连接（通过端口映射）
+  postgresql:
+    image: postgres:15-alpine
+    container_name: outlook-postgresql
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-outlook_manager}
+      POSTGRES_USER: ${POSTGRES_USER:-outlook_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: ${TZ:-Asia/Shanghai}
+    ports:
+      # 映射端口到主机，允许远程连接
+      # Docker网络内应用使用容器名"postgresql"连接
+      # 远程工具使用localhost或服务器IP连接
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # 初始化脚本
+      - ./docker/postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # 配置PostgreSQL监听所有接口，允许远程连接
+    command: >
+      postgres
+      -c listen_addresses='*'
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
     healthcheck:
       test:
         [
-          "CMD",
-          "node",
-          "-e",
-          "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-outlook_user} -d ${POSTGRES_DB:-outlook_manager}",
         ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - outlook-network
     labels:
-      - "com.outlook.email.description=Outlook邮件管理系统前端服务"
-      - "com.outlook.email.version=latest"
+      - "com.outlook.email.description=PostgreSQL数据库服务（支持Docker网络和远程连接）"
+      - "com.outlook.email.version=15"
+
+volumes:
+  postgres_data:
+    driver: local
+    name: outlook_postgres_data
 
 networks:
   outlook-network:
