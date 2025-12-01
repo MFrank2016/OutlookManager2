@@ -9,14 +9,14 @@ import { CacheManager } from "@/components/admin/cache/CacheManager";
 export default function AdminPage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Admin Panel</h1>
+      <h1 className="text-2xl font-bold tracking-tight">管理面板</h1>
       
       <Tabs defaultValue="tables" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="tables">Tables</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="config">Config</TabsTrigger>
-          <TabsTrigger value="cache">Cache</TabsTrigger>
+          <TabsTrigger value="tables">数据表</TabsTrigger>
+          <TabsTrigger value="users">用户管理</TabsTrigger>
+          <TabsTrigger value="config">系统配置</TabsTrigger>
+          <TabsTrigger value="cache">缓存管理</TabsTrigger>
         </TabsList>
         <TabsContent value="tables" className="space-y-4">
           <TablesManager />

@@ -139,18 +139,13 @@ async def list_emails(
                     logger.warning(f"Failed to access folder {folder_name}: {e}")
                     continue
 
-            # 对所有文件夹的邮件进行统一分页
-            total_emails = len(all_emails_data)
-            start_index = (page - 1) * page_size
-            end_index = start_index + page_size
-            paginated_email_meta = all_emails_data[start_index:end_index]
-
+            # 获取所有邮件的头部信息（用于过滤）
             email_items = []
             # 按文件夹分组批量获取
-            paginated_email_meta.sort(key=lambda x: x["folder"])
+            all_emails_data.sort(key=lambda x: x["folder"])
 
             for folder_name, group in groupby(
-                paginated_email_meta, key=lambda x: x["folder"]
+                all_emails_data, key=lambda x: x["folder"]
             ):
                 try:
                     imap_client.select(f'"{folder_name}"', readonly=True)
@@ -244,6 +239,37 @@ async def list_emails(
                     )
                     continue
 
+            # 应用过滤条件
+            filtered_email_items = []
+            for email_item in email_items:
+                # 检查发件人过滤
+                if sender_search:
+                    if sender_search.lower() not in email_item.from_email.lower():
+                        continue
+                
+                # 检查主题过滤
+                if subject_search:
+                    if subject_search.lower() not in email_item.subject.lower():
+                        continue
+                
+                # 检查时间范围过滤
+                try:
+                    email_date = datetime.fromisoformat(email_item.date)
+                    if start_time:
+                        start_dt = datetime.fromisoformat(start_time)
+                        if email_date < start_dt:
+                            continue
+                    if end_time:
+                        end_dt = datetime.fromisoformat(end_time)
+                        if email_date > end_dt:
+                            continue
+                except Exception as e:
+                    logger.warning(f"Failed to parse date for filtering: {e}")
+                    # 如果日期解析失败，跳过时间过滤
+                    pass
+                
+                filtered_email_items.append(email_item)
+            
             # 按日期重新排序最终结果（使用datetime对象排序以确保准确性）
             def get_sort_key(email_item):
                 try:
@@ -251,7 +277,15 @@ async def list_emails(
                 except:
                     return datetime.min
             
-            email_items.sort(key=get_sort_key, reverse=True)
+            filtered_email_items.sort(key=get_sort_key, reverse=(sort_order == "desc"))
+            
+            # 应用分页
+            total_emails = len(filtered_email_items)
+            start_index = (page - 1) * page_size
+            end_index = start_index + page_size
+            paginated_email_items = filtered_email_items[start_index:end_index]
+            
+            email_items = paginated_email_items
 
             # 归还连接到池中
             imap_pool.return_connection(credentials.email, imap_client)
@@ -271,8 +305,8 @@ async def list_emails(
                 folder_view=folder,
                 page=page,
                 page_size=page_size,
-                total_emails=total_emails,
-                emails=email_items,
+                total_emails=total_emails,  # 使用过滤后的总数
+                emails=email_items,  # 使用分页后的邮件列表
                 from_cache=False,
                 fetch_time_ms=fetch_time_ms
             )

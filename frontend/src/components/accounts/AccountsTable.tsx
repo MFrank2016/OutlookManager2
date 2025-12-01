@@ -94,11 +94,11 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
   };
 
   if (isLoading) {
-    return <div className="p-4 text-center">Loading accounts...</div>;
+    return <div className="p-4 text-center">加载账户中...</div>;
   }
 
   if (accounts.length === 0) {
-    return <div className="p-4 text-center text-gray-500">No accounts found.</div>;
+    return <div className="p-4 text-center text-gray-500">未找到账户</div>;
   }
 
   return (
@@ -260,11 +260,11 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                 />
               </TableHead>
               <TableHead className="w-[50px] hidden sm:table-cell"></TableHead>
-              <TableHead>Account</TableHead>
-              <TableHead className="hidden md:table-cell">Tags</TableHead>
-              <TableHead className="hidden lg:table-cell">Status</TableHead>
-              <TableHead className="hidden lg:table-cell">Refresh Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>账户</TableHead>
+              <TableHead className="hidden md:table-cell">标签</TableHead>
+              <TableHead className="hidden lg:table-cell">状态</TableHead>
+              <TableHead className="hidden lg:table-cell">刷新状态</TableHead>
+              <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -325,7 +325,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                             "bg-yellow-50 text-yellow-700 border-yellow-200"
                         )}
                       >
-                        {account.status === "active" ? "Active" : account.status === "invalid" ? "Invalid" : "Error"}
+                        {account.status === "active" ? "正常" : account.status === "invalid" ? "无效" : "错误"}
                       </Badge>
                       {account.refresh_status === "success" && <CheckCircle className="h-3 w-3 text-green-500" />}
                       {account.refresh_status === "failed" && <XCircle className="h-3 w-3 text-red-500" />}
@@ -340,7 +340,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                         {tag}
                       </Badge>
                     ))}
-                    {(!account.tags || account.tags.length === 0) && <span className="text-xs text-gray-400 italic">No tags</span>}
+                    {(!account.tags || account.tags.length === 0) && <span className="text-xs text-gray-400 italic">无标签</span>}
                   </div>
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
@@ -353,7 +353,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                         "bg-yellow-50 text-yellow-700 border-yellow-200"
                     )}
                   >
-                    {account.status === "active" ? "Active" : account.status === "invalid" ? "Invalid" : "Error"}
+                    {account.status === "active" ? "正常" : account.status === "invalid" ? "无效" : "错误"}
                   </Badge>
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">
@@ -367,7 +367,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                             account.refresh_status === "success" ? "text-green-700" : 
                             account.refresh_status === "failed" ? "text-red-700" : "text-yellow-700"
                         )}>
-                            {account.refresh_status === "success" ? "Success" : account.refresh_status === "failed" ? "Failed" : "Pending"}
+                            {account.refresh_status === "success" ? "成功" : account.refresh_status === "failed" ? "失败" : "待处理"}
                         </span>
                         {account.last_refresh_time && (
                         <span className="text-[10px] text-gray-400">
@@ -436,7 +436,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="h-8 w-8 p-0 min-h-[44px] min-w-[44px]">
-                          <span className="sr-only">Open menu</span>
+                          <span className="sr-only">打开菜单</span>
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>

@@ -41,7 +41,7 @@ export default function BatchAddPage() {
 example2@outlook.com----password2----refresh_token_here_2----client_id_here_2
 example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
     setInput(sample);
-    toast.info("Example data loaded");
+    toast.info("示例数据已加载");
   };
 
   const handleClear = () => {
@@ -54,7 +54,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
 
   const handleValidate = () => {
     if (!input.trim()) {
-      toast.warning("Please enter account information first");
+      toast.warning("请先输入账户信息");
       return;
     }
 
@@ -71,16 +71,16 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
       .filter(Boolean);
 
     if (invalidLines.length === 0) {
-      toast.success(`Format valid! ${lines.length} accounts found.`);
+      toast.success(`格式有效！找到 ${lines.length} 个账户。`);
     } else {
-      toast.error(`Invalid format in lines: ${invalidLines.join(", ")}`);
+      toast.error(`以下行格式无效: ${invalidLines.join(", ")}`);
     }
   };
 
   const handleBatchAdd = async () => {
     const lines = input.split("\n").filter((line) => line.trim());
     if (lines.length === 0) {
-      toast.warning("No valid lines to process");
+      toast.warning("没有有效的行可处理");
       return;
     }
 
@@ -107,7 +107,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
         newResults.push({
           email: parts[0] || "Invalid Format",
           status: "error",
-          message: "Format error: Should be email----pwd----token----client_id",
+          message: "格式错误：应为 email----pwd----token----client_id",
         });
         setResults([...newResults]); // Update UI incrementally
         continue;
@@ -133,11 +133,11 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
         newResults.push({
           email,
           status: "success",
-          message: "Added successfully",
+          message: "添加成功",
         });
       } catch (error: any) {
         failCount++;
-        const msg = error.response?.data?.detail || error.message || "Unknown error";
+        const msg = error.response?.data?.detail || error.message || "未知错误";
         newResults.push({
           email,
           status: "error",
@@ -152,9 +152,9 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
 
     setIsProcessing(false);
     if (successCount > 0) {
-      toast.success(`Completed: ${successCount} success, ${failCount} failed`);
+      toast.success(`完成：成功 ${successCount} 个，失败 ${failCount} 个`);
     } else {
-      toast.error("All accounts failed to add");
+      toast.error("所有账户添加失败");
     }
   };
 
@@ -162,42 +162,42 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
     <div className="space-y-6 max-w-4xl mx-auto px-4 sm:px-0">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Batch Add Accounts</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Add multiple email accounts at once.</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">批量添加账户</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">一次性添加多个邮箱账户。</p>
         </div>
         <Button variant="outline" asChild className="w-full sm:w-auto min-h-[44px]">
           <Link href="/dashboard">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to List
+            <ArrowLeft className="mr-2 h-4 w-4" /> 返回列表
           </Link>
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Batch Input</CardTitle>
+          <CardTitle>批量输入</CardTitle>
           <CardDescription>
-            Format per line: <code className="bg-slate-100 px-1 rounded">email----password----refresh_token----client_id</code>
+            每行格式: <code className="bg-slate-100 px-1 rounded">email----password----refresh_token----client_id</code>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-4 bg-slate-50 rounded-lg border">
-            <span className="text-sm font-medium shrink-0">Import Method:</span>
+            <span className="text-sm font-medium shrink-0">导入方式:</span>
             <Select
               value={importMethod}
               onValueChange={(value: "imap" | "graph") => setImportMethod(value)}
             >
               <SelectTrigger className="w-full sm:w-[180px] min-h-[44px]">
-                <SelectValue placeholder="Select method" />
+                <SelectValue placeholder="选择方式" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="imap">IMAP (Standard)</SelectItem>
+                <SelectItem value="imap">IMAP (标准)</SelectItem>
                 <SelectItem value="graph">Microsoft Graph API</SelectItem>
               </SelectContent>
             </Select>
             <div className="text-xs text-muted-foreground flex-1">
               {importMethod === "imap"
-                ? "Uses standard IMAP protocol. Good for most cases."
-                : "Uses Microsoft Graph API. Faster and more reliable for some accounts."}
+                ? "使用标准 IMAP 协议。适用于大多数情况。"
+                : "使用 Microsoft Graph API。对某些账户更快且更可靠。"}
             </div>
           </div>
 
@@ -215,16 +215,46 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
             </p>
           </div>
 
-          <div className="text-sm text-muted-foreground">
-            Recommended purchase:{" "}
-            <a href="http://wmemail.com" target="_blank" rel="noreferrer" className="text-blue-600 hover:underline">
-              wmemail.com
-            </a>{" "}
-            (Not an ad)
+          <div className="text-sm text-muted-foreground space-y-2">
+            <div className="font-medium">推荐购买（非广告）:</div>
+            <div className="flex flex-wrap gap-3">
+              <a 
+                href="https://uemail.vip/" 
+                target="_blank" 
+                rel="noreferrer" 
+                className="text-blue-600 hover:underline hover:text-blue-800"
+              >
+                蓝森林-微软邮箱大全 (uemail.vip)
+              </a>
+              <a 
+                href="https://annimail.com/" 
+                target="_blank" 
+                rel="noreferrer" 
+                className="text-blue-600 hover:underline hover:text-blue-800"
+              >
+                安妮邮箱 (annimail.com)
+              </a>
+              <a 
+                href="https://a.qqhhh.top/" 
+                target="_blank" 
+                rel="noreferrer" 
+                className="text-blue-600 hover:underline hover:text-blue-800"
+              >
+                诚信邮箱批发 (a.qqhhh.top)
+              </a>
+              <a 
+                href="https://weiyouxiang.top/" 
+                target="_blank" 
+                rel="noreferrer" 
+                className="text-blue-600 hover:underline hover:text-blue-800"
+              >
+                微邮箱店铺 (weiyouxiang.top)
+              </a>
+            </div>
           </div>
 
           <Textarea
-            placeholder="Paste your accounts here..."
+            placeholder="在此粘贴您的账户信息..."
             className="min-h-[200px] sm:min-h-[300px] font-mono text-sm"
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -233,12 +263,12 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
 
           <Alert className="bg-yellow-50 border-yellow-200">
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
-            <AlertTitle className="text-yellow-800">Important Notes</AlertTitle>
+            <AlertTitle className="text-yellow-800">重要提示</AlertTitle>
             <AlertDescription className="text-yellow-700 text-xs mt-2">
               <ul className="list-disc list-inside space-y-1">
-                <li>Ensure format is correct (4 parts separated by ----)</li>
-                <li>Test with a few accounts first</li>
-                <li>Do not close this page while processing</li>
+                <li>确保格式正确（4 部分，用 ---- 分隔）</li>
+                <li>先用少量账户测试</li>
+                <li>处理过程中请勿关闭此页面</li>
               </ul>
             </AlertDescription>
           </Alert>
@@ -251,11 +281,11 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
             >
               {isProcessing ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 处理中...
                 </>
               ) : (
                 <>
-                  <Play className="mr-2 h-4 w-4" /> Start Batch Add
+                  <Play className="mr-2 h-4 w-4" /> 开始批量添加
                 </>
               )}
             </Button>
@@ -265,7 +295,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
               disabled={isProcessing}
               className="w-full sm:w-auto min-h-[44px]"
             >
-              <Trash2 className="mr-2 h-4 w-4" /> Clear
+              <Trash2 className="mr-2 h-4 w-4" /> 清空
             </Button>
             <Button 
               variant="secondary" 
@@ -273,7 +303,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
               disabled={isProcessing}
               className="w-full sm:w-auto min-h-[44px]"
             >
-              <CheckCircle className="mr-2 h-4 w-4" /> Validate Format
+              <CheckCircle className="mr-2 h-4 w-4" /> 验证格式
             </Button>
             <Button 
               variant="secondary" 
@@ -281,20 +311,20 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
               disabled={isProcessing}
               className="w-full sm:w-auto min-h-[44px]"
             >
-              <FileText className="mr-2 h-4 w-4" /> Load Sample
+              <FileText className="mr-2 h-4 w-4" /> 加载示例
             </Button>
           </div>
 
           {isProcessing || results.length > 0 ? (
             <div className="space-y-4 mt-6 border-t pt-6">
               <div className="flex justify-between text-sm font-medium">
-                <span>Progress</span>
+                <span>进度</span>
                 <span>{currentCount.current} / {currentCount.total}</span>
               </div>
               <Progress value={progress} className="h-2" />
               
               <div className="space-y-2 max-h-[300px] overflow-y-auto border rounded-md p-4 bg-slate-50">
-                {results.length === 0 && <p className="text-sm text-muted-foreground text-center">Waiting to start...</p>}
+                {results.length === 0 && <p className="text-sm text-muted-foreground text-center">等待开始...</p>}
                 {results.map((res, idx) => (
                   <div key={idx} className="flex items-start gap-2 text-sm">
                     {res.status === "success" ? (

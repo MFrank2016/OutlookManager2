@@ -65,11 +65,11 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 px-0 md:px-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Accounts</h1>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">账户管理</h1>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Button asChild variant="secondary" className="flex-1 sm:flex-initial min-h-[44px]">
             <Link href="/dashboard/accounts/batch">
-              <PackagePlus className="mr-2 h-4 w-4" /> Batch Add
+              <PackagePlus className="mr-2 h-4 w-4" /> 批量添加
             </Link>
           </Button>
           <AddAccountDialog />
@@ -80,7 +80,7 @@ export default function DashboardPage() {
         <div className="relative flex-1 w-full">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <Input 
-                placeholder="Search emails..." 
+                placeholder="搜索邮箱..." 
                 className="pl-9 min-h-[44px]" 
                 value={search}
                 onChange={(e) => {
@@ -92,7 +92,7 @@ export default function DashboardPage() {
         <div className="relative flex-1 w-full">
             <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <Input 
-                placeholder="Filter by tags..." 
+                placeholder="按标签筛选..." 
                 className="pl-9 min-h-[44px]" 
                 value={tagSearch}
                 onChange={(e) => {
@@ -104,13 +104,13 @@ export default function DashboardPage() {
         <div className="w-full sm:w-[180px]">
             <Select value={refreshStatus} onValueChange={(val) => { setRefreshStatus(val === "all" ? undefined : val); setPage(1); }}>
                 <SelectTrigger className="min-h-[44px]">
-                    <SelectValue placeholder="Filter Status" />
+                    <SelectValue placeholder="筛选状态" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="success">Success</SelectItem>
-                    <SelectItem value="failed">Failed</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="all">全部状态</SelectItem>
+                    <SelectItem value="success">成功</SelectItem>
+                    <SelectItem value="failed">失败</SelectItem>
+                    <SelectItem value="pending">待处理</SelectItem>
                 </SelectContent>
             </Select>
         </div>
@@ -154,7 +154,7 @@ export default function DashboardPage() {
       {data && data.total_pages > 1 && (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             <div className="text-sm text-muted-foreground text-center sm:text-left">
-                Total: {data.total_accounts} accounts
+                总计: {data.total_accounts} 个账户
             </div>
             <div className="flex items-center justify-center space-x-2">
             <Button
@@ -165,10 +165,10 @@ export default function DashboardPage() {
                 disabled={page === 1}
             >
                 <ChevronLeft className="h-4 w-4" />
-                <span className="hidden sm:inline ml-1">Previous</span>
+                <span className="hidden sm:inline ml-1">上一页</span>
             </Button>
             <div className="text-sm font-medium px-2">
-                <span className="hidden sm:inline">Page </span>{page}<span className="hidden sm:inline"> of {data.total_pages}</span>
+                <span className="hidden sm:inline">第 </span>{page}<span className="hidden sm:inline"> 页，共 {data.total_pages} 页</span>
             </div>
             <Button
                 variant="outline"
@@ -177,7 +177,7 @@ export default function DashboardPage() {
                 onClick={() => setPage((p) => Math.min(data.total_pages, p + 1))}
                 disabled={page === data.total_pages}
             >
-                <span className="hidden sm:inline mr-1">Next</span>
+                <span className="hidden sm:inline mr-1">下一页</span>
                 <ChevronRight className="h-4 w-4" />
             </Button>
             </div>

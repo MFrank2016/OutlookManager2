@@ -14,8 +14,8 @@ import { Send } from "lucide-react";
 
 const sendEmailSchema = z.object({
   recipient: z.string().email(),
-  subject: z.string().min(1, "Subject is required"),
-  body: z.string().min(1, "Body is required"),
+  subject: z.string().min(1, "主题必填"),
+  body: z.string().min(1, "正文必填"),
 });
 
 export function SendEmailDialog({ account }: { account: string | null }) {
@@ -48,12 +48,12 @@ export function SendEmailDialog({ account }: { account: string | null }) {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button disabled={!account}>
-                    <Send className="mr-2 h-4 w-4" /> Compose
+                    <Send className="mr-2 h-4 w-4" /> 撰写
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                    <DialogTitle>Send Email ({account})</DialogTitle>
+                    <DialogTitle>发送邮件 ({account})</DialogTitle>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -62,7 +62,7 @@ export function SendEmailDialog({ account }: { account: string | null }) {
                             name="recipient"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>To</FormLabel>
+                                    <FormLabel>收件人</FormLabel>
                                     <FormControl>
                                         <Input placeholder="recipient@example.com" {...field} />
                                     </FormControl>
@@ -75,9 +75,9 @@ export function SendEmailDialog({ account }: { account: string | null }) {
                             name="subject"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Subject</FormLabel>
+                                    <FormLabel>主题</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Subject" {...field} />
+                                        <Input placeholder="主题" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -88,9 +88,9 @@ export function SendEmailDialog({ account }: { account: string | null }) {
                             name="body"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Message</FormLabel>
+                                    <FormLabel>消息</FormLabel>
                                     <FormControl>
-                                        <Textarea placeholder="Type your message here..." className="min-h-[200px]" {...field} />
+                                        <Textarea placeholder="在此输入您的消息..." className="min-h-[200px]" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -98,7 +98,7 @@ export function SendEmailDialog({ account }: { account: string | null }) {
                         />
                         <div className="flex justify-end">
                             <Button type="submit" disabled={sendEmail.isPending}>
-                                {sendEmail.isPending ? "Sending..." : "Send Email"}
+                                {sendEmail.isPending ? "发送中..." : "发送邮件"}
                             </Button>
                         </div>
                     </form>

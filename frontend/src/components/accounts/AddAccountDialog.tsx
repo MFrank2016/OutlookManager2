@@ -27,8 +27,8 @@ import { Plus } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email(),
-  client_id: z.string().min(1, "Client ID is required"),
-  refresh_token: z.string().min(1, "Refresh Token is required"),
+  client_id: z.string().min(1, "Client ID 必填"),
+  refresh_token: z.string().min(1, "Refresh Token 必填"),
   tags: z.string().optional(), // comma separated
 });
 
@@ -62,13 +62,13 @@ export function AddAccountDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button><Plus className="mr-2 h-4 w-4" /> Add Account</Button>
+        <Button><Plus className="mr-2 h-4 w-4" /> 添加账户</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Account</DialogTitle>
+          <DialogTitle>添加新账户</DialogTitle>
           <DialogDescription>
-            Enter the OAuth2 credentials for the Outlook account.
+            输入 Outlook 账户的 OAuth2 凭据。
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -78,7 +78,7 @@ export function AddAccountDialog() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>邮箱</FormLabel>
                   <FormControl>
                     <Input placeholder="user@outlook.com" {...field} />
                   </FormControl>
@@ -117,7 +117,7 @@ export function AddAccountDialog() {
               name="tags"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tags (comma separated)</FormLabel>
+                  <FormLabel>标签（逗号分隔）</FormLabel>
                   <FormControl>
                     <Input placeholder="vip, work" {...field} />
                   </FormControl>
@@ -126,7 +126,7 @@ export function AddAccountDialog() {
               )}
             />
             <Button type="submit" className="w-full" disabled={addAccount.isPending}>
-              {addAccount.isPending ? "Adding..." : "Add Account"}
+              {addAccount.isPending ? "添加中..." : "添加账户"}
             </Button>
           </form>
         </Form>

@@ -13,9 +13,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Loader2, Mail, ChevronLeft, ChevronRight } from "lucide-react";
-import { format } from "date-fns";
-import Link from "next/link";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Mail, ChevronLeft, ChevronRight, Eye, Copy, Check, Calendar, RefreshCw } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface EmailItem {
   message_id: string;
@@ -26,25 +30,120 @@ interface EmailItem {
   sender_initial: string;
 }
 
+interface EmailDetail {
+  message_id: string;
+  subject: string;
+  from_email: string;
+  to_email: string;
+  date: string;
+  body_plain?: string;
+  body_html?: string;
+  verification_code?: string;
+}
+
+interface ShareTokenInfo {
+  email_account_id: string;
+  expiry_time?: string;
+  is_active: boolean;
+  start_time: string;
+  end_time?: string;
+  subject_keyword?: string;
+  sender_keyword?: string;
+}
+
 export default function SharedEmailPage() {
   const params = useParams();
   const token = params.token as string;
   const [page, setPage] = useState(1);
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [emailDetailOpen, setEmailDetailOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"html" | "text">("html");
   const pageSize = 20;
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["shared-emails", token, page],
+  // 处理API错误的辅助函数
+  const handleApiError = async (response: Response): Promise<never> => {
+    if (response.status === 429) {
+      const errorData = await response.json().catch(() => ({ detail: "请求过于频繁" }));
+      toast.error(errorData.detail || "请求过于频繁，请稍后再试");
+      throw new Error(errorData.detail || "请求过于频繁，请稍后再试");
+    }
+    const errorData = await response.json().catch(() => ({ detail: "请求失败" }));
+    throw new Error(errorData.detail || "请求失败");
+  };
+
+  // 获取分享码信息
+  const { data: tokenInfo, refetch: refetchTokenInfo } = useQuery<ShareTokenInfo>({
+    queryKey: ["share-token-info", token],
     queryFn: async () => {
-      // 使用公共API，不需要认证token
-      const response = await fetch(`/share/${token}/emails?page=${page}&page_size=${pageSize}`);
+      const response = await fetch(`/share/${token}/info`);
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: "Failed to fetch" }));
-        throw new Error(errorData.detail || "Failed to fetch emails");
+        await handleApiError(response);
       }
       return response.json();
     },
     enabled: !!token,
+    retry: (failureCount, error) => {
+      // 429错误不重试
+      if (error instanceof Error && error.message.includes("请求过于频繁")) {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
+
+  // 获取邮件列表
+  const { data, isLoading, error, refetch: refetchEmails } = useQuery({
+    queryKey: ["shared-emails", token, page],
+    queryFn: async () => {
+      const response = await fetch(`/share/${token}/emails?page=${page}&page_size=${pageSize}`);
+      if (!response.ok) {
+        await handleApiError(response);
+      }
+      return response.json();
+    },
+    enabled: !!token,
+    retry: (failureCount, error) => {
+      // 429错误不重试
+      if (error instanceof Error && error.message.includes("请求过于频繁")) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+  });
+
+  // 获取邮件详情
+  const { data: emailDetail, isLoading: isDetailLoading, refetch: refetchEmailDetail } = useQuery<EmailDetail>({
+    queryKey: ["shared-email-detail", token, selectedEmailId],
+    queryFn: async () => {
+      if (!selectedEmailId) return null;
+      const response = await fetch(`/share/${token}/emails/${selectedEmailId}`);
+      if (!response.ok) {
+        await handleApiError(response);
+      }
+      return response.json();
+    },
+    enabled: !!selectedEmailId && emailDetailOpen,
+    retry: (failureCount, error) => {
+      // 429错误不重试
+      if (error instanceof Error && error.message.includes("请求过于频繁")) {
+        return false;
+      }
+      return failureCount < 2;
+    },
+  });
+
+  // 手动刷新
+  const handleRefresh = async () => {
+    try {
+      await Promise.all([
+        refetchTokenInfo(),
+        refetchEmails(),
+      ]);
+      toast.success("刷新成功");
+    } catch (error) {
+      // 错误已在handleApiError中处理
+    }
+  };
 
   if (isLoading) {
     return (
@@ -90,7 +189,40 @@ export default function SharedEmailPage() {
                 <p className="text-sm text-gray-500 mt-1">
                   共 {total} 封邮件
                 </p>
+                {tokenInfo && (
+                  <div className="mt-2 flex items-center gap-4 text-xs text-gray-600">
+                    {tokenInfo.expiry_time && (
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>
+                          有效期至: {format(new Date(tokenInfo.expiry_time), "yyyy-MM-dd HH:mm")}
+                          {new Date(tokenInfo.expiry_time) > new Date() && (
+                            <span className="ml-1 text-green-600">
+                              ({formatDistanceToNow(new Date(tokenInfo.expiry_time), { addSuffix: true })})
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    {!tokenInfo.expiry_time && (
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span className="text-green-600">永久有效</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isLoading}
+                className="min-h-[44px]"
+              >
+                <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+                刷新
+              </Button>
             </div>
           </div>
 
@@ -113,7 +245,14 @@ export default function SharedEmailPage() {
                   </TableHeader>
                   <TableBody>
                     {emails.map((email) => (
-                      <TableRow key={email.message_id} className="hover:bg-gray-50">
+                      <TableRow 
+                        key={email.message_id} 
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => {
+                          setSelectedEmailId(email.message_id);
+                          setEmailDetailOpen(true);
+                        }}
+                      >
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-medium">
@@ -168,6 +307,101 @@ export default function SharedEmailPage() {
           )}
         </div>
       </div>
+
+      {/* 邮件详情对话框 */}
+      <Dialog open={emailDetailOpen} onOpenChange={setEmailDetailOpen}>
+        <DialogContent className="max-w-[95vw] lg:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col w-full">
+          <DialogHeader className="pb-4 border-b">
+            <DialogTitle className="text-lg font-bold break-words pr-8">
+              {emailDetail?.subject || "加载中..."}
+            </DialogTitle>
+          </DialogHeader>
+
+          {isDetailLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+            </div>
+          ) : emailDetail ? (
+            <>
+              {/* 邮件元数据 */}
+              <div className="p-4 space-y-2 border-b">
+                <div className="text-sm">
+                  <span className="font-medium text-gray-600">发件人: </span>
+                  <span className="text-gray-900">{emailDetail.from_email}</span>
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium text-gray-600">收件人: </span>
+                  <span className="text-gray-900">{emailDetail.to_email || "无"}</span>
+                </div>
+                <div className="text-sm">
+                  <span className="font-medium text-gray-600">日期: </span>
+                  <span className="text-gray-900">
+                    {format(new Date(emailDetail.date), "yyyy-MM-dd HH:mm:ss")}
+                  </span>
+                </div>
+                {emailDetail.verification_code && (
+                  <div className="text-sm">
+                    <span className="font-medium text-gray-600">验证码: </span>
+                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                      {emailDetail.verification_code}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+
+              {/* 视图切换按钮 */}
+              <div className="p-4 border-b flex gap-2 items-center justify-between">
+                <div className="flex gap-2">
+                  <Button
+                    variant={viewMode === "html" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setViewMode("html")}
+                    className="h-8"
+                  >
+                    HTML视图
+                  </Button>
+                  <Button
+                    variant={viewMode === "text" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setViewMode("text")}
+                    className="h-8"
+                  >
+                    纯文本
+                  </Button>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => refetchEmailDetail()}
+                  disabled={isDetailLoading}
+                  className="h-8"
+                >
+                  <RefreshCw className={cn("h-4 w-4 mr-2", isDetailLoading && "animate-spin")} />
+                  刷新
+                </Button>
+              </div>
+
+              {/* 邮件正文 */}
+              <ScrollArea className="flex-1 p-6">
+                {viewMode === "html" && emailDetail.body_html ? (
+                  <div 
+                    className="prose prose-slate max-w-none dark:prose-invert email-content text-sm leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: emailDetail.body_html }} 
+                  />
+                ) : (
+                  <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 p-4 rounded">
+                    {emailDetail.body_plain || emailDetail.body_html || "无内容"}
+                  </pre>
+                )}
+              </ScrollArea>
+            </>
+          ) : (
+            <div className="p-8 text-center text-gray-500">
+              无法加载邮件详情
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

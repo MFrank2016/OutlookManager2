@@ -259,7 +259,7 @@ export default function EmailsPage() {
             <div className="flex-1 sm:w-64 flex items-center gap-2">
                 <Select value={selectedAccount || ""} onValueChange={setSelectedAccount}>
                     <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Select Account" />
+                        <SelectValue placeholder="选择账户" />
                     </SelectTrigger>
                     <SelectContent>
                         {accountsData?.accounts.map(acc => (
@@ -292,7 +292,7 @@ export default function EmailsPage() {
                 <div className="relative flex-1">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
                     <Input 
-                        placeholder={searchType === "subject" ? "Search subject..." : "Search sender..."}
+                        placeholder={searchType === "subject" ? "搜索主题..." : "搜索发件人..."}
                         className="pl-9" 
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
@@ -303,8 +303,8 @@ export default function EmailsPage() {
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="subject">Subject</SelectItem>
-                        <SelectItem value="sender">Sender</SelectItem>
+                        <SelectItem value="subject">主题</SelectItem>
+                        <SelectItem value="sender">发件人</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -315,29 +315,29 @@ export default function EmailsPage() {
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 text-sm">
             <div className="flex items-center gap-2">
-                <span className="text-muted-foreground hidden sm:inline">Folder:</span>
+                <span className="text-muted-foreground hidden sm:inline">文件夹:</span>
                 <Select value={folder} onValueChange={setFolder}>
                     <SelectTrigger className="w-full sm:w-[140px] h-8">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All Mail</SelectItem>
-                        <SelectItem value="inbox">Inbox</SelectItem>
-                        <SelectItem value="junk">Junk Email</SelectItem>
+                        <SelectItem value="all">全部邮件</SelectItem>
+                        <SelectItem value="inbox">收件箱</SelectItem>
+                        <SelectItem value="junk">垃圾邮件</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
 
             <div className="flex items-center gap-2">
-                <span className="text-muted-foreground hidden sm:inline">Sort:</span>
+                <span className="text-muted-foreground hidden sm:inline">排序:</span>
                 <Select value={sortBy} onValueChange={setSortBy}>
                     <SelectTrigger className="w-full sm:w-[140px] h-8">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="date">Date</SelectItem>
-                        <SelectItem value="subject">Subject</SelectItem>
-                        <SelectItem value="from_email">Sender</SelectItem>
+                        <SelectItem value="date">日期</SelectItem>
+                        <SelectItem value="subject">主题</SelectItem>
+                        <SelectItem value="from_email">发件人</SelectItem>
                     </SelectContent>
                 </Select>
                 <Button 
@@ -347,7 +347,7 @@ export default function EmailsPage() {
                     onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
                 >
                     <ArrowUpDown className={cn("h-4 w-4 sm:mr-1", sortOrder === "asc" && "rotate-180")} />
-                    <span className="hidden sm:inline">{sortOrder === "asc" ? "Asc" : "Desc"}</span>
+                    <span className="hidden sm:inline">{sortOrder === "asc" ? "升序" : "降序"}</span>
                 </Button>
             </div>
 
@@ -413,11 +413,11 @@ export default function EmailsPage() {
 
       <div className="flex-1 flex flex-col min-h-0 bg-white rounded-lg shadow-sm border overflow-hidden">
         {isEmailsLoading && !emailsData ? (
-            <div className="p-8 text-center text-muted-foreground">Loading emails...</div>
+            <div className="p-8 text-center text-muted-foreground">加载邮件中...</div>
         ) : emailsData?.emails.length === 0 ? (
             <div className="p-12 text-center flex flex-col items-center text-muted-foreground">
                 <Inbox className="h-12 w-12 mb-4 text-slate-200" />
-                <p>No emails found</p>
+                <p>未找到邮件</p>
             </div>
         ) : (
             <>
@@ -456,13 +456,13 @@ export default function EmailsPage() {
                                             <div className="font-medium truncate flex items-center gap-2">
                                                 {email.verification_code && (
                                                     <Badge variant="secondary" className="bg-amber-100 text-amber-800 text-[10px] px-1 py-0 h-4">
-                                                        Code: {email.verification_code}
+                                                        验证码: {email.verification_code}
                                                     </Badge>
                                                 )}
                                                 {email.subject}
                                             </div>
                                             <div className="text-xs text-slate-500 truncate max-w-[500px]">
-                                                {email.body_preview || "No preview available"}
+                                                {email.body_preview || "无预览"}
                                             </div>
                                         </div>
                                     </TableCell>
@@ -558,7 +558,7 @@ export default function EmailsPage() {
                                                 {email.subject}
                                             </div>
                                             <div className="text-xs text-gray-500 truncate mt-0.5">
-                                                {email.body_preview || "No preview available"}
+                                                {email.body_preview || "无预览"}
                                             </div>
                                         </div>
                                     </div>

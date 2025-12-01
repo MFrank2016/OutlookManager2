@@ -22,10 +22,10 @@ import { toast } from "sonner";
 
 const formSchema = z.object({
   username: z.string().min(1, {
-    message: "Username is required.",
+    message: "用户名必填",
   }),
   password: z.string().min(1, {
-    message: "Password is required.",
+    message: "密码必填",
   }),
 });
 
@@ -64,11 +64,11 @@ export default function LoginPage() {
       // 3. Update store
       login(token, user);
       
-      toast.success("Login successful");
+      toast.success("登录成功");
       router.push("/dashboard");
     } catch (error: any) {
       console.error(error);
-      const msg = error.response?.data?.detail || "Login failed. Please check your credentials.";
+      const msg = error.response?.data?.detail || "登录失败，请检查您的凭据。";
       toast.error(msg);
     } finally {
       setIsLoading(false);
@@ -89,7 +89,7 @@ export default function LoginPage() {
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Username</FormLabel>
+                    <FormLabel>用户名</FormLabel>
                     <FormControl>
                       <Input placeholder="admin" {...field} />
                     </FormControl>
@@ -102,7 +102,7 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>密码</FormLabel>
                     <FormControl>
                       <Input type="password" placeholder="******" {...field} />
                     </FormControl>
@@ -111,7 +111,7 @@ export default function LoginPage() {
                 )}
               />
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
+                {isLoading ? "登录中..." : "登录"}
               </Button>
             </form>
           </Form>

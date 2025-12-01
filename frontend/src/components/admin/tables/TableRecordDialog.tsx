@@ -86,13 +86,13 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
       <DialogTrigger asChild>
         {trigger || (
           <Button size="sm">
-            <Plus className="mr-2 h-4 w-4" /> Add Record
+            <Plus className="mr-2 h-4 w-4" /> 添加记录
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Record" : "Add New Record"}</DialogTitle>
+          <DialogTitle>{isEdit ? "编辑记录" : "添加新记录"}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
             {columns.map(col => {
@@ -121,7 +121,7 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
             })}
             <DialogFooter>
                 <Button type="submit" disabled={isPending}>
-                    {isPending ? "Saving..." : "Save Record"}
+                    {isPending ? "保存中..." : "保存记录"}
                 </Button>
             </DialogFooter>
         </form>

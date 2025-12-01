@@ -17,17 +17,17 @@ import { Save } from "lucide-react";
 export function ConfigTable() {
   const { data, isLoading } = useConfigs();
   
-  if (isLoading) return <div>Loading config...</div>;
+  if (isLoading) return <div>加载配置中...</div>;
 
   return (
     <div className="rounded-md border bg-white">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Key</TableHead>
-            <TableHead>Value</TableHead>
-            <TableHead>Description</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            <TableHead>配置项</TableHead>
+            <TableHead>值</TableHead>
+            <TableHead>描述</TableHead>
+            <TableHead className="text-right">操作</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -63,7 +63,7 @@ function ConfigRow({ config }: { config: any }) {
             <TableCell className="text-right">
                 {isDirty && (
                     <Button size="sm" onClick={handleSave} disabled={updateConfig.isPending}>
-                        <Save className="h-4 w-4 mr-1" /> Save
+                        <Save className="h-4 w-4 mr-1" /> 保存
                     </Button>
                 )}
             </TableCell>

@@ -139,7 +139,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
     } else {
         // Create logic
         if (!emailAccount) {
-            toast.error("Missing email account");
+            toast.error("缺少邮箱账户");
             setIsSubmitting(false);
             return;
         }

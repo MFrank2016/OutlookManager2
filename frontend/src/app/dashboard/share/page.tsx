@@ -17,7 +17,7 @@ import { Trash, Copy, Loader2, Edit, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
-import { ShareToken } from "@/types";
+import { ShareToken, Account } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
 
@@ -82,9 +82,9 @@ export default function ShareManagementPage() {
                   <SelectValue placeholder="选择邮箱账户" />
                 </SelectTrigger>
                 <SelectContent>
-                  {accountsData.map((account: { email: string }) => (
-                    <SelectItem key={account.email} value={account.email}>
-                      {account.email}
+                  {accountsData.map((account: Account, index: number) => (
+                    <SelectItem key={account.email_id || `account-${index}`} value={account.email_id}>
+                      {account.email_id}
                     </SelectItem>
                   ))}
                 </SelectContent>

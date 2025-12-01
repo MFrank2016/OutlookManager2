@@ -30,7 +30,7 @@ export function UsersTable() {
   });
   const deleteUser = useDeleteUser();
 
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading users...</div>;
+  if (isLoading) return <div className="p-8 text-center text-muted-foreground">加载用户中...</div>;
 
   return (
     <div className="space-y-4">
@@ -38,7 +38,7 @@ export function UsersTable() {
         <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
-                placeholder="Search users..." 
+                placeholder="搜索用户..." 
                 className="pl-9" 
                 value={search}
                 onChange={(e) => {
@@ -55,18 +55,18 @@ export function UsersTable() {
           <TableHeader>
             <TableRow className="bg-slate-50 hover:bg-slate-50">
               <TableHead className="w-[50px]"></TableHead>
-              <TableHead>User</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Last Login</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>用户</TableHead>
+              <TableHead>角色</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead>最后登录</TableHead>
+              <TableHead className="text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data?.users.length === 0 && (
                 <TableRow>
                     <TableCell colSpan={6} className="text-center p-8 text-muted-foreground">
-                        No users found
+                        未找到用户
                     </TableCell>
                 </TableRow>
             )}
@@ -85,7 +85,7 @@ export function UsersTable() {
                 <TableCell className="font-medium">
                     <div className="flex flex-col">
                         <span className="text-sm text-slate-900">{user.username}</span>
-                        <span className="text-xs text-slate-500">{user.email || "No email"}</span>
+                        <span className="text-xs text-slate-500">{user.email || "无邮箱"}</span>
                     </div>
                 </TableCell>
                 <TableCell>
@@ -97,7 +97,7 @@ export function UsersTable() {
                   )}>
                     {user.role === 'admin' && <ShieldAlert className="w-3 h-3 mr-1" />}
                     {user.role === 'user' && <ShieldCheck className="w-3 h-3 mr-1" />}
-                    {user.role}
+                    {user.role === 'admin' ? '管理员' : '普通用户'}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -107,7 +107,7 @@ export function UsersTable() {
                         ? "bg-green-50 text-green-700 border-green-200" 
                         : "bg-red-50 text-red-700 border-red-200"
                   )}>
-                    {user.is_active ? "Active" : "Inactive"}
+                    {user.is_active ? "激活" : "禁用"}
                   </Badge>
                 </TableCell>
                 <TableCell>
@@ -115,7 +115,7 @@ export function UsersTable() {
                     <Clock className="w-3 h-3 mr-1" />
                     {user.last_login
                         ? formatDistanceToNow(new Date(user.last_login), { addSuffix: true })
-                        : "Never"}
+                        : "从未登录"}
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
@@ -133,7 +133,7 @@ export function UsersTable() {
                       size="icon"
                       className="hover:bg-red-50 hover:text-red-600"
                       onClick={() => {
-                        if (confirm(`Delete user ${user.username}?`)) {
+                        if (confirm(`确定要删除用户 ${user.username} 吗？`)) {
                           deleteUser.mutate(user.username);
                         }
                       }}
@@ -152,7 +152,7 @@ export function UsersTable() {
       {data && data.total_pages > 1 && (
         <div className="flex items-center justify-between pt-2">
             <div className="text-sm text-muted-foreground">
-                Total: {data.total_users} users
+                总计: {data.total_users} 个用户
             </div>
             <div className="flex gap-2">
                 <Button
@@ -161,10 +161,10 @@ export function UsersTable() {
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1}
                 >
-                    Previous
+                    上一页
                 </Button>
                 <span className="flex items-center px-2 text-sm font-medium">
-                    Page {page} of {data.total_pages}
+                    第 {page} 页，共 {data.total_pages} 页
                 </span>
                 <Button
                     variant="outline"
@@ -172,7 +172,7 @@ export function UsersTable() {
                     onClick={() => setPage(p => Math.min(data.total_pages, p + 1))}
                     disabled={page === data.total_pages}
                 >
-                    Next
+                    下一页
                 </Button>
             </div>
         </div>

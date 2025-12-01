@@ -50,13 +50,13 @@ export function TagsDialog({ accountEmail, initialTags, open, onOpenChange }: Ta
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Manage Tags for {accountEmail}</DialogTitle>
+          <DialogTitle>管理标签 - {accountEmail}</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="flex flex-wrap gap-2 min-h-[80px] p-4 bg-slate-50 rounded-md border border-slate-200">
             {tags.length === 0 ? (
                <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm italic">
-                 No tags yet
+                 暂无标签
                </div>
             ) : (
                 tags.map(tag => (
@@ -71,7 +71,7 @@ export function TagsDialog({ accountEmail, initialTags, open, onOpenChange }: Ta
           </div>
           <div className="flex gap-2">
             <Input
-              placeholder="Add new tag..."
+              placeholder="添加新标签..."
               value={newTag}
               onChange={(e) => setNewTag(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddTag()}
@@ -82,9 +82,9 @@ export function TagsDialog({ accountEmail, initialTags, open, onOpenChange }: Ta
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
           <Button onClick={handleSave} disabled={updateTags.isPending}>
-            {updateTags.isPending ? "Saving..." : "Save Changes"}
+            {updateTags.isPending ? "保存中..." : "保存更改"}
           </Button>
         </DialogFooter>
       </DialogContent>

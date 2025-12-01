@@ -34,7 +34,7 @@ import { Plus, Edit } from "lucide-react";
 import { User } from "@/types";
 
 const userSchema = z.object({
-  username: z.string().min(1, "Username is required"),
+  username: z.string().min(1, "用户名必填"),
   password: z.string().optional(), // Optional for edit
   email: z.string().email().optional().or(z.literal("")),
   role: z.enum(["admin", "user"]),
@@ -107,7 +107,7 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
       
     } else {
       if (!values.password) {
-          form.setError("password", { message: "Password is required for new users" });
+          form.setError("password", { message: "新用户密码必填" });
           return;
       }
       createUser.mutate({
@@ -127,13 +127,13 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
       <DialogTrigger asChild>
         {trigger || (
           <Button size="sm">
-            <Plus className="mr-2 h-4 w-4" /> Add User
+            <Plus className="mr-2 h-4 w-4" /> 添加用户
           </Button>
         )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit User" : "Add New User"}</DialogTitle>
+          <DialogTitle>{isEdit ? "编辑用户" : "添加新用户"}</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -142,7 +142,7 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
               name="username"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Username</FormLabel>
+                  <FormLabel>用户名</FormLabel>
                   <FormControl>
                     <Input placeholder="username" {...field} disabled={isEdit} />
                   </FormControl>
@@ -155,7 +155,7 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password {isEdit && "(Leave blank to keep unchanged)"}</FormLabel>
+                  <FormLabel>密码 {isEdit && "(留空则不修改)"}</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="******" {...field} />
                   </FormControl>
@@ -168,7 +168,7 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>邮箱</FormLabel>
                   <FormControl>
                     <Input placeholder="email@example.com" {...field} />
                   </FormControl>
@@ -181,16 +181,16 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
               name="role"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Role</FormLabel>
+                  <FormLabel>角色</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
+                        <SelectValue placeholder="选择角色" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="user">User</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="user">普通用户</SelectItem>
+                      <SelectItem value="admin">管理员</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -210,14 +210,14 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
                   </FormControl>
                   <div className="space-y-1 leading-none">
                     <FormLabel>
-                      Active Account
+                      激活账户
                     </FormLabel>
                   </div>
                 </FormItem>
               )}
             />
             <Button type="submit" className="w-full" disabled={createUser.isPending || updateUser.isPending}>
-              {createUser.isPending || updateUser.isPending ? "Saving..." : "Save User"}
+              {createUser.isPending || updateUser.isPending ? "保存中..." : "保存用户"}
             </Button>
           </form>
         </Form>

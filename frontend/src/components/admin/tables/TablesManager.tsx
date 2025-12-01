@@ -20,14 +20,14 @@ export function TablesManager() {
   const { data: tablesData, isLoading: tablesLoading } = useTables();
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
 
-  if (tablesLoading) return <div>Loading tables...</div>;
+  if (tablesLoading) return <div>加载数据表中...</div>;
 
   if (selectedTable) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setSelectedTable(null)}>
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            <ArrowLeft className="mr-2 h-4 w-4" /> 返回
           </Button>
           <h2 className="text-xl font-bold">{selectedTable}</h2>
         </div>
@@ -48,13 +48,13 @@ export function TablesManager() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{table.record_count}</div>
-            <p className="text-xs text-muted-foreground">Records</p>
+            <p className="text-xs text-muted-foreground">条记录</p>
             <Button 
                 className="w-full mt-4" 
                 size="sm" 
                 onClick={() => setSelectedTable(table.name)}
             >
-                View Data
+                查看数据
             </Button>
           </CardContent>
         </Card>
@@ -69,8 +69,8 @@ function TableDataView({ tableName }: { tableName: string }) {
     const { data, isLoading } = useTableData(tableName, { page, page_size: 20, search });
     const deleteRecord = useDeleteTableRecord();
 
-    if (isLoading) return <div>Loading data...</div>;
-    if (!data) return <div>No data found</div>;
+    if (isLoading) return <div>加载数据中...</div>;
+    if (!data) return <div>未找到数据</div>;
 
     // Get columns from first record if available
     const columns = data.records.length > 0 ? Object.keys(data.records[0]) : [];
@@ -81,7 +81,7 @@ function TableDataView({ tableName }: { tableName: string }) {
                 <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
                     <Input 
-                        placeholder="Search..." 
+                        placeholder="搜索..." 
                         className="pl-9" 
                         value={search}
                         onChange={(e) => {
@@ -95,7 +95,7 @@ function TableDataView({ tableName }: { tableName: string }) {
                     <TableRecordDialog tableName={tableName} columns={columns} />
                 )}
                 <div className="text-sm text-muted-foreground">
-                    Total: {data.total_records}
+                    总计: {data.total_records} 条
                 </div>
             </div>
 
@@ -106,14 +106,14 @@ function TableDataView({ tableName }: { tableName: string }) {
                             {columns.map(col => (
                                 <TableHead key={col} className="whitespace-nowrap">{col}</TableHead>
                             ))}
-                            <TableHead className="text-right">Actions</TableHead>
+                            <TableHead className="text-right">操作</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {data.records.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={columns.length + 1} className="text-center p-4">
-                                    No records found
+                                    未找到记录
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -140,7 +140,7 @@ function TableDataView({ tableName }: { tableName: string }) {
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => {
-                                                    if (confirm("Are you sure you want to delete this record?")) {
+                                                    if (confirm("确定要删除这条记录吗？")) {
                                                         deleteRecord.mutate({ tableName, recordId: record.id });
                                                     }
                                                 }}
@@ -166,10 +166,10 @@ function TableDataView({ tableName }: { tableName: string }) {
                         disabled={page === 1}
                     >
                         <ChevronLeft className="h-4 w-4" />
-                        Previous
+                        上一页
                     </Button>
                     <span className="text-sm">
-                        Page {page} of {data.total_pages}
+                        第 {page} 页，共 {data.total_pages} 页
                     </span>
                     <Button
                         variant="outline"
@@ -177,7 +177,7 @@ function TableDataView({ tableName }: { tableName: string }) {
                         onClick={() => setPage(p => Math.min(data.total_pages, p + 1))}
                         disabled={page === data.total_pages}
                     >
-                        Next
+                        下一页
                         <ChevronRight className="h-4 w-4" />
                     </Button>
                 </div>

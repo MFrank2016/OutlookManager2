@@ -5,10 +5,9 @@
 """
 
 import uuid
-import time
+import logging
 from datetime import datetime, timedelta
 from typing import List, Optional
-from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -25,26 +24,13 @@ from models import (
 )
 import email_service
 from account_service import get_account_credentials
+from rate_limiter import check_share_token_rate_limit
+
+# 获取日志记录器
+logger = logging.getLogger(__name__)
 
 # 创建路由器
 router = APIRouter(prefix="/share", tags=["分享码"])
-
-# 简单的内存限流存储
-# token -> [timestamp1, timestamp2, ...]
-rate_limit_store = defaultdict(list)
-
-def check_rate_limit(token: str):
-    """
-    检查限流：每分钟最多10次请求
-    """
-    now = time.time()
-    # 清理超过1分钟的请求记录
-    rate_limit_store[token] = [t for t in rate_limit_store[token] if now - t < 60]
-    
-    if len(rate_limit_store[token]) >= 10:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded (10 requests/minute)")
-    
-    rate_limit_store[token].append(now)
 
 def get_valid_share_token(token: str) -> dict:
     """
@@ -53,18 +39,22 @@ def get_valid_share_token(token: str) -> dict:
     token_data = db.get_share_token(token)
     
     if not token_data:
-        raise HTTPException(status_code=404, detail="Invalid share token")
+        raise HTTPException(status_code=404, detail="无效的分享码")
     
     if not token_data['is_active']:
-        raise HTTPException(status_code=403, detail="Share token is inactive")
+        raise HTTPException(status_code=403, detail="分享码已被禁用")
         
     if token_data['expiry_time']:
         expiry = datetime.fromisoformat(token_data['expiry_time'])
         if datetime.now() > expiry:
-            raise HTTPException(status_code=403, detail="Share token has expired")
+            raise HTTPException(status_code=403, detail="分享码已过期")
     
-    # 执行限流检查
-    check_rate_limit(token)
+    # 执行限流检查（令牌桶算法，每分钟30次）
+    if not check_share_token_rate_limit(token):
+        raise HTTPException(
+            status_code=429, 
+            detail="请求过于频繁，单个分享码每分钟最多30次请求，请稍后再试"
+        )
     
     return token_data
 
@@ -252,6 +242,24 @@ async def delete_token_by_token(
 # 公共访问接口 (无需认证，需有效Token)
 # ============================================================================
 
+@router.get("/{token}/info")
+async def get_share_token_info(
+    token: str,
+    token_data: dict = Depends(get_valid_share_token)
+):
+    """
+    公共接口：获取分享码信息（包括有效期）
+    """
+    return {
+        "email_account_id": token_data['email_account_id'],
+        "expiry_time": token_data.get('expiry_time'),
+        "is_active": token_data['is_active'],
+        "start_time": token_data['start_time'],
+        "end_time": token_data.get('end_time'),
+        "subject_keyword": token_data.get('subject_keyword'),
+        "sender_keyword": token_data.get('sender_keyword'),
+    }
+
 @router.get("/{token}/emails", response_model=EmailListResponse)
 async def public_list_emails(
     token: str,
@@ -260,12 +268,9 @@ async def public_list_emails(
     token_data: dict = Depends(get_valid_share_token)
 ):
     """
-    公共接口：获取邮件列表
+    公共接口：获取邮件列表（仅从数据库查询，不调用邮件服务）
     """
     email_account = token_data['email_account_id']
-    
-    # 获取账户凭证
-    credentials = await get_account_credentials(email_account)
     
     # 应用分享码的过滤规则
     filter_start = token_data['start_time']
@@ -273,17 +278,34 @@ async def public_list_emails(
     subject_filter = token_data.get('subject_keyword')
     sender_filter = token_data.get('sender_keyword')
     
-    # 调用邮件服务
-    return await email_service.list_emails(
-        credentials=credentials,
-        folder="all", # 分享码默认查看所有（或者收件箱？）暂定all
+    # 从数据库获取邮件列表（仅查询缓存）
+    cached_emails, total = db.get_cached_emails(
+        email_account=email_account,
         page=page,
         page_size=page_size,
-        force_refresh=False, # 公共接口不强制刷新，利用缓存
+        folder=None,  # 分享码查看所有文件夹
         sender_search=sender_filter,
         subject_search=subject_filter,
+        sort_by='date',
+        sort_order='desc',
         start_time=filter_start,
         end_time=filter_end
+    )
+    
+    # 转换为EmailItem格式
+    from models import EmailItem
+    email_items = [EmailItem(**email) for email in cached_emails]
+    
+    # 返回EmailListResponse
+    return EmailListResponse(
+        email_id=email_account,
+        folder_view="all",
+        page=page,
+        page_size=page_size,
+        total_emails=total,
+        emails=email_items,
+        from_cache=True,
+        fetch_time_ms=0
     )
 
 @router.get("/{token}/emails/{message_id}", response_model=EmailDetailsResponse)
@@ -294,35 +316,52 @@ async def public_get_email_detail(
 ):
     """
     公共接口：获取邮件详情
+    优先从数据库查询，如果数据库没有则从远程获取并保存到数据库
     """
     email_account = token_data['email_account_id']
     
-    # 获取账户凭证
-    credentials = await get_account_credentials(email_account)
+    # 先尝试从数据库获取邮件详情
+    cached_detail = db.get_cached_email_detail(email_account, message_id)
     
-    # 先获取邮件详情
-    detail = await email_service.get_email_details(credentials, message_id)
+    # 如果数据库没有，则从远程获取
+    if not cached_detail:
+        logger.info(f"Email detail not found in cache for {message_id}, fetching from remote...")
+        # 获取账户凭证
+        credentials = await get_account_credentials(email_account)
+        
+        # 从远程获取邮件详情（会自动保存到数据库）
+        try:
+            detail = await email_service.get_email_details(credentials, message_id)
+            cached_detail = detail.dict()
+            logger.info(f"Successfully fetched and cached email detail for {message_id}")
+        except HTTPException:
+            # 重新抛出HTTP异常
+            raise
+        except Exception as e:
+            logger.error(f"Failed to fetch email detail from remote for {message_id}: {e}")
+            raise HTTPException(status_code=404, detail="邮件详情未找到，无法从远程获取")
     
     # 安全检查：确保邮件符合分享码的过滤规则
     # 1. 检查时间
-    email_date = datetime.fromisoformat(detail.date)
+    email_date = datetime.fromisoformat(cached_detail['date'])
     start_time = datetime.fromisoformat(token_data['start_time'])
     if email_date < start_time:
-        raise HTTPException(status_code=403, detail="Email is outside of shared time range")
+        raise HTTPException(status_code=403, detail="邮件不在分享的时间范围内")
         
     if token_data.get('end_time'):
         end_time = datetime.fromisoformat(token_data['end_time'])
         if email_date > end_time:
-            raise HTTPException(status_code=403, detail="Email is outside of shared time range")
+            raise HTTPException(status_code=403, detail="邮件不在分享的时间范围内")
             
     # 2. 检查关键词 (简单包含检查)
     if token_data.get('subject_keyword'):
-        if token_data['subject_keyword'].lower() not in detail.subject.lower():
-            raise HTTPException(status_code=403, detail="Email does not match subject filter")
+        if token_data['subject_keyword'].lower() not in cached_detail['subject'].lower():
+            raise HTTPException(status_code=403, detail="邮件不符合主题过滤条件")
             
     if token_data.get('sender_keyword'):
-        if token_data['sender_keyword'].lower() not in detail.from_email.lower():
-            raise HTTPException(status_code=403, detail="Email does not match sender filter")
-            
-    return detail
+        if token_data['sender_keyword'].lower() not in cached_detail['from_email'].lower():
+            raise HTTPException(status_code=403, detail="邮件不符合发件人过滤条件")
+    
+    # 返回邮件详情
+    return EmailDetailsResponse(**cached_detail)
 

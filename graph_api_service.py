@@ -250,7 +250,13 @@ async def list_emails_graph(
         # 排序
         reverse = (sort_order == "desc")
         if sort_by == "date":
-            all_emails.sort(key=lambda x: x.date, reverse=reverse)
+            # 使用datetime对象进行日期排序，确保准确性
+            def get_date_key(email_item):
+                try:
+                    return datetime.fromisoformat(email_item.date.replace('Z', '+00:00'))
+                except:
+                    return datetime.min
+            all_emails.sort(key=get_date_key, reverse=reverse)
         elif sort_by == "subject":
             all_emails.sort(key=lambda x: x.subject, reverse=reverse)
         elif sort_by == "from_email":

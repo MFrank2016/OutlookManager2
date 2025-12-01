@@ -29,32 +29,32 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
   
   const routes = [
     {
-      label: "Accounts",
+      label: "账户管理",
       icon: LayoutDashboard,
       href: "/dashboard",
       active: pathname === "/dashboard" || pathname.startsWith("/dashboard/accounts"),
     },
     {
-      label: "Emails",
+      label: "邮件",
       icon: Mail,
       href: "/dashboard/emails",
       active: pathname.startsWith("/dashboard/emails"),
     },
     {
-      label: "Share",
+      label: "分享管理",
       icon: Share2,
       href: "/dashboard/share",
       active: pathname.startsWith("/dashboard/share"),
     },
     {
-      label: "Admin Panel",
+      label: "管理面板",
       icon: Settings,
       href: "/dashboard/admin",
       active: pathname.startsWith("/dashboard/admin"),
       adminOnly: true,
     },
     {
-      label: "API Docs",
+      label: "API文档",
       icon: Book,
       href: "/dashboard/api-docs",
       active: pathname.startsWith("/dashboard/api-docs"),
@@ -97,14 +97,14 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.username}</p>
-              <p className="text-xs text-slate-400 truncate capitalize">{user?.role}</p>
+              <p className="text-xs text-slate-400 truncate">{user?.role === 'admin' ? '管理员' : '普通用户'}</p>
             </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={logout}
               className="text-slate-400 hover:text-red-400 hover:bg-slate-800"
-              title="Logout"
+              title="退出登录"
             >
               <LogOut className="h-5 w-5" />
             </Button>
@@ -175,7 +175,7 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.username}</p>
-              <p className="text-xs text-slate-400 truncate capitalize">{user?.role}</p>
+              <p className="text-xs text-slate-400 truncate">{user?.role === 'admin' ? '管理员' : '普通用户'}</p>
             </div>
           )}
           <Button
@@ -186,7 +186,7 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
               "text-slate-400 hover:text-red-400 hover:bg-slate-800",
               !collapsed && "ml-auto"
             )}
-            title="Logout"
+            title="退出登录"
           >
             <LogOut className="h-5 w-5" />
           </Button>
