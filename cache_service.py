@@ -26,13 +26,13 @@ logger = logging.getLogger(__name__)
 EMAIL_LIST_CACHE_SIZE = 1000
 EMAIL_LIST_CACHE_TTL = 300  # 5分钟
 
-# 邮件详情缓存：最大500个条目，每个条目缓存30分钟
+# 邮件详情缓存：最大500个条目，不过期（设置为 None 表示永不过期）
 EMAIL_DETAIL_CACHE_SIZE = 500
-EMAIL_DETAIL_CACHE_TTL = 1800  # 30分钟
+EMAIL_DETAIL_CACHE_TTL = None  # 不过期
 
-# Access Token 缓存：最大200个条目，每个条目缓存50分钟（token通常1小时过期）
+# Access Token 缓存：最大200个条目，每个条目缓存24小时
 ACCESS_TOKEN_CACHE_SIZE = 200
-ACCESS_TOKEN_CACHE_TTL = 3000  # 50分钟
+ACCESS_TOKEN_CACHE_TTL = 86400  # 24小时 = 86400秒
 
 # ============================================================================
 # LRU 缓存实例
@@ -40,7 +40,8 @@ ACCESS_TOKEN_CACHE_TTL = 3000  # 50分钟
 
 # 使用 TTLCache（带过期时间的 LRU 缓存）
 email_list_cache: TTLCache = TTLCache(maxsize=EMAIL_LIST_CACHE_SIZE, ttl=EMAIL_LIST_CACHE_TTL)
-email_detail_cache: TTLCache = TTLCache(maxsize=EMAIL_DETAIL_CACHE_SIZE, ttl=EMAIL_DETAIL_CACHE_TTL)
+# 邮件详情缓存使用 LRUCache（不过期，只受最大条目数限制）
+email_detail_cache: LRUCache = LRUCache(maxsize=EMAIL_DETAIL_CACHE_SIZE)
 access_token_cache: TTLCache = TTLCache(maxsize=ACCESS_TOKEN_CACHE_SIZE, ttl=ACCESS_TOKEN_CACHE_TTL)
 
 # ============================================================================

@@ -105,10 +105,10 @@ async def token_refresh_background_task():
 
                 logger.info(f"Total accounts loaded: {len(all_accounts)}")
 
-                # 过滤需要刷新的账户（检查24小时最小刷新间隔）
+                # 过滤需要刷新的账户（检查7天最小刷新间隔）
                 accounts_to_refresh = []
                 current_time = datetime.now()
-                min_refresh_interval = timedelta(hours=24)
+                min_refresh_interval = timedelta(days=7)  # refresh token 过期时间改为 7 天
                 
                 for account_data in all_accounts:
                     email_id = account_data["email"]
@@ -132,14 +132,14 @@ async def token_refresh_background_task():
                         # 计算距离上次刷新的时间间隔
                         time_since_refresh = current_time_local - last_refresh_time
                         
-                        # 如果距离上次刷新超过24小时，则需要刷新
+                        # 如果距离上次刷新超过7天，则需要刷新
                         if time_since_refresh >= min_refresh_interval:
                             accounts_to_refresh.append(account_data)
                         else:
-                            hours_remaining = (min_refresh_interval - time_since_refresh).total_seconds() / 3600
+                            days_remaining = (min_refresh_interval - time_since_refresh).total_seconds() / 86400
                             logger.debug(
-                                f"Skipping {email_id}: last refreshed {time_since_refresh.total_seconds() / 3600:.1f}h ago, "
-                                f"need to wait {hours_remaining:.1f}h more"
+                                f"Skipping {email_id}: last refreshed {time_since_refresh.days} days ago, "
+                                f"need to wait {days_remaining:.1f} days more"
                             )
                     except (ValueError, TypeError) as e:
                         # 如果时间解析失败，需要刷新
@@ -148,11 +148,11 @@ async def token_refresh_background_task():
                 
                 logger.info(
                     f"Accounts to refresh: {len(accounts_to_refresh)}/{len(all_accounts)} "
-                    f"(skipped {len(all_accounts) - len(accounts_to_refresh)} within 24h interval)"
+                    f"(skipped {len(all_accounts) - len(accounts_to_refresh)} within 7 days interval)"
                 )
                 
                 if not accounts_to_refresh:
-                    logger.info("No accounts need token refresh (all within 24h interval)")
+                    logger.info("No accounts need token refresh (all within 7 days interval)")
                     # 等待1小时后再次检查
                     for _ in range(6):  # 1小时 = 6个10分钟
                         await asyncio.sleep(600)  # 10分钟
@@ -184,7 +184,7 @@ async def token_refresh_background_task():
 
                             # 更新账户信息
                             current_time = datetime.now().isoformat()
-                            next_refresh = datetime.now() + timedelta(days=3)
+                            next_refresh = datetime.now() + timedelta(days=7)  # refresh token 过期时间改为 7 天
 
                             if result["success"]:
                                 # 使用后台任务专用线程池执行同步数据库操作

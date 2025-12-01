@@ -211,7 +211,7 @@ async def register_account(
 
         # 更新凭证的刷新时间和状态
         current_time = datetime.now().isoformat()
-        next_refresh = datetime.now() + timedelta(days=3)
+        next_refresh = datetime.now() + timedelta(days=7)  # refresh token 过期时间改为 7 天
         
         credentials.last_refresh_time = current_time
         credentials.next_refresh_time = next_refresh.isoformat()
@@ -401,7 +401,7 @@ async def manual_refresh_token(
         if result["success"]:
             # 更新凭证对象
             current_time = datetime.now().isoformat()
-            next_refresh = datetime.now() + timedelta(days=3)
+            next_refresh = datetime.now() + timedelta(days=7)  # refresh token 过期时间改为 7 天
 
             credentials.refresh_token = result["new_refresh_token"]
             credentials.last_refresh_time = current_time
@@ -514,7 +514,7 @@ async def batch_refresh_tokens(
                     
                     # 更新账户信息
                     current_time = datetime.now().isoformat()
-                    next_refresh = datetime.now() + timedelta(days=3)
+                    next_refresh = datetime.now() + timedelta(days=7)  # refresh token 过期时间改为 7 天
                     
                     if result["success"]:
                         db.update_account(
@@ -677,7 +677,7 @@ def _process_single_import_item_sync(
             
             # 更新凭证的刷新时间和状态
             current_time = datetime.now().isoformat()
-            next_refresh = datetime.now() + timedelta(days=3)
+            next_refresh = datetime.now() + timedelta(days=7)  # refresh token 过期时间改为 7 天
             
             credentials.last_refresh_time = current_time
             credentials.next_refresh_time = next_refresh.isoformat()
