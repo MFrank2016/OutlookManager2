@@ -15,16 +15,23 @@
 ### 首次部署
 
 1. **克隆项目并进入目录**
+
    ```bash
    git clone <repository-url>
    cd OutlookManager2
    ```
 
 2. **配置环境变量（可选）**
+
    ```bash
-   # 复制环境变量示例文件
-   cp docker/docker.env.example .env
-   
+   # 复制环境变量示例文件（如果不存在 .env 文件）
+   if [ ! -f .env ]; then
+       cp docker/docker.env.example .env
+       echo ".env 文件已创建，使用默认配置"
+   else
+       echo ".env 文件已存在，跳过创建"
+   fi
+
    # 根据需要编辑 .env 文件
    # 主要配置项：
    # - PORT: 外部访问端口（默认 8001）
@@ -32,16 +39,20 @@
    # - TZ: 时区（默认 Asia/Shanghai）
    ```
 
+   **注意**：如果 `.env` 文件不存在，Docker Compose 会使用 `environment` 部分定义的默认值，服务仍可正常启动。
+
 3. **构建并启动服务**
+
    ```bash
    # 方式一：使用 docker compose（推荐，Docker 20.10+）
    docker compose up -d --build
-   
+
    # 方式二：使用 docker-compose（旧版本）
    docker-compose up -d --build
    ```
 
 4. **查看服务状态**
+
    ```bash
    docker compose ps
    # 或
@@ -49,6 +60,7 @@
    ```
 
 5. **查看日志**
+
    ```bash
    docker compose logs -f
    # 或
@@ -56,8 +68,9 @@
    ```
 
 6. **访问服务**
+   - 前端界面：http://localhost:3000（推荐）
    - API 文档：http://localhost:8001/docs
-   - 前端界面：http://localhost:8001
+   - 后端 API：http://localhost:8001
    - 健康检查：http://localhost:8001/api
 
 ## 🔄 更新代码
@@ -160,6 +173,7 @@ docker-compose logs --tail=50
 ```
 
 在日志中应该能看到应用启动信息：
+
 ```
 ==========================================
 Outlook邮件管理系统启动中...
@@ -349,7 +363,7 @@ TZ=Asia/Shanghai      # 时区设置
 
 ```yaml
 ports:
-  - "${PORT:-8001}:8000"  # 外部端口:容器内部端口
+  - "${PORT:-8001}:8000" # 外部端口:容器内部端口
 ```
 
 - 外部端口（8001）：通过浏览器访问的端口
@@ -423,17 +437,19 @@ volumes:
 使用 COPY 方式固化代码到镜像：
 
 **优点：**
+
 - ✅ 代码与镜像打包在一起，部署一致性高
 - ✅ 不依赖外部文件系统
 - ✅ 可以方便地版本管理和回滚
 - ✅ 支持多环境部署（开发、测试、生产）
 
 **缺点：**
+
 - ❌ 更新代码需要重新构建镜像
 
 ## 🚨 故障排查
 
-### 问题1：构建失败
+### 问题 1：构建失败
 
 ```bash
 # 查看详细构建日志
@@ -449,7 +465,7 @@ wmic logicaldisk get size,freespace,caption  # Windows
 docker system prune -a
 ```
 
-### 问题2：容器无法启动
+### 问题 2：容器无法启动
 
 ```bash
 # 查看容器日志
@@ -466,7 +482,7 @@ docker compose ps
 docker-compose ps
 ```
 
-### 问题3：代码仍然是旧的
+### 问题 3：代码仍然是旧的
 
 ```bash
 # 确认是否重新构建了镜像
@@ -482,16 +498,18 @@ docker compose build --no-cache
 docker compose up -d
 ```
 
-### 问题4：依赖缺失错误
+### 问题 4：依赖缺失错误
 
 如果遇到 `ModuleNotFoundError`，检查：
 
 1. **requirements.txt 是否包含所有依赖**
+
    ```bash
    cat requirements.txt
    ```
 
 2. **重新构建镜像**
+
    ```bash
    docker compose build --no-cache
    docker compose up -d
@@ -502,7 +520,7 @@ docker compose up -d
    docker compose exec outlook-email-api pip list
    ```
 
-### 问题5：数据库文件权限问题
+### 问题 5：数据库文件权限问题
 
 ```bash
 # 检查数据库文件权限
@@ -515,7 +533,7 @@ chmod 666 data.db
 docker compose exec outlook-email-api ls -lh /app/data.db
 ```
 
-### 问题6：时区不正确
+### 问题 6：时区不正确
 
 ```bash
 # 检查容器时区
@@ -559,14 +577,17 @@ docker compose exec outlook-email-api find /app/logs -name "*.log.*" -mtime +30 
 ## 🔐 安全建议
 
 1. **不要将 `.env` 文件提交到 Git**
+
    - `.env` 文件可能包含敏感信息
    - 使用 `.env.example` 作为模板
 
 2. **定期更新基础镜像**
+
    - 检查 `docker/Dockerfile` 中的基础镜像版本
    - 定期更新以获取安全补丁
 
 3. **限制端口访问**
+
    - 在生产环境中，使用防火墙限制端口访问
    - 考虑使用反向代理（Nginx）进行访问控制
 
