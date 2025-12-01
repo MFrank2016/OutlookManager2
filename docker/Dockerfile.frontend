@@ -1,0 +1,100 @@
+# Next.js 前端 Dockerfile
+# 使用多阶段构建优化镜像大小
+
+# ============================================================================
+# 阶段 1: 依赖安装和构建
+# ============================================================================
+FROM node:20-alpine AS builder
+
+# 设置工作目录
+WORKDIR /app
+
+# 安装系统依赖
+RUN apk add --no-cache libc6-compat
+
+# 复制 package 文件
+COPY frontend/package.json frontend/package-lock.json ./
+
+# 安装依赖
+RUN npm ci --only=production=false
+
+# 复制前端源代码
+COPY frontend/ .
+
+# 复制启动脚本到构建阶段（稍后会在运行阶段使用）
+COPY docker/docker-entrypoint-frontend.sh ./docker/docker-entrypoint-frontend.sh
+
+# 构建 Next.js 应用
+# 设置环境变量以支持 Docker 构建
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+# ============================================================================
+# 阶段 2: 生产运行环境
+# ============================================================================
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# 设置环境变量
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    TZ=Asia/Shanghai
+
+# 安装时区数据
+RUN apk add --no-cache tzdata \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
+    && apk del tzdata
+
+# 创建非 root 用户
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
+
+# 从构建阶段复制必要的文件
+# Next.js standalone 模式会将所有文件放在 .next/standalone 目录
+# 根据 package.json 的 name 字段（"frontend"），结构是：.next/standalone/frontend/
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+
+# 复制静态文件和 public 目录
+# standalone 模式需要手动复制这些文件
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# 如果 standalone 输出在 frontend 子目录中，需要将 static 和 public 复制到正确位置
+# 同时确保 standalone 目录中的文件权限正确
+RUN if [ -d "frontend" ]; then \
+        # 将 static 和 public 复制到 frontend 目录（standalone 模式需要）
+        mkdir -p frontend/.next && \
+        cp -r .next/static frontend/.next/ 2>/dev/null || true && \
+        cp -r public frontend/ 2>/dev/null || true && \
+        # 确保权限正确
+        chown -R nextjs:nodejs frontend .next public; \
+    else \
+        # 如果没有 frontend 子目录，说明 standalone 输出在根目录
+        # 确保 .next/static 在正确位置
+        mkdir -p .next && \
+        mv .next/static .next/ 2>/dev/null || true; \
+    fi
+
+# 复制启动脚本（在切换用户前设置权限）
+COPY --from=builder /app/docker/docker-entrypoint-frontend.sh ./docker-entrypoint-frontend.sh
+RUN chmod +x docker-entrypoint-frontend.sh && chown nextjs:nodejs docker-entrypoint-frontend.sh
+
+# 切换到非 root 用户
+USER nextjs
+
+# 暴露端口
+EXPOSE 3000
+
+# 设置环境变量
+ENV PORT=3000 \
+    HOSTNAME="0.0.0.0" \
+    NODE_ENV=production
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
+
+# 启动 Next.js 应用（使用启动脚本自动查找 server.js）
+CMD ["./docker-entrypoint-frontend.sh"]

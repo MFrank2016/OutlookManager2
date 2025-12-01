@@ -51,6 +51,11 @@
    docker-compose up -d --build
    ```
 
+   **注意**：如果前端服务没有启动，请检查：
+   - 构建日志：`docker compose build outlook-email-frontend`
+   - 容器日志：`docker compose logs outlook-email-frontend`
+   - 容器状态：`docker compose ps -a`
+
 4. **查看服务状态**
 
    ```bash
