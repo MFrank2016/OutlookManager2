@@ -53,23 +53,30 @@ docker run --rm -it outlook-email-frontend:test sh
 ### 5. 常见问题
 
 #### 问题：构建失败 - npm ci 错误
+
 **解决**：确保 `frontend/package-lock.json` 存在且是最新的
+
 ```bash
 cd frontend
 npm install
 ```
 
 #### 问题：构建失败 - Next.js build 错误
+
 **解决**：检查 `next.config.ts` 配置，确保 `output: "standalone"` 已设置
 
 #### 问题：容器启动后立即退出
+
 **解决**：查看日志，通常是找不到 `server.js` 文件
+
 ```bash
 docker compose logs outlook-email-frontend
 ```
 
 #### 问题：端口已被占用
+
 **解决**：修改 `FRONTEND_PORT` 环境变量或停止占用 3000 端口的服务
+
 ```bash
 # 检查端口占用
 lsof -i :3000
