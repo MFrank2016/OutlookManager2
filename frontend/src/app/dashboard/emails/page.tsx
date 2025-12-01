@@ -70,7 +70,8 @@ export default function EmailsPage() {
   const [sortBy, setSortBy] = useState<string>("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
-  const pageSize = 20;
+  const [pageSize, setPageSize] = useState(20);
+  const [jumpPage, setJumpPage] = useState("");
 
   // 自动刷新倒计时
   const [refreshCountdown, setRefreshCountdown] = useState(30);
@@ -131,6 +132,24 @@ export default function EmailsPage() {
     setRefreshCountdown(30);
     await refetchEmails();
     toast.success("邮件列表已刷新");
+  };
+
+  const handlePageSizeChange = (newPageSize: string) => {
+    const size = parseInt(newPageSize);
+    setPageSize(size);
+    setPage(1);
+  };
+
+  const handleJumpPage = () => {
+      const pageNum = parseInt(jumpPage);
+      if (!emailsData) return;
+      
+      if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= emailsData.total_pages) {
+          setPage(pageNum);
+          setJumpPage("");
+      } else {
+          toast.error(`请输入有效的页码 (1-${emailsData.total_pages})`);
+      }
   };
 
   // 从 URL 同步账户选择（处理浏览器前进/后退或直接修改 URL）
@@ -402,34 +421,6 @@ export default function EmailsPage() {
                     <RefreshCw className={cn("h-3 w-3", isEmailsLoading && "animate-spin")} />
                   </Button>
             </div>
-
-            {emailsData && (
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-muted-foreground text-xs sm:text-sm">
-                        {page} / {emailsData.total_pages}
-                    </span>
-                    <div className="flex gap-1">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 min-w-[32px] min-h-[32px]"
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            disabled={page === 1}
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 min-w-[32px] min-h-[32px]"
-                            onClick={() => setPage(p => Math.min(emailsData.total_pages, p + 1))}
-                            disabled={page >= emailsData.total_pages}
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-            )}
         </div>
       </div>
 
@@ -630,6 +621,92 @@ export default function EmailsPage() {
             </>
         )}
       </div>
+
+      {emailsData && emailsData.total_emails > 0 && (
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-2 rounded-lg shadow-sm border mt-auto shrink-0">
+            <div className="text-sm text-muted-foreground text-center md:text-left">
+                总计: {emailsData.total_emails} 封邮件
+            </div>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-2">
+                    <span className="text-sm whitespace-nowrap text-muted-foreground">每页</span>
+                    <Select 
+                        value={pageSize.toString()} 
+                        onValueChange={handlePageSizeChange}
+                    >
+                        <SelectTrigger className="w-[70px] h-8">
+                            <SelectValue placeholder="20" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                            <SelectItem value="200">200</SelectItem>
+                            <SelectItem value="500">500</SelectItem>
+                            <SelectItem value="1000">1000</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="flex items-center gap-1">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1 || isEmailsLoading}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    <div className="flex items-center justify-center min-w-[80px] text-sm">
+                        <span>{page} / {emailsData.total_pages}</span>
+                    </div>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => setPage(p => Math.min(emailsData.total_pages, p + 1))}
+                        disabled={page >= emailsData.total_pages || isEmailsLoading}
+                    >
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+
+                {/* Jump to Page */}
+                <div className="flex items-center gap-2">
+                    <Input
+                        className="h-8 w-[60px] text-center px-1"
+                        placeholder="页码"
+                        type="number"
+                        min={1}
+                        max={emailsData.total_pages}
+                        value={jumpPage}
+                        onChange={(e) => setJumpPage(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                handleJumpPage();
+                            }
+                        }}
+                    />
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 px-2"
+                        onClick={handleJumpPage}
+                        disabled={!jumpPage}
+                    >
+                        跳转
+                    </Button>
+                </div>
+            </div>
+        </div>
+      )}
 
       <Dialog open={emailDetailOpen} onOpenChange={(open) => {
         setEmailDetailOpen(open);

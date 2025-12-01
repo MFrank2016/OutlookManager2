@@ -31,6 +31,7 @@ export default function DashboardPage() {
     refresh_status: undefined as string | undefined,
   });
   const [shouldQuery, setShouldQuery] = useState(true); // 初始为 true，页面加载时自动请求
+  const [jumpPage, setJumpPage] = useState("");
   const queryClient = useQueryClient();
   
   const { data, isLoading, refetch } = useAccounts({ 
@@ -47,7 +48,7 @@ export default function DashboardPage() {
   const handleSearch = () => {
     const newParams = {
       page: 1,
-      page_size: 10,
+      page_size: queryParams.page_size,
       email_search: search,
       include_tags: includeTags,
       exclude_tags: excludeTags,
@@ -63,8 +64,26 @@ export default function DashboardPage() {
     setQueryParams(prev => ({ ...prev, page: newPage }));
     // 如果已经查询过，直接更新页码并重新请求
     if (shouldQuery) {
-      refetch();
+      // refetch(); // param change will trigger query
     }
+  };
+
+  const handlePageSizeChange = (newPageSize: string) => {
+    const size = parseInt(newPageSize);
+    setQueryParams(prev => ({ ...prev, page_size: size, page: 1 }));
+    setPage(1);
+  };
+
+  const handleJumpPage = () => {
+      const pageNum = parseInt(jumpPage);
+      if (!data) return;
+      
+      if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= data.total_pages) {
+          handlePageChange(pageNum);
+          setJumpPage("");
+      } else {
+          toast.error(`请输入有效的页码 (1-${data.total_pages})`);
+      }
   };
 
   const handleBatchRefresh = async () => {
@@ -219,35 +238,86 @@ export default function DashboardPage() {
         onSelectionChange={setSelectedAccounts}
       />
 
-      {data && data.total_pages > 1 && (
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-            <div className="text-sm text-muted-foreground text-center sm:text-left">
+      {data && data.total_accounts > 0 && (
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4 pb-8">
+            <div className="text-sm text-muted-foreground text-center md:text-left">
                 总计: {data.total_accounts} 个账户
             </div>
-            <div className="flex items-center justify-center space-x-2">
-            <Button
-                variant="outline"
-                size="sm"
-                className="min-h-[44px] min-w-[44px]"
-                onClick={() => handlePageChange(Math.max(1, page - 1))}
-                disabled={page === 1 || isLoading}
-            >
-                <ChevronLeft className="h-4 w-4" />
-                <span className="hidden sm:inline ml-1">上一页</span>
-            </Button>
-            <div className="text-sm font-medium px-2">
-                <span className="hidden sm:inline">第 </span>{page}<span className="hidden sm:inline"> 页，共 {data.total_pages} 页</span>
-            </div>
-            <Button
-                variant="outline"
-                size="sm"
-                className="min-h-[44px] min-w-[44px]"
-                onClick={() => handlePageChange(Math.min(data.total_pages, page + 1))}
-                disabled={page === data.total_pages || isLoading}
-            >
-                <span className="hidden sm:inline mr-1">下一页</span>
-                <ChevronRight className="h-4 w-4" />
-            </Button>
+            
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-2">
+                    <span className="text-sm whitespace-nowrap text-muted-foreground">每页</span>
+                    <Select 
+                        value={queryParams.page_size.toString()} 
+                        onValueChange={handlePageSizeChange}
+                    >
+                        <SelectTrigger className="w-[70px] h-8">
+                            <SelectValue placeholder="10" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="20">20</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                            <SelectItem value="1000">1000</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="flex items-center gap-1">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => handlePageChange(Math.max(1, page - 1))}
+                        disabled={page === 1 || isLoading}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    
+                    <div className="flex items-center justify-center min-w-[80px] text-sm">
+                        <span>{page} / {data.total_pages}</span>
+                    </div>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => handlePageChange(Math.min(data.total_pages, page + 1))}
+                        disabled={page === data.total_pages || isLoading}
+                    >
+                        <ChevronRight className="h-4 w-4" />
+                    </Button>
+                </div>
+
+                {/* Jump to Page */}
+                <div className="flex items-center gap-2">
+                    <Input
+                        className="h-8 w-[60px] text-center px-1"
+                        placeholder="页码"
+                        type="number"
+                        min={1}
+                        max={data.total_pages}
+                        value={jumpPage}
+                        onChange={(e) => setJumpPage(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                                handleJumpPage();
+                            }
+                        }}
+                    />
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 px-2"
+                        onClick={handleJumpPage}
+                        disabled={!jumpPage}
+                    >
+                        跳转
+                    </Button>
+                </div>
             </div>
         </div>
       )}

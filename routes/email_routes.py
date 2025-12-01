@@ -35,7 +35,7 @@ async def get_emails(
     email_id: str,
     folder: str = Query("all", regex="^(inbox|junk|all)$"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(100, ge=1, le=500),
+    page_size: int = Query(100, ge=1, le=1000),
     refresh: bool = Query(False, description="强制刷新缓存"),
     sender_search: Optional[str] = Query(None, description="发件人模糊搜索"),
     subject_search: Optional[str] = Query(None, description="主题模糊搜索"),

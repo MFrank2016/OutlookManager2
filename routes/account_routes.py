@@ -46,7 +46,7 @@ async def get_random_accounts(
     include_tags: Optional[str] = Query(None, description="必须包含的标签，多个用逗号分隔"),
     exclude_tags: Optional[str] = Query(None, description="必须不包含的标签，多个用逗号分隔"),
     page: int = Query(1, ge=1, description="页码，从1开始"),
-    page_size: int = Query(10, ge=1, le=100, description="每页数量，范围1-100"),
+    page_size: int = Query(10, ge=1, le=1000, description="每页数量，范围1-1000"),
     admin: dict = Depends(auth.get_current_admin),
 ):
     """随机获取邮箱账户列表（支持标签筛选和分页）"""
@@ -103,7 +103,7 @@ async def get_random_accounts(
 @router.get("", response_model=AccountListResponse)
 async def get_accounts(
     page: int = Query(1, ge=1, description="页码，从1开始"),
-    page_size: int = Query(10, ge=1, le=100, description="每页数量，范围1-100"),
+    page_size: int = Query(10, ge=1, le=1000, description="每页数量，范围1-1000"),
     email_search: Optional[str] = Query(None, description="邮箱账号模糊搜索"),
     tag_search: Optional[str] = Query(None, description="标签模糊搜索（已废弃，使用include_tags代替）"),
     include_tags: Optional[str] = Query(None, description="必须包含的标签，多个用逗号分隔"),

@@ -71,6 +71,7 @@ class EmailListResponse(BaseModel):
     folder_view: str
     page: int
     page_size: int
+    total_pages: int
     total_emails: int
     emails: List[EmailItem]
     from_cache: bool = False  # 是否来自缓存

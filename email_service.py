@@ -106,6 +106,11 @@ async def list_emails(
             fetch_time_ms = int((time.time() - start_time_ms) * 1000)
             email_count = len(cached_data.get('emails', []))
             logger.info(f"[数据来源: 内存LRU缓存] 账户: {credentials.email}, 返回邮件数: {email_count}, 耗时: {fetch_time_ms}ms")
+            # 兼容旧缓存数据，如果缺少 total_pages 则计算
+            if 'total_pages' not in cached_data:
+                total = cached_data.get('total_emails', 0)
+                ps = cached_data.get('page_size', page_size)
+                cached_data['total_pages'] = (total + ps - 1) // ps if total > 0 else 0
             return EmailListResponse(**cached_data)
     
     # 从 SQLite 缓存获取
@@ -131,11 +136,13 @@ async def list_emails(
                 email_items = [
                     EmailItem(**email) for email in cached_emails
                 ]
+                total_pages = (total + page_size - 1) // page_size if total > 0 else 0
                 response = EmailListResponse(
                     email_id=credentials.email,
                     folder_view=folder,
                     page=page,
                     page_size=page_size,
+                    total_pages=total_pages,
                     total_emails=total,
                     emails=email_items,
                     from_cache=from_cache,
@@ -275,7 +282,8 @@ async def list_emails(
                 all_emails_data, key=lambda x: x["folder"]
             ):
                 try:
-                    imap_client.select(f'"{folder_name}"', readonly=True)
+                    # 使用 examine 而不是 select，以只读方式打开，可能更稳定
+                    imap_client.examine(f'"{folder_name}"')
 
                     msg_ids_to_fetch = [item["message_id_raw"] for item in group]
                     if not msg_ids_to_fetch:
@@ -283,82 +291,109 @@ async def list_emails(
 
                     # 批量获取邮件头 - 优化获取字段
                     msg_id_sequence = b",".join(msg_ids_to_fetch)
-                    # 只获取必要的头部信息，减少数据传输
-                    status, msg_data = imap_client.fetch(
-                        msg_id_sequence,
-                        "(FLAGS BODY.PEEK[HEADER.FIELDS (SUBJECT DATE FROM MESSAGE-ID)])",
-                    )
-
-                    if status != "OK":
-                        continue
-
-                    # 解析批量获取的数据
-                    for i in range(0, len(msg_data), 2):
-                        header_data = msg_data[i][1]
-
-                        # 从返回的原始数据中解析出msg_id
-                        # e.g., b'1 (BODY[HEADER.FIELDS (SUBJECT DATE FROM)] {..}'
-                        match = re.match(rb"(\d+)\s+\(", msg_data[i][0])
-                        if not match:
-                            continue
-                        fetched_msg_id = match.group(1)
-
-                        msg = email.message_from_bytes(header_data)
-
-                        subject = decode_header_value(
-                            msg.get("Subject", "(No Subject)")
-                        )
-                        from_email = decode_header_value(
-                            msg.get("From", "(Unknown Sender)")
-                        )
-                        date_str = msg.get("Date", "")
-
+                    
+                    # 参考 api/mail-all.js，使用 bodies: "" (即 BODY[]) 获取完整内容，然后使用 mailparser 解析
+                    # 但为了性能，我们先尝试只获取头部
+                    # 注意：api/mail-all.js 使用了 node-imap 的 fetch(results, { bodies: "" })
+                    # 并在 message 事件中使用了 mailparser.simpleParser
+                    
+                    # 在 Python imaplib 中，我们尝试使用 RFC822.HEADER 或 BODY[HEADER]
+                    # 如果遇到 SSL EOF 错误，可能是因为请求的数据量过大或连接不稳定
+                    # 尝试分批获取，每批 50 封
+                    
+                    batch_size = 50
+                    for i in range(0, len(msg_ids_to_fetch), batch_size):
+                        batch_ids = msg_ids_to_fetch[i:i+batch_size]
+                        batch_sequence = b",".join(batch_ids)
+                        
                         try:
-                            date_obj = (
-                                parsedate_to_datetime(date_str)
-                                if date_str
-                                else datetime.now()
+                            # 尝试使用 (BODY.PEEK[HEADER]) 获取头部，这通常比完整的 RFC822 更轻量且不容易出错
+                            status, msg_data = imap_client.fetch(
+                                batch_sequence,
+                                "(BODY.PEEK[HEADER.FIELDS (SUBJECT DATE FROM MESSAGE-ID)])",
                             )
-                            # 转换为UTC时间并去除时区信息，确保统一格式
-                            if date_obj.tzinfo is not None:
-                                date_obj = date_obj.astimezone(datetime.now().astimezone().tzinfo).replace(tzinfo=None)
-                            formatted_date = date_obj.isoformat()
-                        except Exception:
-                            date_obj = datetime.now().replace(tzinfo=None)
-                            formatted_date = date_obj.isoformat()
 
-                        message_id = f"{folder_name}-{fetched_msg_id.decode()}"
+                            if status != "OK":
+                                logger.warning(f"Failed to fetch batch from {folder_name}: {status}")
+                                continue
 
-                        # 提取发件人首字母
-                        sender_initial = "?"
-                        if from_email:
-                            # 尝试提取邮箱用户名的首字母
-                            email_match = re.search(r"([a-zA-Z])", from_email)
-                            if email_match:
-                                sender_initial = email_match.group(1).upper()
+                            # 解析批量获取的数据
+                            for j in range(0, len(msg_data), 2):
+                                if not msg_data[j]: continue
+                                
+                                # 检查是否是元组 (response, data)
+                                if isinstance(msg_data[j], tuple):
+                                    header_data = msg_data[j][1]
+                                    response_part = msg_data[j][0]
+                                else:
+                                    continue
 
-                        # 检测验证码（只从主题检测，避免获取正文）
-                        verification_code = None
-                        try:
-                            code_info = detect_verification_code(subject=subject, body="")
-                            if code_info:
-                                verification_code = code_info["code"]
-                        except Exception as e:
-                            logger.warning(f"Failed to detect verification code: {e}")
+                                # 从返回的原始数据中解析出msg_id
+                                # e.g., b'1 (BODY[HEADER.FIELDS (SUBJECT DATE FROM)] {..}'
+                                match = re.match(rb"(\d+)\s+\(", response_part)
+                                if not match:
+                                    continue
+                                fetched_msg_id = match.group(1)
 
-                        email_item = EmailItem(
-                            message_id=message_id,
-                            folder=folder_name,
-                            subject=subject,
-                            from_email=from_email,
-                            date=formatted_date,
-                            is_read=False,  # 简化处理，实际可通过IMAP flags判断
-                            has_attachments=False,  # 简化处理，实际需要检查邮件结构
-                            sender_initial=sender_initial,
-                            verification_code=verification_code,
-                            body_preview=None,
-                        )
-                        email_items.append(email_item)
+                                msg = email.message_from_bytes(header_data)
+
+                                subject = decode_header_value(
+                                    msg.get("Subject", "(No Subject)")
+                                )
+                                from_email = decode_header_value(
+                                    msg.get("From", "(Unknown Sender)")
+                                )
+                                date_str = msg.get("Date", "")
+
+                                try:
+                                    date_obj = (
+                                        parsedate_to_datetime(date_str)
+                                        if date_str
+                                        else datetime.now()
+                                    )
+                                    # 转换为UTC时间并去除时区信息，确保统一格式
+                                    if date_obj.tzinfo is not None:
+                                        date_obj = date_obj.astimezone(datetime.now().astimezone().tzinfo).replace(tzinfo=None)
+                                    formatted_date = date_obj.isoformat()
+                                except Exception:
+                                    date_obj = datetime.now().replace(tzinfo=None)
+                                    formatted_date = date_obj.isoformat()
+
+                                message_id = f"{folder_name}-{fetched_msg_id.decode()}"
+
+                                # 提取发件人首字母
+                                sender_initial = "?"
+                                if from_email:
+                                    # 尝试提取邮箱用户名的首字母
+                                    email_match = re.search(r"([a-zA-Z])", from_email)
+                                    if email_match:
+                                        sender_initial = email_match.group(1).upper()
+
+                                # 检测验证码（只从主题检测，避免获取正文）
+                                verification_code = None
+                                try:
+                                    code_info = detect_verification_code(subject=subject, body="")
+                                    if code_info:
+                                        verification_code = code_info["code"]
+                                except Exception as e:
+                                    logger.warning(f"Failed to detect verification code: {e}")
+
+                                email_item = EmailItem(
+                                    message_id=message_id,
+                                    folder=folder_name,
+                                    subject=subject,
+                                    from_email=from_email,
+                                    date=formatted_date,
+                                    is_read=False,  # 简化处理，实际可通过IMAP flags判断
+                                    has_attachments=False,  # 简化处理，实际需要检查邮件结构
+                                    sender_initial=sender_initial,
+                                    verification_code=verification_code,
+                                    body_preview=None,
+                                )
+                                email_items.append(email_item)
+                        except Exception as batch_error:
+                            logger.warning(f"Error fetching batch in {folder_name}: {batch_error}")
+                            continue
 
                 except Exception as e:
                     logger.warning(
@@ -427,11 +462,14 @@ async def list_emails(
 
             fetch_time_ms = int((time.time() - start_time_ms) * 1000)
             
+            total_pages = (total_emails + page_size - 1) // page_size if total_emails > 0 else 0
+            
             result = EmailListResponse(
                 email_id=credentials.email,
                 folder_view=folder,
                 page=page,
                 page_size=page_size,
+                total_pages=total_pages,
                 total_emails=total_emails,  # 使用过滤后的总数
                 emails=email_items,  # 使用分页后的邮件列表
                 from_cache=False,
@@ -531,11 +569,13 @@ async def list_emails(
             if cached_emails:
                 logger.info(f"[数据来源: SQLite数据库(降级)] 账户: {credentials.email}, 返回邮件数: {len(cached_emails)}, 总数: {total}, IMAP连接失败，使用缓存数据")
                 email_items = [EmailItem(**email) for email in cached_emails]
+                total_pages = (total + page_size - 1) // page_size if total > 0 else 0
                 return EmailListResponse(
                     email_id=credentials.email,
                     folder_view=folder,
                     page=page,
                     page_size=page_size,
+                    total_pages=total_pages,
                     total_emails=total,
                     emails=email_items,
                     from_cache=True,
@@ -749,6 +789,11 @@ async def list_emails_via_graph_api(
             fetch_time_ms = int((time.time() - start_time_ms) * 1000)
             email_count = len(cached_data.get('emails', []))
             logger.info(f"[数据来源: 内存LRU缓存] 账户: {credentials.email}, 访问方式: GRAPH API, 返回邮件数: {email_count}, 耗时: {fetch_time_ms}ms")
+            # 兼容旧缓存数据，如果缺少 total_pages 则计算
+            if 'total_pages' not in cached_data:
+                total = cached_data.get('total_emails', 0)
+                ps = cached_data.get('page_size', page_size)
+                cached_data['total_pages'] = (total + ps - 1) // ps if total > 0 else 0
             return EmailListResponse(**cached_data)
     
     # 从 SQLite 缓存获取
@@ -771,11 +816,13 @@ async def list_emails_via_graph_api(
                 fetch_time_ms = int((time.time() - start_time_ms) * 1000)
                 logger.info(f"[数据来源: SQLite数据库] 账户: {credentials.email}, 访问方式: GRAPH API, 返回邮件数: {len(cached_emails)}, 总数: {total}, 耗时: {fetch_time_ms}ms")
                 email_items = [EmailItem(**email) for email in cached_emails]
+                total_pages = (total + page_size - 1) // page_size if total > 0 else 0
                 response = EmailListResponse(
                     email_id=credentials.email,
                     folder_view=folder,
                     page=page,
                     page_size=page_size,
+                    total_pages=total_pages,
                     total_emails=total,
                     emails=email_items,
                     from_cache=True,
@@ -829,11 +876,14 @@ async def list_emails_via_graph_api(
     
     logger.info(f"[数据来源: 微软Graph API服务器] 账户: {credentials.email}, 返回邮件数: {len(email_items)}, 总数: {total}, 耗时: {fetch_time_ms}ms")
     
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+
     return EmailListResponse(
         email_id=credentials.email,
         folder_view=folder,
         page=page,
         page_size=page_size,
+        total_pages=total_pages,
         total_emails=total,
         emails=email_items,
         from_cache=False,
