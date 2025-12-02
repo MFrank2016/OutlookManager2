@@ -47,6 +47,24 @@ def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
     return dt  # 如果已经是字符串或None，直接返回
 
 
+def _normalize_tags(tags: Any) -> list:
+    """规范化 tags 字段，确保返回列表类型"""
+    if tags is None:
+        return []
+    if isinstance(tags, list):
+        return tags
+    if isinstance(tags, dict):
+        # PostgreSQL 可能返回空字典，转换为空列表
+        return []
+    if isinstance(tags, str):
+        try:
+            return json.loads(tags) if tags else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+    # 其他类型，转换为空列表
+    return []
+
+
 @router.get("/random", response_model=AccountListResponse)
 async def get_random_accounts(
     include_tags: Optional[str] = Query(None, description="必须包含的标签，多个用逗号分隔"),
@@ -84,7 +102,7 @@ async def get_random_accounts(
                 email_id=account_data["email"],
                 client_id=account_data.get("client_id", ""),
                 status=status,
-                tags=account_data.get("tags", []),
+                tags=_normalize_tags(account_data.get("tags")),
                 last_refresh_time=_serialize_datetime(account_data.get("last_refresh_time")),
                 next_refresh_time=_serialize_datetime(account_data.get("next_refresh_time")),
                 refresh_status=account_data.get("refresh_status", "pending"),
@@ -188,7 +206,7 @@ async def get_accounts(
                 email_id=account_data["email"],
                 client_id=account_data.get("client_id", ""),
                 status=status,
-                tags=account_data.get("tags", []),
+                tags=_normalize_tags(account_data.get("tags")),
                 last_refresh_time=_serialize_datetime(account_data.get("last_refresh_time")),
                 next_refresh_time=_serialize_datetime(account_data.get("next_refresh_time")),
                 refresh_status=account_data.get("refresh_status", "pending"),

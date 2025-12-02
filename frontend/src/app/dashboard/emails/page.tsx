@@ -5,13 +5,12 @@ import React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useEmails, useEmailDetail } from "@/hooks/useEmails";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { SendEmailDialog } from "@/components/emails/SendEmailDialog";
 import { 
@@ -29,6 +28,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { Email } from "@/types";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
@@ -57,6 +57,11 @@ export default function EmailsPage() {
   const router = useRouter();
   const initialAccount = searchParams.get("account");
 
+  console.log('[EmailsPage] 组件渲染', {
+    timestamp: new Date().toISOString(),
+    initialAccount
+  });
+
   const [selectedAccount, setSelectedAccount] = useState<string | null>(initialAccount);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [emailDetailOpen, setEmailDetailOpen] = useState(false);
@@ -73,12 +78,19 @@ export default function EmailsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [jumpPage, setJumpPage] = useState("");
 
-  // 自动刷新倒计时
-  const [refreshCountdown, setRefreshCountdown] = useState(30);
-  const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
+  // 自动刷新配置
+  const [isAutoRefreshEnabled] = useState(true);
   const queryClient = useQueryClient();
 
   const { data: accountsData } = useAccounts({ page_size: 100 });
+  console.log('[EmailsPage] 调用 useEmails', {
+    timestamp: new Date().toISOString(),
+    account: selectedAccount || "",
+    search,
+    folder,
+    page
+  });
+
   const { data: emailsData, isLoading: isEmailsLoading, refetch: refetchEmails } = useEmails({
     account: selectedAccount || "",
     search,
@@ -87,49 +99,25 @@ export default function EmailsPage() {
     sortBy,
     sortOrder,
     page,
-    page_size: pageSize
+    page_size: pageSize,
+    forceRefresh: true // 邮件列表页始终从微软服务器获取最新数据
   });
-
-  // 使用 ref 存储 refetch 函数，避免重复渲染
-  const refetchEmailsRef = useRef(refetchEmails);
-  useEffect(() => {
-    refetchEmailsRef.current = refetchEmails;
-  }, [refetchEmails]);
 
   // 使用 ref 跟踪上一次更新的账户，避免循环更新
   const lastUpdatedAccountRef = useRef<string | null>(null);
 
-  // 自动刷新倒计时
-  useEffect(() => {
-    if (!isAutoRefreshEnabled || !selectedAccount || isEmailsLoading) {
-      return;
-    }
-
-    const interval = setInterval(() => {
-      setRefreshCountdown((prev) => {
-        if (prev <= 1) {
-          refetchEmailsRef.current().then(() => {
-            setRefreshCountdown(30);
-          }).catch(() => {
-            setRefreshCountdown(30);
-          });
-          return 30;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isAutoRefreshEnabled, selectedAccount, isEmailsLoading]); 
-
-  // 当筛选条件改变时，重置倒计时
-  useEffect(() => {
-    setRefreshCountdown(30);
-  }, [search, folder, sortBy, sortOrder, selectedAccount, page]);
+  // 使用 useAutoRefresh Hook 进行自动刷新
+  const { countdown: refreshCountdown } = useAutoRefresh({
+    enabled: isAutoRefreshEnabled && !!selectedAccount,
+    intervalSeconds: 30,
+    onRefresh: async () => {
+      await refetchEmails();
+    },
+    isLoading: isEmailsLoading,
+  });
 
   // 手动刷新
   const handleManualRefresh = async () => {
-    setRefreshCountdown(30);
     await refetchEmails();
     toast.success("邮件列表已刷新");
   };
@@ -155,43 +143,69 @@ export default function EmailsPage() {
   // 从 URL 同步账户选择（处理浏览器前进/后退或直接修改 URL）
   useEffect(() => {
       const urlAccount = searchParams.get("account");
+      console.log('[EmailsPage] URL同步useEffect触发', {
+        timestamp: new Date().toISOString(),
+        urlAccount,
+        selectedAccount,
+        lastUpdated: lastUpdatedAccountRef.current
+      });
+      
       if (urlAccount && urlAccount !== selectedAccount) {
-          // 验证账户是否存在，并且不是我们刚刚更新的账户（避免循环）
-          if (accountsData?.accounts?.some(acc => acc.email_id === urlAccount) && 
-              urlAccount !== lastUpdatedAccountRef.current) {
-              lastUpdatedAccountRef.current = urlAccount;
-              setSelectedAccount(urlAccount);
+          // 验证账户是否存在
+          if (accountsData?.accounts?.some(acc => acc.email_id === urlAccount)) {
+              // 只有当URL账户与ref不同时才更新（说明是外部URL变化）
+              if (urlAccount !== lastUpdatedAccountRef.current) {
+                  console.log('[EmailsPage] 从URL设置账户', { urlAccount });
+                  lastUpdatedAccountRef.current = urlAccount;
+                  setSelectedAccount(urlAccount);
+              }
           }
       }
-  }, [searchParams, accountsData, selectedAccount]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, accountsData]);
 
   // Update URL when account changes (避免循环更新)
   useEffect(() => {
-      if (selectedAccount && lastUpdatedAccountRef.current !== selectedAccount) {
-          // 检查当前 URL 中的账户是否与选择的账户一致
+      console.log('[EmailsPage] URL更新useEffect触发', {
+        timestamp: new Date().toISOString(),
+        selectedAccount,
+        lastUpdated: lastUpdatedAccountRef.current,
+        urlAccount: searchParams.get("account")
+      });
+      
+      if (selectedAccount) {
           const currentAccountParam = searchParams.get("account");
-          if (currentAccountParam !== selectedAccount) {
-              // 标记我们已经更新了这个账户，避免循环
+          // 只有当选中的账户与URL不同，且不是由URL触发的变化时，才更新URL
+          if (currentAccountParam !== selectedAccount && lastUpdatedAccountRef.current !== selectedAccount) {
+              console.log('[EmailsPage] 更新URL为选中账户', { selectedAccount });
               lastUpdatedAccountRef.current = selectedAccount;
               const params = new URLSearchParams(searchParams.toString());
               params.set("account", selectedAccount);
               router.replace(`?${params.toString()}`);
-          } else {
-              // URL 已经匹配，更新 ref 以避免重复检查
+          } else if (currentAccountParam === selectedAccount && lastUpdatedAccountRef.current !== selectedAccount) {
+              // URL 已经匹配，只需更新 ref
+              console.log('[EmailsPage] URL已匹配，更新ref', { selectedAccount });
               lastUpdatedAccountRef.current = selectedAccount;
           }
       }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedAccount, router]);
 
   // If no account selected and accounts loaded, select first
   useEffect(() => {
+      console.log('[EmailsPage] 默认账户useEffect触发', {
+        timestamp: new Date().toISOString(),
+        selectedAccount,
+        hasAccounts: !!accountsData?.accounts?.length
+      });
+      
       if (!selectedAccount && accountsData?.accounts?.length && accountsData.accounts.length > 0) {
           const firstAccount = accountsData.accounts[0].email_id;
-          if (firstAccount !== selectedAccount) {
-             setSelectedAccount(firstAccount);
-          }
+          console.log('[EmailsPage] 设置第一个账户', { firstAccount });
+          setSelectedAccount(firstAccount);
       }
-  }, [accountsData, selectedAccount]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountsData]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -220,8 +234,11 @@ export default function EmailsPage() {
         setSelectedEmailId(null);
         setEmailDetailOpen(false);
       }
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || "删除邮件失败");
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error 
+        ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail || "删除邮件失败"
+        : "删除邮件失败";
+      toast.error(errorMessage);
     }
   };
 
@@ -232,7 +249,10 @@ export default function EmailsPage() {
     const targetFolder = folder === "all" ? "inbox" : folder;
     
     try {
-      let allFolderEmails: any[] = [];
+      interface EmailItem {
+        message_id: string;
+      }
+      let allFolderEmails: EmailItem[] = [];
       let currentPage = 1;
       let hasMore = true;
       
@@ -253,7 +273,7 @@ export default function EmailsPage() {
           } else {
             currentPage++;
           }
-        } catch (error) {
+        } catch {
           hasMore = false;
         }
       }
@@ -272,7 +292,7 @@ export default function EmailsPage() {
         try {
           await api.delete(`/emails/${selectedAccount}/${email.message_id}`);
           successCount++;
-        } catch (error) {
+        } catch {
           failCount++;
         }
       }
@@ -282,8 +302,11 @@ export default function EmailsPage() {
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       setSelectedEmailId(null);
       setEmailDetailOpen(false);
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || "清空失败");
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'response' in error 
+        ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail || "清空失败"
+        : "清空失败";
+      toast.error(errorMessage);
     }
   };
 
@@ -339,7 +362,7 @@ export default function EmailsPage() {
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <Select value={searchType} onValueChange={(v: any) => setSearchType(v)}>
+                <Select value={searchType} onValueChange={(v: "subject" | "sender") => setSearchType(v)}>
                     <SelectTrigger className="w-full sm:w-[130px]">
                         <SelectValue />
                     </SelectTrigger>
@@ -446,7 +469,7 @@ export default function EmailsPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {emailsData?.emails.map((email) => (
+                            {emailsData?.emails.map((email: Email) => (
                                 <TableRow 
                                     key={email.message_id}
                                     className="cursor-pointer hover:bg-slate-50"
@@ -524,7 +547,7 @@ export default function EmailsPage() {
 
                 {/* Mobile Card View */}
                 <div className="md:hidden flex flex-col p-3 gap-3 overflow-y-auto bg-slate-100">
-                    {emailsData?.emails.map((email) => {
+                    {emailsData?.emails.map((email: Email) => {
                         // 解析发件人名称和邮箱
                         let senderName = email.from_email;
                         let senderEmail = "";
@@ -716,7 +739,6 @@ export default function EmailsPage() {
             <EmailDetailModalView 
               account={selectedAccount} 
               messageId={selectedEmailId}
-              onClose={() => setEmailDetailOpen(false)}
               onDelete={() => {
                 if (selectedEmailId) {
                   handleDeleteEmail(selectedEmailId);
@@ -821,12 +843,12 @@ const EmailContent = React.memo(({
 });
 EmailContent.displayName = "EmailContent";
 
-function EmailDetailModalView({ account, messageId, onClose, onDelete }: { account: string, messageId: string, onClose: () => void, onDelete?: () => void }) {
+function EmailDetailModalView({ account, messageId, onDelete }: { account: string, messageId: string, onDelete?: () => void }) {
     const { data: email, isLoading, error, refetch, isRefetching } = useEmailDetail(account, messageId);
     const [copied, setCopied] = useState(false);
     const [viewMode, setViewMode] = useState<"html" | "text" | "source">("html");
     const [refreshCountdown, setRefreshCountdown] = useState(30);
-    const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
+    const [isAutoRefreshEnabled] = useState(true);
     
     // 存储邮件内容，只在 messageId 或 viewMode 变化时更新，避免自动刷新时重新渲染
     const [stableEmailBody, setStableEmailBody] = useState<string>("");
@@ -860,10 +882,12 @@ function EmailDetailModalView({ account, messageId, onClose, onDelete }: { accou
                     default:
                         body = email.body_html || email.body_plain || "";
                 }
-                setStableEmailBody(body);
-                setStableEmailBodyKey(currentKey);
+                queueMicrotask(() => {
+                    setStableEmailBody(body);
+                    setStableEmailBodyKey(currentKey);
+                    setRefreshCountdown(30);
+                });
                 countdownRef.current = 30;
-                setRefreshCountdown(30);
             }
         }
     }, [messageId, viewMode, email, stableEmailBodyKey]);
@@ -871,7 +895,7 @@ function EmailDetailModalView({ account, messageId, onClose, onDelete }: { accou
     // 当切换邮件时，重置倒计时
     useEffect(() => {
         countdownRef.current = 30;
-        setRefreshCountdown(30);
+        queueMicrotask(() => setRefreshCountdown(30));
     }, [messageId]);
 
     // 自动刷新倒计时 - 使用 ref 存储倒计时值，只在需要显示时更新状态
@@ -903,6 +927,7 @@ function EmailDetailModalView({ account, messageId, onClose, onDelete }: { accou
         }, 1000);
 
         return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAutoRefreshEnabled, isLoading, messageId]); // 只依赖必要的值，email 通过 isLoading 间接控制
 
     const handleManualRefresh = async () => {

@@ -17,6 +17,7 @@ import cache_service
 
 # 获取日志记录器
 logger = logging.getLogger(__name__)
+from datetime import datetime
 from models import (
     UserCreateRequest,
     UserUpdateRequest,
@@ -28,6 +29,15 @@ from models import (
     UserResponse,
     PasswordUpdateRequest
 )
+
+
+def _convert_datetime_to_str(value):
+    """将 datetime 对象转换为 ISO 格式字符串"""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
 
 # 创建路由器
 router = APIRouter(prefix="/admin", tags=["管理面板"])
@@ -302,7 +312,14 @@ async def get_all_configs(admin: dict = Depends(auth.get_current_admin)):
     """
     configs = db.get_all_configs()
     
-    config_items = [ConfigItem(**config) for config in configs]
+    # 将 datetime 对象转换为字符串
+    config_items = []
+    for config in configs:
+        config_dict = dict(config)
+        # 如果 updated_at 是 datetime 对象，转换为 ISO 格式字符串
+        if 'updated_at' in config_dict:
+            config_dict['updated_at'] = _convert_datetime_to_str(config_dict['updated_at'])
+        config_items.append(ConfigItem(**config_dict))
     
     return ConfigListResponse(configs=config_items)
 
@@ -592,20 +609,21 @@ async def get_users(
         
         total_pages = (total + page_size - 1) // page_size if total > 0 else 0
         
-        user_infos = [
-            UserInfo(
-                id=user['id'],
-                username=user['username'],
-                email=user.get('email'),
-                role=user.get('role', 'user'),
-                bound_accounts=user.get('bound_accounts', []),
-                permissions=user.get('permissions', []),
-                is_active=bool(user['is_active']),
-                created_at=user['created_at'],
-                last_login=user.get('last_login')
+        user_infos = []
+        for user in users:
+            user_infos.append(
+                UserInfo(
+                    id=user['id'],
+                    username=user['username'],
+                    email=user.get('email'),
+                    role=user.get('role', 'user'),
+                    bound_accounts=user.get('bound_accounts', []),
+                    permissions=user.get('permissions', []),
+                    is_active=bool(user['is_active']),
+                    created_at=_convert_datetime_to_str(user['created_at']),
+                    last_login=_convert_datetime_to_str(user.get('last_login'))
+                )
             )
-            for user in users
-        ]
         
         return UserListResponse(
             total_users=total,
@@ -616,6 +634,7 @@ async def get_users(
         )
         
     except Exception as e:
+        logger.error(f"获取用户列表失败: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取用户列表失败: {str(e)}")
 
 
@@ -658,8 +677,8 @@ async def create_user(
             bound_accounts=new_user.get('bound_accounts', []),
             permissions=new_user.get('permissions', []),
             is_active=bool(new_user['is_active']),
-            created_at=new_user['created_at'],
-            last_login=new_user.get('last_login')
+            created_at=_convert_datetime_to_str(new_user['created_at']),
+            last_login=_convert_datetime_to_str(new_user.get('last_login'))
         )
         
         return UserResponse(
@@ -699,8 +718,8 @@ async def get_user(
         bound_accounts=user.get('bound_accounts', []),
         permissions=user.get('permissions', []),
         is_active=bool(user['is_active']),
-        created_at=user['created_at'],
-        last_login=user.get('last_login')
+        created_at=_convert_datetime_to_str(user['created_at']),
+        last_login=_convert_datetime_to_str(user.get('last_login'))
     )
 
 
@@ -754,8 +773,8 @@ async def update_user(
             bound_accounts=updated_user.get('bound_accounts', []),
             permissions=updated_user.get('permissions', []),
             is_active=bool(updated_user['is_active']),
-            created_at=updated_user['created_at'],
-            last_login=updated_user.get('last_login')
+            created_at=_convert_datetime_to_str(updated_user['created_at']),
+            last_login=_convert_datetime_to_str(updated_user.get('last_login'))
         )
         
         return UserResponse(
@@ -841,8 +860,8 @@ async def update_user_permissions(
             bound_accounts=updated_user.get('bound_accounts', []),
             permissions=updated_user.get('permissions', []),
             is_active=bool(updated_user['is_active']),
-            created_at=updated_user['created_at'],
-            last_login=updated_user.get('last_login')
+            created_at=_convert_datetime_to_str(updated_user['created_at']),
+            last_login=_convert_datetime_to_str(updated_user.get('last_login'))
         )
         
         return UserResponse(
@@ -892,8 +911,8 @@ async def bind_accounts(
             bound_accounts=updated_user.get('bound_accounts', []),
             permissions=updated_user.get('permissions', []),
             is_active=bool(updated_user['is_active']),
-            created_at=updated_user['created_at'],
-            last_login=updated_user.get('last_login')
+            created_at=_convert_datetime_to_str(updated_user['created_at']),
+            last_login=_convert_datetime_to_str(updated_user.get('last_login'))
         )
         
         return UserResponse(
@@ -947,8 +966,8 @@ async def update_user_role(
             bound_accounts=updated_user.get('bound_accounts', []),
             permissions=updated_user.get('permissions', []),
             is_active=bool(updated_user['is_active']),
-            created_at=updated_user['created_at'],
-            last_login=updated_user.get('last_login')
+            created_at=_convert_datetime_to_str(updated_user['created_at']),
+            last_login=_convert_datetime_to_str(updated_user.get('last_login'))
         )
         
         return UserResponse(

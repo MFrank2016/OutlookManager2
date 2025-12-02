@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
   // 启用 standalone 输出模式，用于 Docker 部署
   output: "standalone",
   
+  // 禁用 React Strict Mode 以避免开发模式下的双重渲染
+  // React Strict Mode 会导致 useEffect 被调用两次，创建多个 interval
+  reactStrictMode: false,
+  
   async rewrites() {
     return [
       {

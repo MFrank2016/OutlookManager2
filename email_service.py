@@ -132,7 +132,7 @@ async def list_emails(
             if cached_emails:
                 from_cache = True
                 fetch_time_ms = int((time.time() - start_time_ms) * 1000)
-                logger.info(f"[数据来源: SQLite数据库] 账户: {credentials.email}, 返回邮件数: {len(cached_emails)}, 总数: {total}, 耗时: {fetch_time_ms}ms")
+                logger.info(f"[数据来源: 数据库] 账户: {credentials.email}, 返回邮件数: {len(cached_emails)}, 总数: {total}, 耗时: {fetch_time_ms}ms")
                 email_items = [
                     EmailItem(**email) for email in cached_emails
                 ]
@@ -567,7 +567,7 @@ async def list_emails(
             )
             
             if cached_emails:
-                logger.info(f"[数据来源: SQLite数据库(降级)] 账户: {credentials.email}, 返回邮件数: {len(cached_emails)}, 总数: {total}, IMAP连接失败，使用缓存数据")
+                logger.info(f"[数据来源: 数据库(降级)] 账户: {credentials.email}, 返回邮件数: {len(cached_emails)}, 总数: {total}, IMAP连接失败，使用缓存数据")
                 email_items = [EmailItem(**email) for email in cached_emails]
                 total_pages = (total + page_size - 1) // page_size if total > 0 else 0
                 return EmailListResponse(
@@ -814,7 +814,7 @@ async def list_emails_via_graph_api(
             
             if cached_emails:
                 fetch_time_ms = int((time.time() - start_time_ms) * 1000)
-                logger.info(f"[数据来源: SQLite数据库] 账户: {credentials.email}, 访问方式: GRAPH API, 返回邮件数: {len(cached_emails)}, 总数: {total}, 耗时: {fetch_time_ms}ms")
+                logger.info(f"[数据来源: 数据库] 账户: {credentials.email}, 访问方式: GRAPH API, 返回邮件数: {len(cached_emails)}, 总数: {total}, 耗时: {fetch_time_ms}ms")
                 email_items = [EmailItem(**email) for email in cached_emails]
                 total_pages = (total + page_size - 1) // page_size if total > 0 else 0
                 response = EmailListResponse(

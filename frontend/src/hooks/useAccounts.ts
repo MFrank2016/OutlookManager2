@@ -25,20 +25,53 @@ export function useAccounts(
   params: AccountsParams = {},
   options?: Omit<UseQueryOptions<AccountListResponse>, 'queryKey' | 'queryFn'>
 ) {
+  // 使用稳定的 queryKey，避免对象引用变化导致的重复请求
+  const queryKey = [
+    "accounts",
+    params.page || 1,
+    params.page_size || 10,
+    params.email_search || "",
+    params.tag_search || "",
+    params.include_tags || "",
+    params.exclude_tags || "",
+    params.refresh_status || ""
+  ];
+  
   return useQuery({
-    queryKey: ["accounts", params],
+    queryKey,
     queryFn: async () => {
-      const { data } = await api.get<AccountListResponse>("/accounts", {
-        params: {
-            page: params.page || 1,
-            page_size: params.page_size || 10,
-            email_search: params.email_search || undefined,
-            tag_search: params.tag_search || undefined,
-            include_tags: params.include_tags || undefined,
-            exclude_tags: params.exclude_tags || undefined,
-            refresh_status: params.refresh_status === "all" ? undefined : params.refresh_status,
-        }
+      console.log('[useAccounts] queryFn 被调用', {
+        timestamp: new Date().toISOString(),
+        queryKey,
+        params
       });
+      
+      const queryParams = {
+        page: params.page || 1,
+        page_size: params.page_size || 10,
+        email_search: params.email_search || undefined,
+        tag_search: params.tag_search || undefined,
+        include_tags: params.include_tags || undefined,
+        exclude_tags: params.exclude_tags || undefined,
+        refresh_status: params.refresh_status === "all" ? undefined : params.refresh_status,
+      };
+      
+      console.log('[useAccounts] 发送 API 请求', {
+        timestamp: new Date().toISOString(),
+        url: '/accounts',
+        queryParams
+      });
+      
+      const { data } = await api.get<AccountListResponse>("/accounts", {
+        params: queryParams
+      });
+      
+      console.log('[useAccounts] API 请求完成', {
+        timestamp: new Date().toISOString(),
+        accountCount: data?.accounts?.length || 0,
+        totalAccounts: data?.total_accounts || 0
+      });
+      
       return data;
     },
     ...options,

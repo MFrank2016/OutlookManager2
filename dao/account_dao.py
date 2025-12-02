@@ -38,11 +38,17 @@ class AccountDAO(BaseDAO):
             
             if row:
                 account = dict(row)
-                # 解析 tags JSON (PostgreSQL 会自动解析为 list，SQLite 返回 string)
+                # 解析 tags JSON (PostgreSQL 可能会返回 dict，SQLite 返回 string)
                 tags = account.get('tags')
                 if isinstance(tags, str):
                     account['tags'] = json.loads(tags) if tags else []
                 elif tags is None:
+                    account['tags'] = []
+                elif isinstance(tags, dict):
+                    # PostgreSQL 可能返回空字典，转换为空列表
+                    account['tags'] = []
+                elif not isinstance(tags, list):
+                    # 其他类型，转换为空列表
                     account['tags'] = []
                 # 如果是 list，已经是正确的格式，不需要做任何处理
                 
@@ -96,6 +102,12 @@ class AccountDAO(BaseDAO):
             if isinstance(tags, str):
                 account['tags'] = json.loads(tags) if tags else []
             elif tags is None:
+                account['tags'] = []
+            elif isinstance(tags, dict):
+                # PostgreSQL 可能返回空字典，转换为空列表
+                account['tags'] = []
+            elif not isinstance(tags, list):
+                # 其他类型，转换为空列表
                 account['tags'] = []
         
         return records, total
@@ -215,6 +227,12 @@ class AccountDAO(BaseDAO):
             if isinstance(tags, str):
                 account['tags'] = json.loads(tags) if tags else []
             elif tags is None:
+                account['tags'] = []
+            elif isinstance(tags, dict):
+                # PostgreSQL 可能返回空字典，转换为空列表
+                account['tags'] = []
+            elif not isinstance(tags, list):
+                # 其他类型，转换为空列表
                 account['tags'] = []
         
         logger.info(f"[筛选] 符合条件的总数: {total}")
