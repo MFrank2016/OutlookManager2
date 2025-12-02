@@ -161,7 +161,11 @@ def get_db_connection():
             except sqlite3.DatabaseError as e:
                 logger.error(f"Database integrity error: {e}")
                 if conn:
-                    conn.close()
+                    try:
+                        conn.close()
+                    except (sqlite3.ProgrammingError, sqlite3.OperationalError):
+                        # 连接已关闭，忽略
+                        pass
                 raise
             except Exception as e:
                 # 如果 quick_check 不可用，尝试 integrity_check（可能较慢）
@@ -180,22 +184,38 @@ def get_db_connection():
             yield conn
             conn.commit()
         except sqlite3.DatabaseError as e:
-            if conn:
-                conn.rollback()
+            # 在异常处理中，连接可能已经关闭，需要检查
             error_msg = str(e)
-            if "malformed" in error_msg.lower() or "corrupt" in error_msg.lower():
+            if "malformed" in error_msg.lower() or "corrupt" in error_msg.lower() or "out of order" in error_msg.lower():
                 logger.error(f"Database corruption detected: {e}")
                 logger.error("Please run scripts/repair_database.py to repair the database")
+                logger.error("Or switch to PostgreSQL by setting DB_TYPE=postgresql in .env file")
             logger.error(f"Database error: {e}")
+            # 如果连接仍然打开，尝试回滚
+            if conn:
+                try:
+                    conn.rollback()
+                except (sqlite3.ProgrammingError, sqlite3.OperationalError):
+                    # 连接已关闭，忽略
+                    pass
             raise
         except Exception as e:
+            # 如果连接仍然打开，尝试回滚
             if conn:
-                conn.rollback()
+                try:
+                    conn.rollback()
+                except (sqlite3.ProgrammingError, sqlite3.OperationalError):
+                    # 连接已关闭，忽略
+                    pass
             logger.error(f"Database error: {e}")
             raise
         finally:
             if conn:
-                conn.close()
+                try:
+                    conn.close()
+                except (sqlite3.ProgrammingError, sqlite3.OperationalError):
+                    # 连接已关闭，忽略
+                    pass
 
 
 def _init_postgresql_database() -> None:
