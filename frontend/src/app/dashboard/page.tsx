@@ -140,11 +140,11 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-6 px-0 md:px-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div className="space-y-2 md:space-y-4 px-0 md:px-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 md:gap-4">
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">账户管理</h1>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button asChild variant="secondary" className="flex-1 sm:flex-initial min-h-[44px]">
+          <Button asChild variant="secondary" className="flex-1 sm:flex-initial h-9">
             <Link href="/dashboard/accounts/batch">
               <PackagePlus className="mr-2 h-4 w-4" /> 批量添加
             </Link>
@@ -153,12 +153,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 bg-white p-4 rounded-lg shadow-sm border">
+      <div className="flex flex-col gap-2 bg-white p-3 md:p-4 rounded-lg shadow-sm border">
+        {/* 第一行：搜索邮箱 */}
         <div className="relative flex-1 w-full">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
             <Input 
                 placeholder="搜索邮箱..." 
-                className="pl-9 min-h-[44px]" 
+                className="pl-9 h-9" 
                 value={search}
                 onChange={(e) => {
                     setSearch(e.target.value);
@@ -170,41 +171,47 @@ export default function DashboardPage() {
                 }}
             />
         </div>
-        <div className="relative flex-1 w-full">
-            <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-            <Input 
-                placeholder="包含标签（多个用逗号分隔）..." 
-                className="pl-9 min-h-[44px]" 
-                value={includeTags}
-                onChange={(e) => {
-                    setIncludeTags(e.target.value);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleSearch();
-                  }
-                }}
-            />
+
+        {/* 第二行：包含标签 + 排除标签 */}
+        <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+                <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                <Input 
+                    placeholder="包含标签（多个用逗号分隔）..." 
+                    className="pl-9 h-9 text-xs md:text-sm" 
+                    value={includeTags}
+                    onChange={(e) => {
+                        setIncludeTags(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearch();
+                      }
+                    }}
+                />
+            </div>
+            <div className="relative flex-1">
+                <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                <Input 
+                    placeholder="排除标签（多个用逗号分隔）..." 
+                    className="pl-9 h-9 text-xs md:text-sm" 
+                    value={excludeTags}
+                    onChange={(e) => {
+                        setExcludeTags(e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearch();
+                      }
+                    }}
+                />
+            </div>
         </div>
-        <div className="relative flex-1 w-full">
-            <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-            <Input 
-                placeholder="排除标签（多个用逗号分隔）..." 
-                className="pl-9 min-h-[44px]" 
-                value={excludeTags}
-                onChange={(e) => {
-                    setExcludeTags(e.target.value);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleSearch();
-                  }
-                }}
-            />
-        </div>
-        <div className="w-full sm:w-[180px]">
+
+        {/* 第三行：筛选状态 + 查询按钮 */}
+        <div className="flex items-center gap-2">
             <Select value={refreshStatus} onValueChange={(val) => { setRefreshStatus(val === "all" ? undefined : val); }}>
-                <SelectTrigger className="min-h-[44px]">
+                <SelectTrigger className="flex-1 h-9 text-xs md:text-sm">
                     <SelectValue placeholder="筛选状态" />
                 </SelectTrigger>
                 <SelectContent>
@@ -214,20 +221,20 @@ export default function DashboardPage() {
                     <SelectItem value="pending">待处理</SelectItem>
                 </SelectContent>
             </Select>
+            <Button 
+              onClick={handleSearch}
+              disabled={isLoading}
+              className="h-9 px-4"
+            >
+              <Search className="mr-2 h-4 w-4" />
+              查询
+            </Button>
         </div>
-        <Button 
-          onClick={handleSearch}
-          disabled={isLoading}
-          className="min-h-[44px] w-full sm:w-auto"
-        >
-          <Search className="mr-2 h-4 w-4" />
-          查询
-        </Button>
       </div>
 
       {selectedAccounts.length > 0 && (
-        <div className="flex items-center justify-between bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <div className="text-sm text-blue-900">
+        <div className="flex items-center justify-between bg-blue-50 p-2 md:p-4 rounded-lg border border-blue-200">
+          <div className="text-xs md:text-sm text-blue-900">
             已选择 <span className="font-bold">{selectedAccounts.length}</span> 个账户
           </div>
           <div className="flex items-center gap-2">
@@ -235,7 +242,7 @@ export default function DashboardPage() {
               variant="outline"
               size="sm"
               onClick={() => setSelectedAccounts([])}
-              className="min-h-[44px]"
+              className="h-8 px-2 text-xs md:text-sm"
             >
               取消选择
             </Button>
@@ -244,37 +251,38 @@ export default function DashboardPage() {
               size="sm"
               onClick={handleBatchRefresh}
               disabled={isBatchRefreshing}
-              className="min-h-[44px]"
+              className="h-8 px-2 text-xs md:text-sm"
             >
-              <RefreshCw className={cn("mr-2 h-4 w-4", isBatchRefreshing && "animate-spin")} />
+              <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isBatchRefreshing && "animate-spin")} />
               批量刷新Token
             </Button>
           </div>
         </div>
       )}
 
-      <AccountsTable 
-        accounts={data?.accounts || []} 
-        isLoading={isLoading}
-        selectedAccounts={selectedAccounts}
-        onSelectionChange={setSelectedAccounts}
-      />
+      <div className="mb-2 md:mb-4">
+        <AccountsTable 
+          accounts={data?.accounts || []} 
+          isLoading={isLoading}
+          selectedAccounts={selectedAccounts}
+          onSelectionChange={setSelectedAccounts}
+        />
+      </div>
 
       {data && data.total_accounts > 0 && (
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-4 pb-8">
-            <div className="text-sm text-muted-foreground text-center md:text-left">
-                总计: {data.total_accounts} 个账户
-            </div>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-                {/* Page Size Selector */}
-                <div className="flex items-center gap-2">
-                    <span className="text-sm whitespace-nowrap text-muted-foreground">每页</span>
+        <div className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg shadow-sm border shrink-0 text-xs md:text-sm">
+            {/* 左侧：总计 + 每页 */}
+            <div className="flex items-center gap-2">
+                <span className="text-muted-foreground whitespace-nowrap">
+                    共 {data.total_accounts} 个
+                </span>
+                <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground whitespace-nowrap">每页</span>
                     <Select 
                         value={queryParams.page_size.toString()} 
                         onValueChange={handlePageSizeChange}
                     >
-                        <SelectTrigger className="w-[70px] h-8">
+                        <SelectTrigger className="w-[60px] md:w-[70px] h-7 md:h-8 text-xs md:text-sm">
                             <SelectValue placeholder="10" />
                         </SelectTrigger>
                         <SelectContent>
@@ -286,60 +294,60 @@ export default function DashboardPage() {
                         </SelectContent>
                     </Select>
                 </div>
+            </div>
 
-                {/* Pagination Controls */}
-                <div className="flex items-center gap-1">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => handlePageChange(Math.max(1, page - 1))}
-                        disabled={page === 1 || isLoading}
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    
-                    <div className="flex items-center justify-center min-w-[80px] text-sm">
-                        <span>{page} / {data.total_pages}</span>
-                    </div>
-
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => handlePageChange(Math.min(data.total_pages, page + 1))}
-                        disabled={page === data.total_pages || isLoading}
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
+            {/* 中间：翻页按钮 */}
+            <div className="flex items-center gap-1">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 md:h-8 md:w-8 p-0"
+                    onClick={() => handlePageChange(Math.max(1, page - 1))}
+                    disabled={page === 1 || isLoading}
+                >
+                    <ChevronLeft className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                </Button>
+                
+                <div className="flex items-center justify-center min-w-[70px] md:min-w-[80px] text-xs md:text-sm">
+                    <span>{page} / {data.total_pages}</span>
                 </div>
 
-                {/* Jump to Page */}
-                <div className="flex items-center gap-2">
-                    <Input
-                        className="h-8 w-[60px] text-center px-1"
-                        placeholder="页码"
-                        type="number"
-                        min={1}
-                        max={data.total_pages}
-                        value={jumpPage}
-                        onChange={(e) => setJumpPage(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                handleJumpPage();
-                            }
-                        }}
-                    />
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-8 px-2"
-                        onClick={handleJumpPage}
-                        disabled={!jumpPage}
-                    >
-                        跳转
-                    </Button>
-                </div>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 md:h-8 md:w-8 p-0"
+                    onClick={() => handlePageChange(Math.min(data.total_pages, page + 1))}
+                    disabled={page === data.total_pages || isLoading}
+                >
+                    <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                </Button>
+            </div>
+
+            {/* 右侧：跳转（桌面端） */}
+            <div className="hidden sm:flex items-center gap-2">
+                <Input
+                    className="h-7 md:h-8 w-[50px] md:w-[60px] text-center px-1 text-xs md:text-sm"
+                    placeholder="页码"
+                    type="number"
+                    min={1}
+                    max={data.total_pages}
+                    value={jumpPage}
+                    onChange={(e) => setJumpPage(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            handleJumpPage();
+                        }
+                    }}
+                />
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-7 md:h-8 px-2 text-xs md:text-sm"
+                    onClick={handleJumpPage}
+                    disabled={!jumpPage}
+                >
+                    跳转
+                </Button>
             </div>
         </div>
       )}

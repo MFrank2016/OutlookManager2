@@ -316,138 +316,135 @@ export default function EmailsPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-100px)] md:h-[calc(100vh-100px)] flex flex-col space-y-4 px-0 md:px-4">
+    <div className="h-[calc(100vh-100px)] md:h-[calc(100vh-100px)] flex flex-col space-y-2 md:space-y-4 px-0 md:px-4">
       {/* Top Bar: Account Selection & Filters */}
-      <div className="flex flex-col gap-4 bg-white p-4 rounded-lg shadow-sm border">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-            <div className="flex-1 sm:w-64 flex items-center gap-2">
-                <Select value={selectedAccount || ""} onValueChange={setSelectedAccount}>
-                    <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="选择账户" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {accountsData?.accounts.map(acc => (
-                            <SelectItem key={acc.email_id} value={acc.email_id}>
-                                {acc.email_id}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                {selectedAccount && (
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 min-h-[44px] min-w-[44px] shrink-0"
-                        onClick={async () => {
-                            const success = await copyToClipboard(selectedAccount);
-                            if (success) {
-                                toast.success("邮箱地址已复制到剪贴板");
-                            } else {
-                                toast.error("复制失败");
-                            }
-                        }}
-                        title="复制邮箱地址"
-                    >
-                        <Copy className="h-4 w-4" />
-                    </Button>
-                )}
-            </div>
-            <div className="flex-1 flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                    <Input 
-                        placeholder={searchType === "subject" ? "搜索主题..." : "搜索发件人..."}
-                        className="pl-9" 
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                </div>
-                <Select value={searchType} onValueChange={(v: "subject" | "sender") => setSearchType(v)}>
-                    <SelectTrigger className="w-full sm:w-[130px]">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="subject">主题</SelectItem>
-                        <SelectItem value="sender">发件人</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="w-full sm:w-auto">
-                <SendEmailDialog account={selectedAccount} />
-            </div>
+      <div className="flex flex-col gap-2 bg-white p-3 md:p-4 rounded-lg shadow-sm border">
+        {/* 第一行：账户选择 */}
+        <div className="flex items-center gap-2">
+            <Select value={selectedAccount || ""} onValueChange={setSelectedAccount}>
+                <SelectTrigger className="flex-1 h-9">
+                    <SelectValue placeholder="选择账户" />
+                </SelectTrigger>
+                <SelectContent>
+                    {accountsData?.accounts.map(acc => (
+                        <SelectItem key={acc.email_id} value={acc.email_id}>
+                            {acc.email_id}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            {selectedAccount && (
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0"
+                    onClick={async () => {
+                        const success = await copyToClipboard(selectedAccount);
+                        if (success) {
+                            toast.success("邮箱地址已复制到剪贴板");
+                        } else {
+                            toast.error("复制失败");
+                        }
+                    }}
+                    title="复制邮箱地址"
+                >
+                    <Copy className="h-4 w-4" />
+                </Button>
+            )}
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 text-sm">
-            <div className="flex items-center gap-2">
-                <span className="text-muted-foreground hidden sm:inline">文件夹:</span>
-                <Select value={folder} onValueChange={setFolder}>
-                    <SelectTrigger className="w-full sm:w-[140px] h-8">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">全部邮件</SelectItem>
-                        <SelectItem value="inbox">收件箱</SelectItem>
-                        <SelectItem value="junk">垃圾邮件</SelectItem>
-                    </SelectContent>
-                </Select>
+        {/* 第二行：搜索框（2:1） */}
+        <div className="flex items-center gap-2">
+            <div className="relative flex-[2]">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+                <Input 
+                    placeholder={searchType === "subject" ? "搜索主题..." : "搜索发件人..."}
+                    className="pl-9 h-9" 
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                />
             </div>
+            <Select value={searchType} onValueChange={(v: "subject" | "sender") => setSearchType(v)}>
+                <SelectTrigger className="flex-1 h-9">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="subject">主题</SelectItem>
+                    <SelectItem value="sender">发件人</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
 
-            <div className="flex items-center gap-2">
-                <span className="text-muted-foreground hidden sm:inline">排序:</span>
-                <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="w-full sm:w-[140px] h-8">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="date">日期</SelectItem>
-                        <SelectItem value="subject">主题</SelectItem>
-                        <SelectItem value="from_email">发件人</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 px-2 min-w-[44px]"
-                    onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
-                >
-                    <ArrowUpDown className={cn("h-4 w-4 sm:mr-1", sortOrder === "asc" && "rotate-180")} />
-                    <span className="hidden sm:inline">{sortOrder === "asc" ? "升序" : "降序"}</span>
-                </Button>
-            </div>
+        {/* 第三行：文件夹 + 日期 */}
+        <div className="flex items-center gap-2">
+            <Select value={folder} onValueChange={setFolder}>
+                <SelectTrigger className="flex-1 h-9 text-xs md:text-sm">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">全部邮件</SelectItem>
+                    <SelectItem value="inbox">收件箱</SelectItem>
+                    <SelectItem value="junk">垃圾邮件</SelectItem>
+                </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="flex-1 h-9 text-xs md:text-sm">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="date">日期</SelectItem>
+                    <SelectItem value="subject">主题</SelectItem>
+                    <SelectItem value="from_email">发件人</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
 
-            <div className="ml-auto flex items-center gap-2">
-                  {isAutoRefreshEnabled && (
-                    <span className="text-xs text-slate-500 font-mono mr-2">
-                      {refreshCountdown}s
-                    </span>
-                  )}
-                  {selectedAccount && (folder === "inbox" || folder === "junk" || folder === "all") && (
+        {/* 第四行：排序按钮 + 倒计时 + 撰写 + 清空 + 刷新 */}
+        <div className="flex items-center gap-2">
+            <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-8 px-2"
+                onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
+            >
+                <ArrowUpDown className={cn("h-4 w-4 mr-1", sortOrder === "asc" && "rotate-180")} />
+                <span className="text-xs md:text-sm">{sortOrder === "asc" ? "升序" : "降序"}</span>
+            </Button>
+            {isAutoRefreshEnabled && (
+                <span className="text-xs text-slate-500 font-mono">
+                    {refreshCountdown}s
+                </span>
+            )}
+            <div className="ml-auto flex items-center gap-1.5">
+                <SendEmailDialog account={selectedAccount} />
+                {selectedAccount && (folder === "inbox" || folder === "junk" || folder === "all") && (
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={() => setClearInboxOpen(true)}
-                      title={folder === "inbox" ? "清空收件箱" : folder === "junk" ? "清空垃圾箱" : "清空收件箱"}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
+                        onClick={() => setClearInboxOpen(true)}
+                        title={folder === "inbox" ? "清空收件箱" : folder === "junk" ? "清空垃圾箱" : "清空收件箱"}
                     >
-                      <Trash2 className="h-3 w-3 mr-1" />
-                      <span className="hidden sm:inline">清空</span>
+                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                        <span className="hidden sm:inline">清空</span>
                     </Button>
-                  )}
-                  <Button
-                    variant="ghost"
+                )}
+                <Button
+                    variant="outline"
                     size="sm"
-                    className="h-7 w-7 p-0"
+                    className="h-8 px-2"
                     onClick={handleManualRefresh}
                     disabled={isEmailsLoading}
                     title="刷新邮件列表"
-                  >
-                    <RefreshCw className={cn("h-3 w-3", isEmailsLoading && "animate-spin")} />
-                  </Button>
+                >
+                    <RefreshCw className={cn("h-4 w-4 mr-1", isEmailsLoading && "animate-spin")} />
+                    <span className="hidden sm:inline text-xs md:text-sm">刷新</span>
+                </Button>
             </div>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 bg-white rounded-lg shadow-sm border overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 bg-white rounded-lg shadow-sm border overflow-hidden mb-2 md:mb-4">
         {isEmailsLoading && !emailsData ? (
             <div className="p-8 text-center text-muted-foreground">加载邮件中...</div>
         ) : emailsData?.emails.length === 0 ? (
@@ -546,7 +543,7 @@ export default function EmailsPage() {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden flex flex-col p-3 gap-3 overflow-y-auto bg-slate-100">
+                <div className="md:hidden flex flex-col p-3 gap-3 overflow-y-auto bg-gray-50">
                     {emailsData?.emails.map((email: Email) => {
                         // 解析发件人名称和邮箱
                         let senderName = email.from_email;
@@ -560,82 +557,93 @@ export default function EmailsPage() {
                         return (
                             <div 
                                 key={email.message_id}
-                                className="bg-[#FEF9E7] border border-blue-200 rounded-xl shadow-sm relative overflow-hidden p-3"
+                                className="bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200"
                                 onClick={() => openEmailDetail(email.message_id)}
                             >
-                                {/* 左侧蓝色条 */}
-                                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-blue-500"></div>
-                                
-                                <div className="pl-2 flex flex-col gap-2">
-                                    {/* 第一栏：头像 + 发件人 */}
-                                    <div className="flex items-center gap-2">
-                                        <Avatar className="h-8 w-8 shrink-0">
-                                            <AvatarFallback className="bg-purple-500 text-white text-xs font-bold">
-                                                {email.sender_initial}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex-1 min-w-0 flex flex-col">
-                                            <span className="font-bold text-sm text-gray-900 truncate">
-                                                {senderName}
-                                            </span>
-                                            {senderEmail && (
-                                                <span className="text-xs text-gray-500 truncate">
-                                                    {senderEmail}
-                                                </span>
-                                            )}
+                                {/* 卡片内容 */}
+                                <div className="p-4 flex flex-col gap-3 w-full">
+                                    {/* 头部：头像 + 发件人 + 时间 */}
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                                            <Avatar className="h-10 w-10 shrink-0">
+                                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-semibold">
+                                                    {email.sender_initial}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-semibold text-sm text-gray-900 truncate">
+                                                    {senderName}
+                                                </div>
+                                                {senderEmail && (
+                                                    <div className="text-xs text-gray-500 truncate">
+                                                        {senderEmail}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-gray-500 whitespace-nowrap shrink-0 mt-0.5">
+                                            {new Date(email.date).toLocaleString('zh-CN', {
+                                                month: '2-digit',
+                                                day: '2-digit',
+                                                hour: '2-digit',
+                                                minute: '2-digit'
+                                            })}
                                         </div>
                                     </div>
 
-                                    {/* 第二栏：主题 + 预览 */}
-                                    <div className="flex items-start gap-2">
-                                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></div>
-                                        <div className="flex-1 min-w-0">
-                                            <div className="text-sm text-gray-900 font-medium line-clamp-2 break-words">
-                                                {email.subject}
-                                            </div>
-                                            <div className="text-xs text-gray-500 truncate mt-0.5">
-                                                {email.body_preview || "无预览"}
+                                    {/* 主题与预览 */}
+                                    <div className="flex flex-col gap-2">
+                                        {/* 主题 */}
+                                        <div className="flex items-start gap-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0"></div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-semibold text-gray-900 line-clamp-2 break-words leading-relaxed">
+                                                    {email.subject}
+                                                </div>
                                             </div>
                                         </div>
+                                        
+                                        {/* 预览内容 */}
+                                        {email.body_preview && email.body_preview.trim() !== "" && (
+                                            <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100 w-full">
+                                                <div className="text-xs text-gray-600 line-clamp-3 leading-relaxed break-words">
+                                                    {email.body_preview}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {(!email.body_preview || email.body_preview.trim() === "") && (
+                                            <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100 w-full">
+                                                <div className="text-xs text-gray-400 italic">
+                                                    暂无预览内容
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    {/* 第三栏：日期 */}
-                                    <div className="text-xs text-gray-500 pl-4">
-                                        {new Date(email.date).toLocaleString('zh-CN', {
-                                            year: 'numeric',
-                                            month: '2-digit',
-                                            day: '2-digit',
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                        })}
-                                    </div>
+                                    {/* 验证码提示 */}
+                                    {email.verification_code && (
+                                        <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></div>
+                                            <span className="text-xs text-amber-700 font-medium">包含验证码</span>
+                                        </div>
+                                    )}
 
-                                    {/* 第四栏：操作按钮 */}
-                                    <div className="mt-1">
-                                        <Button
-                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 h-9 text-sm font-medium"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openEmailDetail(email.message_id);
-                                            }}
-                                        >
-                                            <Eye className="h-4 w-4 mr-1.5" />
-                                            查看
-                                        </Button>
-                                        {email.verification_code && (
+                                    {/* 验证码按钮（如果有） */}
+                                    {email.verification_code && (
+                                        <div className="pt-1">
                                             <Button
                                                 variant="outline"
-                                                className="w-full mt-2 border-amber-300 text-amber-700 hover:bg-amber-50 h-8 text-xs"
+                                                className="w-full border-amber-300 text-amber-700 hover:bg-amber-50 rounded-xl h-9 text-sm font-medium"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     handleCopyCode(email.verification_code!);
                                                 }}
                                             >
-                                                <Copy className="h-3 w-3 mr-1.5" />
-                                                复制验证码 ({email.verification_code})
+                                                <Copy className="h-3.5 w-3.5 mr-1.5" />
+                                                {email.verification_code}
                                             </Button>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         );
@@ -646,20 +654,19 @@ export default function EmailsPage() {
       </div>
 
       {emailsData && emailsData.total_emails > 0 && (
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-white p-2 rounded-lg shadow-sm border mt-auto shrink-0">
-            <div className="text-sm text-muted-foreground text-center md:text-left">
-                总计: {emailsData.total_emails} 封邮件
-            </div>
-            
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-                {/* Page Size Selector */}
-                <div className="flex items-center gap-2">
-                    <span className="text-sm whitespace-nowrap text-muted-foreground">每页</span>
+        <div className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg shadow-sm border shrink-0 text-xs md:text-sm">
+            {/* 左侧：总计 + 每页 */}
+            <div className="flex items-center gap-2">
+                <span className="text-muted-foreground whitespace-nowrap">
+                    共 {emailsData.total_emails} 封
+                </span>
+                <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground whitespace-nowrap">每页</span>
                     <Select 
                         value={pageSize.toString()} 
                         onValueChange={handlePageSizeChange}
                     >
-                        <SelectTrigger className="w-[70px] h-8">
+                        <SelectTrigger className="w-[80px] md:w-[70px] h-7 md:h-8 text-xs md:text-sm">
                             <SelectValue placeholder="20" />
                         </SelectTrigger>
                         <SelectContent>
@@ -673,60 +680,60 @@ export default function EmailsPage() {
                         </SelectContent>
                     </Select>
                 </div>
+            </div>
 
-                {/* Pagination Controls */}
-                <div className="flex items-center gap-1">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                        disabled={page === 1 || isEmailsLoading}
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    
-                    <div className="flex items-center justify-center min-w-[80px] text-sm">
-                        <span>{page} / {emailsData.total_pages}</span>
-                    </div>
-
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0"
-                        onClick={() => setPage(p => Math.min(emailsData.total_pages, p + 1))}
-                        disabled={page >= emailsData.total_pages || isEmailsLoading}
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
+            {/* 中间：翻页按钮 */}
+            <div className="flex items-center gap-1">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 md:h-8 md:w-8 p-0"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1 || isEmailsLoading}
+                >
+                    <ChevronLeft className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                </Button>
+                
+                <div className="flex items-center justify-center min-w-[70px] md:min-w-[80px] text-xs md:text-sm">
+                    <span>{page} / {emailsData.total_pages}</span>
                 </div>
 
-                {/* Jump to Page */}
-                <div className="flex items-center gap-2">
-                    <Input
-                        className="h-8 w-[60px] text-center px-1"
-                        placeholder="页码"
-                        type="number"
-                        min={1}
-                        max={emailsData.total_pages}
-                        value={jumpPage}
-                        onChange={(e) => setJumpPage(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                handleJumpPage();
-                            }
-                        }}
-                    />
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-8 px-2"
-                        onClick={handleJumpPage}
-                        disabled={!jumpPage}
-                    >
-                        跳转
-                    </Button>
-                </div>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 w-7 md:h-8 md:w-8 p-0"
+                    onClick={() => setPage(p => Math.min(emailsData.total_pages, p + 1))}
+                    disabled={page >= emailsData.total_pages || isEmailsLoading}
+                >
+                    <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                </Button>
+            </div>
+
+            {/* 右侧：跳转（桌面端） */}
+            <div className="hidden sm:flex items-center gap-2">
+                <Input
+                    className="h-7 md:h-8 w-[50px] md:w-[60px] text-center px-1 text-xs md:text-sm"
+                    placeholder="页码"
+                    type="number"
+                    min={1}
+                    max={emailsData.total_pages}
+                    value={jumpPage}
+                    onChange={(e) => setJumpPage(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            handleJumpPage();
+                        }
+                    }}
+                />
+                <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-7 md:h-8 px-2 text-xs md:text-sm"
+                    onClick={handleJumpPage}
+                    disabled={!jumpPage}
+                >
+                    跳转
+                </Button>
             </div>
         </div>
       )}
