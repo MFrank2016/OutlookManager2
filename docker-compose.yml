@@ -28,7 +28,7 @@ services:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
       - HOST=${HOST:-0.0.0.0}
-      - PORT=${PORT:-8000}
+      - PORT=8000
       # 时区设置为东8区
       - TZ=${TZ:-Asia/Shanghai}
       # 日志级别
