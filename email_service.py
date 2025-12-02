@@ -879,7 +879,7 @@ async def list_emails_via_graph_api(
             folder=folder,
             page=page,
             page_size=page_size,
-            email_list=EmailListResponse(
+            data=EmailListResponse(
                 email_id=credentials.email,
                 folder_view=folder,
                 page=page,

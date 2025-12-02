@@ -5,7 +5,9 @@ JWT认证模块
 """
 
 import asyncio
+import logging
 import secrets
+import time
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -16,6 +18,8 @@ from passlib.context import CryptContext
 from pydantic import BaseModel, Field
 
 import database as db
+
+logger = logging.getLogger(__name__)
 
 # JWT配置
 SECRET_KEY = secrets.token_urlsafe(32)  # 生产环境应从环境变量读取
@@ -313,13 +317,19 @@ async def get_current_user(
     
     # 方式3: JWT Token认证 (Authorization: Bearer <token>)
     if credentials and credentials.scheme.lower() == "bearer":
+        auth_start_time = time.perf_counter()
         token = credentials.credentials
         token_data = verify_token(token)
         
         # 使用API请求专用线程池，避免被后台任务阻塞（延迟导入避免循环依赖）
+        db_query_start = time.perf_counter()
         loop = asyncio.get_event_loop()
         import main
         user = await loop.run_in_executor(main.api_requests_executor, db.get_user_by_username, token_data.username)
+        db_query_time = time.perf_counter() - db_query_start
+        
+        if db_query_time > 0.1:  # 如果数据库查询超过100ms，记录警告
+            logger.warning(f"Slow database query in get_current_user: {db_query_time:.3f}s for user {token_data.username}")
         
         if user is None:
             raise HTTPException(
@@ -333,6 +343,10 @@ async def get_current_user(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="用户账户已被禁用"
             )
+        
+        auth_total_time = time.perf_counter() - auth_start_time
+        if auth_total_time > 0.2:  # 如果认证总时间超过200ms，记录警告
+            logger.warning(f"Slow authentication in get_current_user: {auth_total_time:.3f}s (DB: {db_query_time:.3f}s)")
         
         return user
     

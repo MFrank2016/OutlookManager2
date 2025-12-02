@@ -122,6 +122,11 @@ async def get_accounts(
     user: dict = Depends(auth.get_current_user),
 ):
     """获取已加载的邮箱账户列表，支持分页和多维度搜索（根据用户权限过滤）"""
+    # 立即记录路由处理函数开始执行（在依赖项执行之后）
+    import time
+    route_start_time = time.perf_counter()
+    logger.info(f"[API] GET /accounts 路由处理开始 (user: {user.get('username')}, role: {user.get('role')}) [Route started at {datetime.now().strftime('%H:%M:%S.%f')[:-3]}]")
+    
     try:
         # 解析标签列表
         include_tag_list = [tag.strip() for tag in include_tags.split(",")] if include_tags else None
@@ -193,6 +198,9 @@ async def get_accounts(
         # 计算分页信息
         total_pages = (total_accounts + page_size - 1) // page_size if total_accounts > 0 else 0
         
+        route_time = time.perf_counter() - route_start_time
+        logger.info(f"[API] GET /accounts 路由处理完成 - Route time: {route_time:.3f}s")
+        
         return AccountListResponse(
             total_accounts=total_accounts,
             page=page,
@@ -202,7 +210,8 @@ async def get_accounts(
         )
         
     except Exception as e:
-        logger.error(f"Error getting accounts list: {e}")
+        route_time = time.perf_counter() - route_start_time
+        logger.error(f"Error getting accounts list: {e} - Route time: {route_time:.3f}s")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -753,15 +762,15 @@ async def process_batch_import_task(task_id: str):
             task_tags = json.loads(task_tags) if task_tags else []
         api_method = task.get('api_method', 'imap')
         
-        # 使用API请求专用线程池并发处理（确保API响应及时）
-        from main import api_requests_executor
+        # 使用批量任务专用线程池并发处理（防止批量任务阻塞正常API请求）
+        from main import batch_tasks_executor
         loop = asyncio.get_event_loop()
         futures = []
         
         for item in items:
-            # 将任务提交到API请求专用线程池
+            # 将任务提交到批量任务专用线程池
             future = loop.run_in_executor(
-                api_requests_executor,
+                batch_tasks_executor,
                 _process_single_import_item_sync,
                 task_id,
                 item,

@@ -10,6 +10,7 @@ Version: 2.0.0
 
 import asyncio
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -63,6 +64,10 @@ def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
 # API请求专用的线程池执行器（用于处理API请求中的同步数据库操作）
 # 限制并发数为5，确保API请求能及时响应
 api_requests_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="api-request")
+
+# 批量任务专用的线程池执行器（用于处理批量导入等批量任务）
+# 限制并发数为5，与API请求线程池分离，防止批量任务阻塞正常请求
+batch_tasks_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="batch-task")
 
 # 后台任务专用的线程池执行器（独立于API请求的线程池）
 # 限制并发数为2，避免占用过多资源
@@ -602,6 +607,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Shutting down thread pools...")
     try:
         api_requests_executor.shutdown(wait=False)
+        batch_tasks_executor.shutdown(wait=False)
         background_tasks_executor.shutdown(wait=False)
         logger.info("Thread pools shut down successfully")
     except Exception as e:
@@ -639,18 +645,37 @@ app = FastAPI(
 # 添加请求日志中间件
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """记录所有HTTP请求"""
-    start_time = asyncio.get_event_loop().time()
-    logger.info(f"→ {request.method} {request.url.path} - Client: {request.client.host if request.client else 'unknown'}")
+    """记录所有HTTP请求（使用高精度时间测量）"""
+    # 使用 time.perf_counter() 获得更高精度的时间测量
+    request_start_time = time.perf_counter()
+    request_received_time = time.time()
+    
+    # 立即记录请求到达日志（不等待任何处理）
+    client_host = request.client.host if request.client else 'unknown'
+    logger.info(f"→ {request.method} {request.url.path} - Client: {client_host} [Request received at {datetime.now().strftime('%H:%M:%S.%f')[:-3]}]")
     
     try:
+        # 记录依赖项执行前的时间
+        deps_start_time = time.perf_counter()
+        
+        # 执行请求处理（包括依赖项）
         response = await call_next(request)
-        process_time = asyncio.get_event_loop().time() - start_time
-        logger.info(f"← {request.method} {request.url.path} - Status: {response.status_code} - Time: {process_time:.3f}s")
+        
+        # 计算总处理时间
+        total_time = time.perf_counter() - request_start_time
+        deps_time = time.perf_counter() - deps_start_time
+        
+        logger.info(
+            f"← {request.method} {request.url.path} - Status: {response.status_code} - "
+            f"Total: {total_time:.3f}s, Processing: {deps_time:.3f}s"
+        )
         return response
     except Exception as e:
-        process_time = asyncio.get_event_loop().time() - start_time
-        logger.error(f"✗ {request.method} {request.url.path} - Error: {e} - Time: {process_time:.3f}s", exc_info=True)
+        total_time = time.perf_counter() - request_start_time
+        logger.error(
+            f"✗ {request.method} {request.url.path} - Error: {e} - Time: {total_time:.3f}s",
+            exc_info=True
+        )
         raise
 
 # 添加CORS中间件

@@ -4,6 +4,7 @@
 提供数据表管理和系统配置管理的API接口
 """
 
+import logging
 from typing import Any, Dict, List, Optional
 import sqlite3
 
@@ -13,6 +14,9 @@ from pydantic import BaseModel
 import auth
 import database as db
 import cache_service
+
+# 获取日志记录器
+logger = logging.getLogger(__name__)
 from models import (
     UserCreateRequest,
     UserUpdateRequest,

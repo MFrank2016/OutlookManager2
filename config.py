@@ -59,7 +59,7 @@ MAX_EMAIL_DETAILS_CACHE_COUNT = 5000  # 最大邮件详情缓存数量
 LRU_CLEANUP_THRESHOLD = 0.9  # LRU清理阈值（90%时触发）
 
 # 缓存预热配置
-CACHE_WARMUP_ENABLED = True  # 是否启用缓存预热
+CACHE_WARMUP_ENABLED = False  # 是否启用缓存预热（已停用，避免自动请求邮件列表）
 CACHE_WARMUP_ACCOUNTS = 5  # 预热账户数量
 CACHE_WARMUP_EMAILS_PER_ACCOUNT = 100  # 每个账户预热邮件数
 
@@ -116,10 +116,10 @@ PORT = 8000
 # ============================================================================
 
 # 是否启用后台邮件自动同步
-AUTO_SYNC_EMAILS_ENABLED = True
+AUTO_SYNC_EMAILS_ENABLED = False  # 已停用，避免频繁请求邮件列表
 
-# 邮件同步间隔（秒）- 默认1天
-EMAIL_SYNC_INTERVAL = 60 * 60 * 24
+# 邮件同步间隔（秒）- 默认1h
+EMAIL_SYNC_INTERVAL = 60 * 60 * 1
 
 # 每次同步获取的邮件页数（page_size=100，即每次最多100封）
 EMAIL_SYNC_PAGE_SIZE = 100

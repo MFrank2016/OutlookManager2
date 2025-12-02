@@ -34,6 +34,32 @@ logger = logging.getLogger(__name__)
 _postgresql_pool = None
 
 
+def _extract_scalar_value(row: Any) -> Any:
+    """
+    从查询结果行中提取标量值（兼容SQLite Row、PostgreSQL RealDictRow等）
+    
+    Args:
+        row: 查询结果行
+    
+    Returns:
+        标量值或 None
+    """
+    if row is None:
+        return None
+    if isinstance(row, dict):
+        # RealDictRow / sqlite Row （当作映射）
+        for value in row.values():
+            return value
+        return None
+    if isinstance(row, (list, tuple)):
+        return row[0] if row else None
+    # 其他类型，尝试使用索引访问
+    try:
+        return row[0]
+    except (KeyError, TypeError, IndexError):
+        return row
+
+
 # ============================================================================
 # 压缩/解压缩工具函数
 # ============================================================================
@@ -380,7 +406,7 @@ def init_database() -> None:
             try:
                 # 检查 users 表是否为空
                 cursor.execute("SELECT COUNT(*) FROM users")
-                users_count = cursor.fetchone()[0]
+                users_count = _extract_scalar_value(cursor.fetchone())
                 
                 if users_count == 0:
                     # 迁移所有管理员数据到 users 表，设置 role='admin'
@@ -928,7 +954,7 @@ def get_all_tables() -> List[str]:
                 ORDER BY table_name
             """)
             rows = cursor.fetchall()
-            return [row[0] for row in rows]
+            return [row['table_name'] for row in rows]
         else:
             cursor.execute("""
                 SELECT name FROM sqlite_master 
@@ -976,12 +1002,12 @@ def get_table_schema(table_name: str) -> List[Dict[str, Any]]:
                 result = []
                 for row in rows:
                     result.append({
-                        'cid': row[0],
-                        'name': row[1],
-                        'type': row[2],
-                        'notnull': row[3],
-                        'dflt_value': row[4],
-                        'pk': row[5]
+                        'cid': row['cid'],
+                        'name': row['name'],
+                        'type': row['type'],
+                        'notnull': row['notnull'],
+                        'dflt_value': row['dflt_value'],
+                        'pk': row['pk']
                     })
                 return result
             else:
@@ -1034,7 +1060,8 @@ def get_table_data(table_name: str, page: int = 1, page_size: int = 50, search: 
             
             # 获取总数
             cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {where_clause}", params)
-            total = cursor.fetchone()[0] if DB_TYPE == "postgresql" else cursor.fetchone()[0]
+            row = cursor.fetchone()
+            total = _extract_scalar_value(row)
             
             # 获取分页数据
             offset = (page - 1) * page_size
@@ -1088,7 +1115,7 @@ def insert_table_record(table_name: str, data: Dict[str, Any]) -> int:
             )
             result = cursor.fetchone()
             conn.commit()
-            return result[0] if result else 0
+            return result['id'] if result else 0
         else:
             cursor.execute(
                 f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})",
