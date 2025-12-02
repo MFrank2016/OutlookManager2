@@ -63,7 +63,7 @@
    DB_PORT=5432
    DB_NAME=outlook_manager
    DB_USER=outlook_user
-   DB_PASSWORD=your_strong_password_here
+   DB_PASSWORD=outlook_manager233
 
    # PostgreSQL连接池配置
    DB_POOL_SIZE=5
@@ -73,7 +73,7 @@
    # PostgreSQL服务配置（用于启动PostgreSQL容器）
    POSTGRES_DB=outlook_manager
    POSTGRES_USER=outlook_user
-   POSTGRES_PASSWORD=your_strong_password_here
+   POSTGRES_PASSWORD=outlook_manager233
    POSTGRES_PORT=5432
 
    # 应用配置
