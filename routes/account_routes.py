@@ -10,7 +10,6 @@ import json
 import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Any
-from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, BackgroundTasks
 
@@ -635,8 +634,8 @@ async def detect_api_method_route(
         raise HTTPException(status_code=500, detail="Failed to detect API method")
 
 
-# 线程池执行器（用于批量导入任务，限制并发数为5）
-executor = ThreadPoolExecutor(max_workers=5)
+# 批量导入任务使用API请求专用线程池（从main导入，避免重复创建）
+# 这样API请求和批量导入共享同一个线程池，确保API响应及时
 
 
 def _process_single_import_item_sync(
@@ -754,14 +753,15 @@ async def process_batch_import_task(task_id: str):
             task_tags = json.loads(task_tags) if task_tags else []
         api_method = task.get('api_method', 'imap')
         
-        # 使用线程池并发处理
+        # 使用API请求专用线程池并发处理（确保API响应及时）
+        from main import api_requests_executor
         loop = asyncio.get_event_loop()
         futures = []
         
         for item in items:
-            # 将任务提交到线程池
+            # 将任务提交到API请求专用线程池
             future = loop.run_in_executor(
-                executor,
+                api_requests_executor,
                 _process_single_import_item_sync,
                 task_id,
                 item,

@@ -864,13 +864,35 @@ async def list_emails_via_graph_api(
         start_time, end_time
     )
     
-    # 缓存到 SQLite
+    # 缓存到数据库
     try:
         emails_to_cache = [email.dict() for email in email_items]
         db.cache_emails(credentials.email, emails_to_cache)
-        logger.info(f"Cached {len(emails_to_cache)} emails to SQLite for {credentials.email}")
+        logger.info(f"Cached {len(emails_to_cache)} emails to database for {credentials.email}")
     except Exception as e:
-        logger.warning(f"Failed to cache emails to SQLite: {e}")
+        logger.warning(f"Failed to cache emails to database: {e}")
+    
+    # 缓存到内存LRU缓存
+    try:
+        cache_service.set_cached_email_list(
+            email=credentials.email,
+            folder=folder,
+            page=page,
+            page_size=page_size,
+            email_list=EmailListResponse(
+                email_id=credentials.email,
+                folder_view=folder,
+                page=page,
+                page_size=page_size,
+                total_emails=total,
+                total_pages=(total + page_size - 1) // page_size if total > 0 else 0,
+                emails=email_items,
+                fetch_time_ms=int((time.time() - start_time_ms) * 1000)
+            ).dict()
+        )
+        logger.debug(f"Cached {len(email_items)} emails to memory LRU cache for {credentials.email}")
+    except Exception as e:
+        logger.warning(f"Failed to cache emails to memory: {e}")
     
     fetch_time_ms = int((time.time() - start_time_ms) * 1000)
     

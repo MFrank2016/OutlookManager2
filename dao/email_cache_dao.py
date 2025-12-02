@@ -43,6 +43,11 @@ class EmailCacheDAO(BaseDAO):
                     
                     placeholder = self._get_param_placeholder()
                     
+                    # 根据数据库类型转换布尔值
+                    from database import DB_TYPE
+                    is_read_value = bool(email.get('is_read')) if DB_TYPE == "postgresql" else (1 if email.get('is_read') else 0)
+                    has_attachments_value = bool(email.get('has_attachments')) if DB_TYPE == "postgresql" else (1 if email.get('has_attachments') else 0)
+                    
                     cursor.execute(f"""
                         INSERT INTO emails_cache 
                         (email_account, message_id, folder, subject, from_email, date, 
@@ -67,8 +72,8 @@ class EmailCacheDAO(BaseDAO):
                         email.get('subject'),
                         email.get('from_email'),
                         email.get('date'),
-                        1 if email.get('is_read') else 0,
-                        1 if email.get('has_attachments') else 0,
+                        is_read_value,
+                        has_attachments_value,
                         email.get('sender_initial', '?'),
                         email.get('verification_code'),
                         email.get('body_preview'),

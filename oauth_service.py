@@ -21,7 +21,14 @@ logger = logging.getLogger(__name__)
 
 async def get_access_token(credentials: AccountCredentials) -> str:
     """
-    使用refresh_token获取access_token
+    从 OAuth2 接口获取新的 access_token（不使用缓存）
+    
+    此函数会：
+    1. 调用 OAuth2 接口获取新 token
+    2. 自动尝试 fallback scope（如果主 scope 失败）
+    3. 保存 token 到数据库和内存缓存
+    
+    注意：此函数不检查缓存。如果需要使用缓存，请调用 get_cached_access_token()
 
     Args:
         credentials: 账户凭证信息
@@ -39,7 +46,7 @@ async def get_access_token(credentials: AccountCredentials) -> str:
     primary_scope = GRAPH_API_SCOPE if api_method in ["graph", "graph_api"] else OAUTH_SCOPE
     fallback_scope = OAUTH_SCOPE if api_method in ["graph", "graph_api"] else GRAPH_API_SCOPE
     
-    logger.info(f"Credentials: {credentials.email}, api_method: {api_method}, trying scope: {primary_scope}")
+    logger.info(f"Fetching new access token for {credentials.email}, api_method: {api_method}, trying scope: {primary_scope}")
 
     # 定义内部函数来尝试获取 token
     async def _try_get_token(scope_to_try):
@@ -96,13 +103,13 @@ async def get_access_token(credentials: AccountCredentials) -> str:
         access_token = token_data.get("access_token")
         expires_in = token_data.get("expires_in", 3600)  # Microsoft 返回的过期时间（通常1小时）
         
-        # 设置 access token 的最大缓存时间为 24 小时
-        # 即使 Microsoft 返回的 expires_in 更长，我们也只缓存 24 小时
-        max_cache_hours = 24
-        max_cache_seconds = max_cache_hours * 3600  # 24小时 = 86400秒
+        # 设置 access token 的缓存时间为 10 小时
+        # 这样可以减少频繁刷新，同时保持合理的安全性
+        cache_hours = 10
+        cache_seconds = cache_hours * 3600  # 10小时 = 36000秒
         
-        # 使用较小的值：Microsoft 返回的过期时间或 24 小时，取较小者
-        actual_expires_in = min(expires_in, max_cache_seconds)
+        # 使用较小的值：Microsoft 返回的过期时间或 10 小时，取较小者
+        actual_expires_in = min(expires_in, cache_seconds)
 
         if not access_token:
             logger.error(f"No access token in response for {credentials.email}")
@@ -111,7 +118,7 @@ async def get_access_token(credentials: AccountCredentials) -> str:
                 detail="Failed to obtain access token from response",
             )
 
-        # 计算过期时间（使用实际过期时间，最多24小时）
+        # 计算过期时间（使用实际过期时间，最多10小时）
         expires_at = datetime.now() + timedelta(seconds=actual_expires_in)
         expires_at_str = expires_at.isoformat()
         
@@ -223,6 +230,7 @@ async def refresh_account_token(credentials: AccountCredentials) -> dict:
         token_data = response.json()
         new_access_token = token_data.get("access_token")
         new_refresh_token = token_data.get("refresh_token")
+        expires_in = token_data.get("expires_in", 3600)  # Microsoft 返回的过期时间（通常1小时）
 
         if not new_access_token:
             logger.error(
@@ -236,11 +244,17 @@ async def refresh_account_token(credentials: AccountCredentials) -> dict:
             )
             new_refresh_token = credentials.refresh_token
 
-        logger.info(f"Successfully refreshed token for {credentials.email}")
+        # 计算 access token 过期时间（设置为10小时）
+        access_token_expires_hours = 10
+        expires_at = datetime.now() + timedelta(hours=access_token_expires_hours)
+        expires_at_str = expires_at.isoformat()
+
+        logger.info(f"Successfully refreshed token for {credentials.email}, access token expires in {access_token_expires_hours} hours")
         return {
             "success": True,
             "new_refresh_token": new_refresh_token,
             "new_access_token": new_access_token,
+            "access_token_expires_at": expires_at_str,
         }
 
     except httpx.HTTPStatusError as e:
@@ -295,10 +309,10 @@ async def get_cached_access_token(credentials: AccountCredentials) -> str:
             
             now = datetime.now()
             
-            # 检查 token 是否还有效（距离过期时间 > 1 小时，因为 access token 缓存时间为 24 小时）
+            # 检查 token 是否还有效（距离过期时间 > 1 小时，因为 access token 缓存时间为 10 小时）
             time_until_expiry = (expires_at - now).total_seconds()
             
-            if time_until_expiry > 3600:  # 1小时 = 3600秒（access token 缓存时间为 24 小时，提前 1 小时刷新）
+            if time_until_expiry > 3600:  # 1小时 = 3600秒（access token 缓存时间为 10 小时，提前 1 小时刷新）
                 # 将数据库中的token缓存到内存
                 cache_service.set_cached_access_token(credentials.email, access_token, expires_at_str)
                 logger.info(

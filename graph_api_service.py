@@ -4,6 +4,7 @@ Microsoft Graph API 服务模块
 提供基于 Graph API 的邮件操作功能，包括列表、详情、删除和发送
 """
 
+import asyncio
 import logging
 import re
 from datetime import datetime
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 async def get_graph_access_token(credentials: AccountCredentials) -> str:
     """
-    获取 Graph API 访问令牌
+    获取 Graph API 访问令牌（使用缓存机制）
     
     Args:
         credentials: 账户凭证信息
@@ -35,41 +36,39 @@ async def get_graph_access_token(credentials: AccountCredentials) -> str:
     Raises:
         HTTPException: 令牌获取失败
     """
-    token_request_data = {
-        "client_id": credentials.client_id,
-        "grant_type": "refresh_token",
-        "refresh_token": credentials.refresh_token,
-        "scope": GRAPH_API_SCOPE,
-    }
+    from oauth_service import get_cached_access_token
     
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(TOKEN_URL, data=token_request_data)
-            response.raise_for_status()
-            
-            token_data = response.json()
-            access_token = token_data.get("access_token")
-            expires_in = token_data.get("expires_in", 3600)  # 默认1小时
-            
-            if not access_token:
-                logger.error(f"No access token in Graph API response for {credentials.email}")
-                raise HTTPException(
-                    status_code=401,
-                    detail="Failed to obtain Graph API access token"
-                )
-            
-            # 格式化 token 信息用于日志
-            if len(access_token) <= 16:
-                masked_token = access_token[:4] + "..." + access_token[-4:]
+        # 使用统一的缓存机制获取 access token
+        access_token = await get_cached_access_token(credentials)
+        
+        # 格式化 token 信息用于日志
+        if len(access_token) <= 16:
+            masked_token = access_token[:4] + "..." + access_token[-4:]
+        else:
+            masked_token = access_token[:8] + "..." + access_token[-8:]
+        
+        # 获取过期时间信息用于日志
+        import database as db
+        token_info = db.get_account_access_token(credentials.email)
+        if token_info:
+            expires_at_str = token_info.get('token_expires_at')
+            if expires_at_str:
+                from datetime import datetime
+                if isinstance(expires_at_str, datetime):
+                    expires_at = expires_at_str
+                else:
+                    expires_at = datetime.fromisoformat(expires_at_str)
+                now = datetime.now()
+                expires_in = int((expires_at - now).total_seconds())
+                logger.info(f"[Token信息] 账户: {credentials.email}, Graph API Token: {masked_token}, Expires in: {expires_in} seconds ({int(expires_in/60)} minutes)")
             else:
-                masked_token = access_token[:8] + "..." + access_token[-8:]
+                logger.info(f"[Token信息] 账户: {credentials.email}, Graph API Token: {masked_token}")
+        else:
+            logger.info(f"[Token信息] 账户: {credentials.email}, Graph API Token: {masked_token}")
+        
+        return access_token
             
-            logger.info(f"[Token信息] 账户: {credentials.email}, Graph API Token: {masked_token}, Expires in: {expires_in} seconds ({int(expires_in/60)} minutes)")
-            return access_token
-            
-    except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP {e.response.status_code} error getting Graph API token for {credentials.email}: {e}")
-        raise HTTPException(status_code=401, detail="Graph API authentication failed")
     except Exception as e:
         logger.error(f"Error getting Graph API token for {credentials.email}: {e}")
         raise HTTPException(status_code=500, detail="Graph API token acquisition failed")
@@ -188,7 +187,9 @@ async def list_emails_graph(
         folders_to_query = [folder_map.get(folder, "inbox")]
     
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        # 增加超时时间，并添加重试机制
+        timeout = httpx.Timeout(60.0, connect=30.0)  # 总超时60秒，连接超时30秒
+        async with httpx.AsyncClient(timeout=timeout) as client:
             for folder_name in folders_to_query:
                 # 构建查询参数（参考 mail-all.js 的实现，使用 $top=10000）
                 params = {
@@ -212,8 +213,26 @@ async def list_emails_graph(
                     params["$filter"] = " and ".join(filters)
                 
                 url = f"{GRAPH_API_BASE_URL}/me/mailFolders/{folder_name}/messages"
-                response = await client.get(url, headers=headers, params=params)
-                response.raise_for_status()
+                
+                # 添加重试机制
+                max_retries = 2
+                last_error = None
+                for attempt in range(max_retries + 1):
+                    try:
+                        response = await client.get(url, headers=headers, params=params)
+                        response.raise_for_status()
+                        break  # 成功，退出重试循环
+                    except (httpx.ConnectError, httpx.TimeoutException) as e:
+                        last_error = e
+                        if attempt < max_retries:
+                            wait_time = (attempt + 1) * 2  # 递增等待时间：2秒、4秒
+                            logger.warning(
+                                f"Network error fetching emails from {folder_name} for {credentials.email} "
+                                f"(attempt {attempt + 1}/{max_retries + 1}): {e}. Retrying in {wait_time}s..."
+                            )
+                            await asyncio.sleep(wait_time)
+                        else:
+                            raise  # 最后一次尝试失败，抛出异常
                 
                 data = response.json()
                 emails = data.get("value", [])
@@ -286,6 +305,14 @@ async def list_emails_graph(
         logger.debug(f"Fetched {len(paginated_emails)} emails via Graph API for {credentials.email}")
         return paginated_emails, total
         
+    except httpx.ConnectError as e:
+        error_msg = f"Network connection error: Unable to connect to Microsoft Graph API. Please check your network connection."
+        logger.error(f"Connection error fetching emails via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=503, detail=error_msg)
+    except httpx.TimeoutException as e:
+        error_msg = f"Request timeout: The request to Microsoft Graph API took too long. Please try again later."
+        logger.error(f"Timeout error fetching emails via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=504, detail=error_msg)
     except httpx.HTTPStatusError as e:
         logger.error(f"HTTP error fetching emails via Graph API for {credentials.email}: Status {e.response.status_code}, Response: {e.response.text[:200]}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch emails via Graph API: HTTP {e.response.status_code}")
@@ -333,14 +360,32 @@ async def get_email_details_graph(
     }
     
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        # 增加超时时间，并添加重试机制
+        timeout = httpx.Timeout(60.0, connect=30.0)  # 总超时60秒，连接超时30秒
+        async with httpx.AsyncClient(timeout=timeout) as client:
             url = f"{GRAPH_API_BASE_URL}/me/messages/{message_id}"
             params = {
                 "$select": "id,subject,from,toRecipients,receivedDateTime,body,bodyPreview"
             }
             
-            response = await client.get(url, headers=headers, params=params)
-            response.raise_for_status()
+            # 添加重试机制
+            max_retries = 2
+            last_error = None
+            for attempt in range(max_retries + 1):
+                try:
+                    response = await client.get(url, headers=headers, params=params)
+                    response.raise_for_status()
+                    break  # 成功，退出重试循环
+                except (httpx.ConnectError, httpx.TimeoutException) as e:
+                    last_error = e
+                    if attempt < max_retries:
+                        wait_time = (attempt + 1) * 2  # 递增等待时间：2秒、4秒
+                        logger.warning(
+                            f"Network error fetching email detail for {message_id} (attempt {attempt + 1}/{max_retries + 1}): {e}. Retrying in {wait_time}s..."
+                        )
+                        await asyncio.sleep(wait_time)
+                    else:
+                        raise  # 最后一次尝试失败，抛出异常
             
             email = response.json()
             
@@ -416,14 +461,22 @@ async def get_email_details_graph(
             
             return email_detail_response
             
+    except httpx.ConnectError as e:
+        error_msg = f"Network connection error: Unable to connect to Microsoft Graph API. Please check your network connection."
+        logger.error(f"Connection error fetching email details via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=503, detail=error_msg)
+    except httpx.TimeoutException as e:
+        error_msg = f"Request timeout: The request to Microsoft Graph API took too long. Please try again later."
+        logger.error(f"Timeout error fetching email details via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=504, detail=error_msg)
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
             raise HTTPException(status_code=404, detail="Email not found")
-        logger.error(f"HTTP error fetching email details via Graph API: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch email details via Graph API")
+        logger.error(f"HTTP error fetching email details via Graph API for {credentials.email}: Status {e.response.status_code}, Response: {e.response.text[:200]}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch email details via Graph API: HTTP {e.response.status_code}")
     except Exception as e:
-        logger.error(f"Error fetching email details via Graph API: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch email details via Graph API")
+        logger.exception(f"Error fetching email details via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch email details via Graph API: {str(e)}")
 
 
 async def delete_email_graph(

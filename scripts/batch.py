@@ -34,7 +34,7 @@ try:
 except ImportError:
     list_emails_graph = None
 
-from oauth_service import get_access_token
+from oauth_service import get_cached_access_token
 
 
 # ============================================================================
@@ -387,7 +387,8 @@ async def list_emails(imap_pool: IMAPConnectionPool, credentials: AccountCredent
     Returns:
         List[Dict]: 邮件列表，每个邮件包含基本信息
     """
-    access_token = await get_access_token(credentials)
+    # 优先使用缓存的 access_token，需要时自动刷新
+    access_token = await get_cached_access_token(credentials)
     email_items = []
 
     # 获取IMAP连接

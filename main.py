@@ -202,6 +202,7 @@ async def token_refresh_background_task():
                             if result["success"]:
                                 # 使用后台任务专用线程池执行同步数据库操作
                                 loop = asyncio.get_event_loop()
+                                # 更新 refresh token 和刷新时间
                                 await loop.run_in_executor(
                                     background_tasks_executor,
                                     partial(
@@ -212,6 +213,16 @@ async def token_refresh_background_task():
                                         next_refresh_time=next_refresh.isoformat(),
                                         refresh_status="success",
                                         refresh_error=None,
+                                    )
+                                )
+                                # 保存 access token 和过期时间
+                                await loop.run_in_executor(
+                                    background_tasks_executor,
+                                    partial(
+                                        db.update_account_access_token,
+                                        email_id,
+                                        result["new_access_token"],
+                                        result["access_token_expires_at"],
                                     )
                                 )
                                 logger.info(f"Successfully refreshed token for {email_id}")
