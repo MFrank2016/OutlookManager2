@@ -13,7 +13,8 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Any, Optional
+from functools import partial
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +32,7 @@ from config import (
     EMAIL_SYNC_PAGE_SIZE,
     HOST,
     PORT,
+    REFRESH_TOKEN_INTERVAL,
 )
 from logger_config import setup_logger
 
@@ -50,6 +52,13 @@ logger = setup_logger()
 
 # 初始化Jinja2模板
 templates = Jinja2Templates(directory="static/templates")
+
+
+def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
+    """将 datetime 对象转换为 ISO 格式字符串"""
+    if isinstance(dt, datetime):
+        return dt.isoformat()
+    return dt  # 如果已经是字符串或None，直接返回
 
 # API请求专用的线程池执行器（用于处理API请求中的同步数据库操作）
 # 限制并发数为5，确保API请求能及时响应
@@ -120,8 +129,12 @@ async def token_refresh_background_task():
                         continue
                     
                     try:
-                        # 解析最后刷新时间
-                        last_refresh_time = datetime.fromisoformat(last_refresh_time_str.replace('Z', '+00:00'))
+                        # 解析最后刷新时间（处理 datetime 对象或字符串）
+                        if isinstance(last_refresh_time_str, datetime):
+                            last_refresh_time = last_refresh_time_str
+                        else:
+                            last_refresh_time = datetime.fromisoformat(last_refresh_time_str.replace('Z', '+00:00'))
+                        
                         # 处理时区问题（如果时间戳没有时区信息，假设为本地时间）
                         if last_refresh_time.tzinfo is None:
                             last_refresh_time = last_refresh_time.replace(tzinfo=None)
@@ -141,7 +154,7 @@ async def token_refresh_background_task():
                                 f"Skipping {email_id}: last refreshed {time_since_refresh.days} days ago, "
                                 f"need to wait {days_remaining:.1f} days more"
                             )
-                    except (ValueError, TypeError) as e:
+                    except (ValueError, TypeError, AttributeError) as e:
                         # 如果时间解析失败，需要刷新
                         logger.warning(f"Failed to parse last_refresh_time for {email_id}: {e}, will refresh")
                         accounts_to_refresh.append(account_data)
@@ -172,8 +185,8 @@ async def token_refresh_background_task():
                                 refresh_token=account_data["refresh_token"],
                                 client_id=account_data["client_id"],
                                 tags=account_data.get("tags", []),
-                                last_refresh_time=account_data.get("last_refresh_time"),
-                                next_refresh_time=account_data.get("next_refresh_time"),
+                                last_refresh_time=_serialize_datetime(account_data.get("last_refresh_time")),
+                                next_refresh_time=_serialize_datetime(account_data.get("next_refresh_time")),
                                 refresh_status=account_data.get("refresh_status", "pending"),
                                 refresh_error=account_data.get("refresh_error"),
                                 api_method=account_data.get("api_method", "imap"),  # 支持graph邮箱刷新
@@ -191,13 +204,15 @@ async def token_refresh_background_task():
                                 loop = asyncio.get_event_loop()
                                 await loop.run_in_executor(
                                     background_tasks_executor,
-                                    db.update_account,
-                                    email_id,
-                                    refresh_token=result["new_refresh_token"],
-                                    last_refresh_time=current_time,
-                                    next_refresh_time=next_refresh.isoformat(),
-                                    refresh_status="success",
-                                    refresh_error=None,
+                                    partial(
+                                        db.update_account,
+                                        email_id,
+                                        refresh_token=result["new_refresh_token"],
+                                        last_refresh_time=current_time,
+                                        next_refresh_time=next_refresh.isoformat(),
+                                        refresh_status="success",
+                                        refresh_error=None,
+                                    )
                                 )
                                 logger.info(f"Successfully refreshed token for {email_id}")
                                 return True
@@ -206,10 +221,12 @@ async def token_refresh_background_task():
                                 loop = asyncio.get_event_loop()
                                 await loop.run_in_executor(
                                     background_tasks_executor,
-                                    db.update_account,
-                                    email_id,
-                                    refresh_status="failed",
-                                    refresh_error=result.get("error", "Unknown error"),
+                                    partial(
+                                        db.update_account,
+                                        email_id,
+                                        refresh_status="failed",
+                                        refresh_error=result.get("error", "Unknown error"),
+                                    )
                                 )
                                 logger.error(
                                     f"Failed to refresh token for {email_id}: {result.get('error')}"
@@ -222,10 +239,12 @@ async def token_refresh_background_task():
                             loop = asyncio.get_event_loop()
                             await loop.run_in_executor(
                                 background_tasks_executor,
-                                db.update_account,
-                                email_id, 
-                                refresh_status="failed", 
-                                refresh_error=str(e)
+                                partial(
+                                    db.update_account,
+                                    email_id, 
+                                    refresh_status="failed", 
+                                    refresh_error=str(e)
+                                )
                             )
                             return False
                 
@@ -249,14 +268,16 @@ async def token_refresh_background_task():
                 logger.info(
                     f"Token refresh completed: {refresh_count} succeeded, {failed_count} failed"
                 )
-                # 等待1天（使用可中断的sleep）
-                for _ in range(144):  # 24小时 = 144个10分钟
-                    await asyncio.sleep(600)  # 10分钟
+                # 等待刷新token间隔（使用可中断的sleep）
+                sleep_interval = min(REFRESH_TOKEN_INTERVAL, 10)
+                sleep_count = REFRESH_TOKEN_INTERVAL // sleep_interval
+                for _ in range(sleep_count):
+                    await asyncio.sleep(sleep_interval)
             except asyncio.CancelledError:
                 logger.info("Token refresh background task cancelled")
                 raise
             except Exception as e:
-                logger.error(f"Error in token refresh background task: {e}")
+                logger.exception("Error in token refresh background task")
                 # 出错后等待1小时再重试（使用可中断的sleep）
                 for _ in range(6):  # 1小时 = 6个10分钟
                     await asyncio.sleep(600)  # 10分钟
@@ -277,7 +298,7 @@ async def email_sync_background_task():
     
     # 首次启动延迟30秒，等待服务完全启动
     try:
-        await asyncio.sleep(30)
+        await asyncio.sleep(100)
     except asyncio.CancelledError:
         logger.info("Email sync background task cancelled during startup")
         raise
@@ -388,7 +409,7 @@ async def email_sync_background_task():
                 )
 
                 # 等待下一次同步（使用可中断的sleep）
-                sleep_interval = min(EMAIL_SYNC_INTERVAL, 60)  # 最多等待60秒
+                sleep_interval = min(EMAIL_SYNC_INTERVAL, 10) 
                 sleep_count = EMAIL_SYNC_INTERVAL // sleep_interval
                 for _ in range(sleep_count):
                     await asyncio.sleep(sleep_interval)
@@ -398,7 +419,7 @@ async def email_sync_background_task():
                 raise
 
             except Exception as e:
-                logger.error(f"Error in email sync background task: {e}")
+                logger.exception("Error in email sync background task")
                 # 出错后等待一段时间再重试（使用可中断的sleep）
                 try:
                     await asyncio.sleep(60)
@@ -478,7 +499,7 @@ async def warmup_cache():
         logger.info("Cache warmup completed")
         
     except Exception as e:
-        logger.error(f"Error during cache warmup: {e}")
+        logger.exception("Error during cache warmup")
 
 
 # ============================================================================

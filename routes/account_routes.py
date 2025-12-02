@@ -9,7 +9,7 @@ import uuid
 import json
 import asyncio
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Any
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, BackgroundTasks
@@ -39,6 +39,13 @@ logger = logging.getLogger(__name__)
 
 # 创建路由器
 router = APIRouter(prefix="/accounts", tags=["账户管理"])
+
+
+def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
+    """将 datetime 对象转换为 ISO 格式字符串"""
+    if isinstance(dt, datetime):
+        return dt.isoformat()
+    return dt  # 如果已经是字符串或None，直接返回
 
 
 @router.get("/random", response_model=AccountListResponse)
@@ -79,8 +86,8 @@ async def get_random_accounts(
                 client_id=account_data.get("client_id", ""),
                 status=status,
                 tags=account_data.get("tags", []),
-                last_refresh_time=account_data.get("last_refresh_time"),
-                next_refresh_time=account_data.get("next_refresh_time"),
+                last_refresh_time=_serialize_datetime(account_data.get("last_refresh_time")),
+                next_refresh_time=_serialize_datetime(account_data.get("next_refresh_time")),
                 refresh_status=account_data.get("refresh_status", "pending"),
             )
             all_accounts.append(account)
@@ -178,8 +185,8 @@ async def get_accounts(
                 client_id=account_data.get("client_id", ""),
                 status=status,
                 tags=account_data.get("tags", []),
-                last_refresh_time=account_data.get("last_refresh_time"),
-                next_refresh_time=account_data.get("next_refresh_time"),
+                last_refresh_time=_serialize_datetime(account_data.get("last_refresh_time")),
+                next_refresh_time=_serialize_datetime(account_data.get("next_refresh_time")),
                 refresh_status=account_data.get("refresh_status", "pending"),
             )
             all_accounts.append(account)
@@ -502,8 +509,8 @@ async def batch_refresh_tokens(
                         refresh_token=account_data["refresh_token"],
                         client_id=account_data["client_id"],
                         tags=account_data.get("tags", []),
-                        last_refresh_time=account_data.get("last_refresh_time"),
-                        next_refresh_time=account_data.get("next_refresh_time"),
+                        last_refresh_time=_serialize_datetime(account_data.get("last_refresh_time")),
+                        next_refresh_time=_serialize_datetime(account_data.get("next_refresh_time")),
                         refresh_status=account_data.get("refresh_status", "pending"),
                         refresh_error=account_data.get("refresh_error"),
                         api_method=account_data.get("api_method", "imap"),

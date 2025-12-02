@@ -7,6 +7,21 @@
 import os
 from pathlib import Path
 
+# 加载 .env 文件（如果存在）
+try:
+    from dotenv import load_dotenv
+    # 从项目根目录加载 .env 文件
+    env_path = Path(__file__).parent / '.env'
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"✅ 已加载环境变量文件: {env_path}")
+    else:
+        # 如果根目录没有，尝试加载当前目录的 .env
+        load_dotenv()
+except ImportError:
+    # 如果没有安装 python-dotenv，跳过（使用系统环境变量）
+    pass
+
 # ============================================================================
 # OAuth2配置
 # ============================================================================
@@ -103,9 +118,12 @@ PORT = 8000
 # 是否启用后台邮件自动同步
 AUTO_SYNC_EMAILS_ENABLED = True
 
-# 邮件同步间隔（秒）- 默认5分钟
-EMAIL_SYNC_INTERVAL = 300
+# 邮件同步间隔（秒）- 默认1天
+EMAIL_SYNC_INTERVAL = 60 * 60 * 24
 
 # 每次同步获取的邮件页数（page_size=100，即每次最多100封）
 EMAIL_SYNC_PAGE_SIZE = 100
+
+# 刷新token间隔（秒）- 默认1天
+REFRESH_TOKEN_INTERVAL = 60 * 60 * 24
 

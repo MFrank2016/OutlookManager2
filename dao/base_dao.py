@@ -111,6 +111,31 @@ class BaseDAO:
         """
         return [dict(row) for row in rows] if rows else []
     
+    def _extract_scalar_value(self, row: Any) -> Any:
+        """
+        从查询结果行中提取标量值（兼容SQLite Row、RealDictRow等）
+        
+        Args:
+            row: 查询结果行
+        
+        Returns:
+            标量值或 None
+        """
+        if row is None:
+            return None
+        if isinstance(row, dict):
+            # RealDictRow / sqlite Row （当作映射）
+            for value in row.values():
+                return value
+            return None
+        if isinstance(row, (list, tuple)):
+            return row[0] if row else None
+        # 其他类型，尝试使用索引访问
+        try:
+            return row[0]
+        except (KeyError, TypeError, IndexError):
+            return row
+    
     def _get_param_placeholder(self) -> str:
         """
         获取参数占位符
@@ -157,7 +182,8 @@ class BaseDAO:
                 params
             )
             result = cursor.fetchone()
-            return result[0] if result else 0
+            value = self._extract_scalar_value(result)
+            return value if value is not None else 0
     
     def find_by_id(self, record_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -284,8 +310,9 @@ class BaseDAO:
                     list(data.values())
                 )
                 result = cursor.fetchone()
+                value = self._extract_scalar_value(result)
                 conn.commit()
-                return result[0] if result else 0
+                return value if value is not None else 0
             else:
                 cursor.execute(
                     f"INSERT INTO {self.table_name} ({columns_str}) VALUES ({placeholders})",

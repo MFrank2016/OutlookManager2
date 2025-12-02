@@ -5,7 +5,8 @@
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Any
+from datetime import datetime
 
 from fastapi import HTTPException
 
@@ -14,6 +15,13 @@ from models import AccountCredentials, AccountInfo, AccountListResponse
 
 # 获取日志记录器
 logger = logging.getLogger(__name__)
+
+
+def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
+    """将 datetime 对象转换为 ISO 格式字符串"""
+    if isinstance(dt, datetime):
+        return dt.isoformat()
+    return dt  # 如果已经是字符串或None，直接返回
 
 
 async def get_account_credentials(email_id: str) -> AccountCredentials:
@@ -55,8 +63,8 @@ async def get_account_credentials(email_id: str) -> AccountCredentials:
             refresh_token=account["refresh_token"],
             client_id=account["client_id"],
             tags=account.get("tags", []),
-            last_refresh_time=account.get("last_refresh_time"),
-            next_refresh_time=account.get("next_refresh_time"),
+            last_refresh_time=_serialize_datetime(account.get("last_refresh_time")),
+            next_refresh_time=_serialize_datetime(account.get("next_refresh_time")),
             refresh_status=account.get("refresh_status", "pending"),
             refresh_error=account.get("refresh_error"),
             api_method=account.get("api_method", "imap"),
@@ -152,8 +160,8 @@ async def get_all_accounts(
                 client_id=account_data.get("client_id", ""),
                 status=status,
                 tags=account_data.get("tags", []),
-                last_refresh_time=account_data.get("last_refresh_time"),
-                next_refresh_time=account_data.get("next_refresh_time"),
+                last_refresh_time=_serialize_datetime(account_data.get("last_refresh_time")),
+                next_refresh_time=_serialize_datetime(account_data.get("next_refresh_time")),
                 refresh_status=account_data.get("refresh_status", "pending"),
                 api_method=account_data.get("api_method", "imap"),
             )

@@ -41,11 +41,25 @@ class EmailCacheDAO(BaseDAO):
                         len(email.get('verification_code') or '')
                     )
                     
-                    cursor.execute("""
-                        INSERT OR REPLACE INTO emails_cache 
+                    placeholder = self._get_param_placeholder()
+                    
+                    cursor.execute(f"""
+                        INSERT INTO emails_cache 
                         (email_account, message_id, folder, subject, from_email, date, 
                          is_read, has_attachments, sender_initial, verification_code, body_preview, cache_size, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                        VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, CURRENT_TIMESTAMP)
+                        ON CONFLICT(email_account, message_id) DO UPDATE SET
+                            folder = excluded.folder,
+                            subject = excluded.subject,
+                            from_email = excluded.from_email,
+                            date = excluded.date,
+                            is_read = excluded.is_read,
+                            has_attachments = excluded.has_attachments,
+                            sender_initial = excluded.sender_initial,
+                            verification_code = excluded.verification_code,
+                            body_preview = excluded.body_preview,
+                            cache_size = excluded.cache_size,
+                            created_at = excluded.created_at
                     """, (
                         email_account,
                         email.get('message_id'),
@@ -113,27 +127,28 @@ class EmailCacheDAO(BaseDAO):
         Returns:
             (邮件列表, 总数)
         """
-        conditions = ["email_account = ?"]
+        placeholder = self._get_param_placeholder()
+        conditions = [f"email_account = {placeholder}"]
         params = [email_account]
         
         if folder and folder != 'all':
-            conditions.append("folder = ?")
+            conditions.append(f"folder = {placeholder}")
             params.append(folder)
         
         if sender_search:
-            conditions.append("from_email LIKE ?")
+            conditions.append(f"from_email LIKE {placeholder}")
             params.append(f"%{sender_search}%")
         
         if subject_search:
-            conditions.append("subject LIKE ?")
+            conditions.append(f"subject LIKE {placeholder}")
             params.append(f"%{subject_search}%")
             
         if start_time:
-            conditions.append("date >= ?")
+            conditions.append(f"date >= {placeholder}")
             params.append(start_time)
             
         if end_time:
-            conditions.append("date <= ?")
+            conditions.append(f"date <= {placeholder}")
             params.append(end_time)
         
         where_clause = self._build_where_clause(conditions, params)
@@ -165,35 +180,39 @@ class EmailCacheDAO(BaseDAO):
                 FROM emails_cache 
                 WHERE {where_clause}
                 ORDER BY {order_by}
-                LIMIT ? OFFSET ?
+                LIMIT {placeholder} OFFSET {placeholder}
             """, params + [page_size, offset])
             
             rows = cursor.fetchall()
             
             # 更新访问统计（批量更新）
             if rows:
-                message_ids = [row[0] for row in rows]
-                placeholders = ','.join(['?'] * len(message_ids))
+                message_ids = [
+                    (row['message_id'] if isinstance(row, dict) else row[0])
+                    for row in rows
+                ]
+                placeholders = ','.join([placeholder] * len(message_ids))
                 cursor.execute(f"""
                     UPDATE emails_cache 
                     SET access_count = access_count + 1,
                     last_accessed_at = CURRENT_TIMESTAMP
-                    WHERE email_account = ? AND message_id IN ({placeholders})
+                    WHERE email_account = {placeholder} AND message_id IN ({placeholders})
                 """, [email_account] + message_ids)
             
             emails = []
             for row in rows:
+                row_dict = dict(row) if not isinstance(row, dict) else row
                 emails.append({
-                    'message_id': row[0],
-                    'folder': row[1],
-                    'subject': row[2],
-                    'from_email': row[3],
-                    'date': row[4],
-                    'is_read': bool(row[5]),
-                    'has_attachments': bool(row[6]),
-                    'sender_initial': row[7],
-                    'verification_code': row[8],
-                    'body_preview': row[9]
+                    'message_id': row_dict.get('message_id'),
+                    'folder': row_dict.get('folder'),
+                    'subject': row_dict.get('subject'),
+                    'from_email': row_dict.get('from_email'),
+                    'date': row_dict.get('date'),
+                    'is_read': bool(row_dict.get('is_read')),
+                    'has_attachments': bool(row_dict.get('has_attachments')),
+                    'sender_initial': row_dict.get('sender_initial'),
+                    'verification_code': row_dict.get('verification_code'),
+                    'body_preview': row_dict.get('body_preview')
                 })
             
             return emails, total
@@ -208,7 +227,8 @@ class EmailCacheDAO(BaseDAO):
         Returns:
             是否清除成功
         """
-        return self.delete_by_condition("email_account = ?", [email_account]) > 0
+        placeholder = self._get_param_placeholder()
+        return self.delete_by_condition(f"email_account = {placeholder}", [email_account]) > 0
     
     def delete_email(self, email_account: str, message_id: str) -> bool:
         """
@@ -221,8 +241,9 @@ class EmailCacheDAO(BaseDAO):
         Returns:
             是否删除成功
         """
+        placeholder = self._get_param_placeholder()
         return self.delete_by_condition(
-            "email_account = ? AND message_id = ?",
+            f"email_account = {placeholder} AND message_id = {placeholder}",
             [email_account, message_id]
         ) > 0
     
@@ -237,11 +258,12 @@ class EmailCacheDAO(BaseDAO):
         Returns:
             邮件总数
         """
-        conditions = ["email_account = ?"]
+        placeholder = self._get_param_placeholder()
+        conditions = [f"email_account = {placeholder}"]
         params = [email_account]
         
         if folder and folder != 'all':
-            conditions.append("folder = ?")
+            conditions.append(f"folder = {placeholder}")
             params.append(folder)
         
         where_clause = self._build_where_clause(conditions, params)

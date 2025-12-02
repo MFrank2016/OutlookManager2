@@ -65,11 +65,12 @@ class ConfigDAO(BaseDAO):
         Returns:
             是否设置成功
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(f"""
                 INSERT INTO system_config (key, value, description, updated_at)
-                VALUES (?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
                 ON CONFLICT(key) DO UPDATE SET
                     value = excluded.value,
                     description = excluded.description,
@@ -90,9 +91,10 @@ class ConfigDAO(BaseDAO):
         Returns:
             是否删除成功
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM system_config WHERE key = ?", (key,))
+            cursor.execute(f"DELETE FROM system_config WHERE key = {placeholder}", (key,))
             conn.commit()
             
             success = cursor.rowcount > 0

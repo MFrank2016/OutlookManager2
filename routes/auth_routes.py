@@ -5,7 +5,9 @@
 """
 
 import asyncio
+import json
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -94,21 +96,42 @@ async def login(request: auth.LoginRequest):
         raise HTTPException(status_code=500, detail=f"登录失败: {str(e)}")
 
 
+def _serialize_datetime(value):
+    """将 datetime 转为 ISO 字符串，其他类型原样返回"""
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value
+
+
 @router.get("/me", response_model=auth.UserInfo)
 async def get_current_user_info(user: dict = Depends(auth.get_current_user)):
     """
     获取当前登录的用户信息（含角色和权限）
     """
+    bound_accounts = user.get("bound_accounts", [])
+    if isinstance(bound_accounts, str):
+        try:
+            bound_accounts = json.loads(bound_accounts) if bound_accounts else []
+        except json.JSONDecodeError:
+            bound_accounts = []
+
+    permissions = user.get("permissions", [])
+    if isinstance(permissions, str):
+        try:
+            permissions = json.loads(permissions) if permissions else []
+        except json.JSONDecodeError:
+            permissions = []
+
     return auth.UserInfo(
         id=user["id"],
         username=user["username"],
         email=user.get("email"),
         role=user.get("role", "user"),
-        bound_accounts=user.get("bound_accounts", []),
-        permissions=user.get("permissions", []),
+        bound_accounts=bound_accounts,
+        permissions=permissions,
         is_active=bool(user["is_active"]),
-        created_at=user["created_at"],
-        last_login=user.get("last_login"),
+        created_at=_serialize_datetime(user.get("created_at")),
+        last_login=_serialize_datetime(user.get("last_login")),
     )
 
 

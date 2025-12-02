@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 from .base_dao import BaseDAO, get_db_connection
+from config import DB_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +39,19 @@ class UserDAO(BaseDAO):
             
             if row:
                 user = dict(row)
-                # 解析 JSON 字段
-                user['bound_accounts'] = json.loads(user.get('bound_accounts') or '[]')
-                user['permissions'] = json.loads(user.get('permissions') or '[]')
+                # 解析 JSON 字段 (PostgreSQL 会自动解析为 list，SQLite 返回 string)
+                bound_accounts = user.get('bound_accounts')
+                if isinstance(bound_accounts, str):
+                    user['bound_accounts'] = json.loads(bound_accounts or '[]')
+                elif bound_accounts is None:
+                    user['bound_accounts'] = []
+                
+                permissions = user.get('permissions')
+                if isinstance(permissions, str):
+                    user['permissions'] = json.loads(permissions or '[]')
+                elif permissions is None:
+                    user['permissions'] = []
+                    
                 return user
             return None
     
@@ -63,15 +74,16 @@ class UserDAO(BaseDAO):
         Returns:
             (用户列表, 总数)
         """
+        placeholder = self._get_param_placeholder()
         conditions = []
         params = []
         
         if role_filter:
-            conditions.append("role = ?")
+            conditions.append(f"role = {placeholder}")
             params.append(role_filter)
         
         if search:
-            conditions.append("(username LIKE ? OR email LIKE ?)")
+            conditions.append(f"(username LIKE {placeholder} OR email LIKE {placeholder})")
             params.extend([f"%{search}%", f"%{search}%"])
         
         where_clause = self._build_where_clause(conditions, params)
@@ -86,8 +98,18 @@ class UserDAO(BaseDAO):
         
         # 解析 JSON 字段
         for user in records:
-            user['bound_accounts'] = json.loads(user.get('bound_accounts') or '[]')
-            user['permissions'] = json.loads(user.get('permissions') or '[]')
+            # PostgreSQL 会自动解析为 list，SQLite 返回 string
+            bound_accounts = user.get('bound_accounts')
+            if isinstance(bound_accounts, str):
+                user['bound_accounts'] = json.loads(bound_accounts or '[]')
+            elif bound_accounts is None:
+                user['bound_accounts'] = []
+            
+            permissions = user.get('permissions')
+            if isinstance(permissions, str):
+                user['permissions'] = json.loads(permissions or '[]')
+            elif permissions is None:
+                user['permissions'] = []
         
         return records, total
     
@@ -134,14 +156,18 @@ class UserDAO(BaseDAO):
             'is_active': 1 if is_active else 0
         }
         
+        placeholder = self._get_param_placeholder()
+        # PostgreSQL 使用 True/False，SQLite 使用 1/0
+        is_active_val = is_active if DB_TYPE == "postgresql" else (1 if is_active else 0)
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(f"""
                 INSERT INTO users (username, password_hash, email, role, bound_accounts, permissions, is_active)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
             """, (
                 username, password_hash, email, role,
-                bound_accounts_json, permissions_json, 1 if is_active else 0
+                bound_accounts_json, permissions_json, is_active_val
             ))
             conn.commit()
             logger.info(f"Created user: {username} (role: {role})")
@@ -174,13 +200,14 @@ class UserDAO(BaseDAO):
             kwargs['permissions'] = json.dumps(kwargs['permissions'], ensure_ascii=False)
         
         # 构建 UPDATE 语句
-        set_clause = ", ".join([f"{key} = ?" for key in kwargs.keys()])
+        placeholder = self._get_param_placeholder()
+        set_clause = ", ".join([f"{key} = {placeholder}" for key in kwargs.keys()])
         values = list(kwargs.values()) + [username]
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                f"UPDATE users SET {set_clause} WHERE username = ?",
+                f"UPDATE users SET {set_clause} WHERE username = {placeholder}",
                 values
             )
             conn.commit()
@@ -213,10 +240,11 @@ class UserDAO(BaseDAO):
         Returns:
             是否更新成功
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "UPDATE users SET password_hash = ? WHERE username = ?",
+                f"UPDATE users SET password_hash = {placeholder} WHERE username = {placeholder}",
                 (new_password_hash, username)
             )
             conn.commit()
@@ -238,7 +266,8 @@ class UserDAO(BaseDAO):
         """
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM users WHERE username = ?", (username,))
+            placeholder = self._get_param_placeholder()
+            cursor.execute(f"DELETE FROM users WHERE username = {placeholder}", (username,))
             conn.commit()
             
             success = cursor.rowcount > 0

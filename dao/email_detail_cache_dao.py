@@ -74,11 +74,23 @@ class EmailDetailCacheDAO(BaseDAO):
                 
                 compressed_size = (len(compressed_plain) if compressed_plain else 0) + (len(compressed_html) if compressed_html else 0)
                 
-                cursor.execute("""
-                    INSERT OR REPLACE INTO email_details_cache 
+                placeholder = self._get_param_placeholder()
+                
+                cursor.execute(f"""
+                    INSERT INTO email_details_cache 
                     (email_account, message_id, subject, from_email, to_email, 
                      date, body_plain, body_html, verification_code, body_size, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, CURRENT_TIMESTAMP)
+                    ON CONFLICT(email_account, message_id) DO UPDATE SET
+                        subject = excluded.subject,
+                        from_email = excluded.from_email,
+                        to_email = excluded.to_email,
+                        date = excluded.date,
+                        body_plain = excluded.body_plain,
+                        body_html = excluded.body_html,
+                        verification_code = excluded.verification_code,
+                        body_size = excluded.body_size,
+                        created_at = excluded.created_at
                 """, (
                     email_account,
                     email_detail.get('message_id'),
@@ -121,32 +133,34 @@ class EmailDetailCacheDAO(BaseDAO):
             cursor = conn.cursor()
             
             # 更新访问统计
-            cursor.execute("""
+            placeholder = self._get_param_placeholder()
+            cursor.execute(f"""
                 UPDATE email_details_cache 
                 SET access_count = access_count + 1,
                     last_accessed_at = CURRENT_TIMESTAMP
-                WHERE email_account = ? AND message_id = ?
+                WHERE email_account = {placeholder} AND message_id = {placeholder}
             """, (email_account, message_id))
             
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT message_id, subject, from_email, to_email, date, 
                        body_plain, body_html, verification_code
                 FROM email_details_cache 
-                WHERE email_account = ? AND message_id = ?
+                WHERE email_account = {placeholder} AND message_id = {placeholder}
             """, (email_account, message_id))
             
             row = cursor.fetchone()
             
             if row:
+                row_dict = dict(row) if not isinstance(row, dict) else row
                 return {
-                    'message_id': row[0],
-                    'subject': row[1],
-                    'from_email': row[2],
-                    'to_email': row[3],
-                    'date': row[4],
-                    'body_plain': decompress_text(row[5]),
-                    'body_html': decompress_text(row[6]),
-                    'verification_code': row[7]
+                    'message_id': row_dict.get('message_id'),
+                    'subject': row_dict.get('subject'),
+                    'from_email': row_dict.get('from_email'),
+                    'to_email': row_dict.get('to_email'),
+                    'date': row_dict.get('date'),
+                    'body_plain': decompress_text(row_dict.get('body_plain')),
+                    'body_html': decompress_text(row_dict.get('body_html')),
+                    'verification_code': row_dict.get('verification_code')
                 }
             return None
     
@@ -160,7 +174,8 @@ class EmailDetailCacheDAO(BaseDAO):
         Returns:
             是否清除成功
         """
-        return self.delete_by_condition("email_account = ?", [email_account]) > 0
+        placeholder = self._get_param_placeholder()
+        return self.delete_by_condition(f"email_account = {placeholder}", [email_account]) > 0
     
     def delete_email(self, email_account: str, message_id: str) -> bool:
         """
@@ -173,8 +188,9 @@ class EmailDetailCacheDAO(BaseDAO):
         Returns:
             是否删除成功
         """
+        placeholder = self._get_param_placeholder()
         return self.delete_by_condition(
-            "email_account = ? AND message_id = ?",
+            f"email_account = {placeholder} AND message_id = {placeholder}",
             [email_account, message_id]
         ) > 0
     
@@ -186,22 +202,42 @@ class EmailDetailCacheDAO(BaseDAO):
             缓存统计信息字典
         """
         from config import MAX_CACHE_SIZE_MB, MAX_EMAILS_CACHE_COUNT, MAX_EMAIL_DETAILS_CACHE_COUNT
+        from database import DB_TYPE
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
-            # 获取数据库文件大小
-            cursor.execute("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()")
-            db_size_bytes = cursor.fetchone()[0]
+            # 获取数据库文件大小（根据数据库类型使用不同的方法）
+            if DB_TYPE == "postgresql":
+                # PostgreSQL: 使用 pg_database_size
+                cursor.execute("SELECT pg_database_size(current_database())")
+                db_size_bytes = self._extract_scalar_value(cursor.fetchone()) or 0
+            else:
+                # SQLite: 使用 pragma
+                cursor.execute("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()")
+                db_size_bytes = self._extract_scalar_value(cursor.fetchone()) or 0
+            
             db_size_mb = db_size_bytes / (1024 * 1024)
             
             # 获取邮件列表缓存统计
-            cursor.execute("SELECT COUNT(*), COALESCE(SUM(cache_size), 0) FROM emails_cache")
-            emails_count, emails_size = cursor.fetchone()
+            cursor.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(cache_size), 0) AS total_size FROM emails_cache")
+            row = cursor.fetchone()
+            if isinstance(row, dict):
+                emails_count = row.get('cnt', 0)
+                emails_size = row.get('total_size', 0)
+            else:
+                emails_count = row[0]
+                emails_size = row[1]
             
             # 获取邮件详情缓存统计
-            cursor.execute("SELECT COUNT(*), COALESCE(SUM(body_size), 0) FROM email_details_cache")
-            details_count, details_size = cursor.fetchone()
+            cursor.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(body_size), 0) AS total_size FROM email_details_cache")
+            row = cursor.fetchone()
+            if isinstance(row, dict):
+                details_count = row.get('cnt', 0)
+                details_size = row.get('total_size', 0)
+            else:
+                details_count = row[0]
+                details_size = row[1]
             
             return {
                 'db_size_mb': round(db_size_mb, 2),
@@ -246,19 +282,20 @@ class EmailDetailCacheDAO(BaseDAO):
                 
                 # 检查邮件列表缓存是否需要清理
                 cursor.execute("SELECT COUNT(*) FROM emails_cache")
-                emails_count = cursor.fetchone()[0]
+                emails_count = self._extract_scalar_value(cursor.fetchone()) or 0
                 
                 if emails_count > MAX_EMAILS_CACHE_COUNT * LRU_CLEANUP_THRESHOLD:
                     # 删除最少访问的20%
                     delete_count = int(emails_count * 0.2)
-                    cursor.execute("""
+                    placeholder = self._get_param_placeholder()
+                    cursor.execute(f"""
                         DELETE FROM emails_cache 
                         WHERE id IN (
                             SELECT id FROM emails_cache 
                             ORDER BY 
                                 COALESCE(access_count, 0) ASC,
                                 COALESCE(last_accessed_at, created_at) ASC
-                            LIMIT ?
+                            LIMIT {placeholder}
                         )
                     """, (delete_count,))
                     deleted_emails = cursor.rowcount
@@ -266,19 +303,20 @@ class EmailDetailCacheDAO(BaseDAO):
                 
                 # 检查邮件详情缓存是否需要清理
                 cursor.execute("SELECT COUNT(*) FROM email_details_cache")
-                details_count = cursor.fetchone()[0]
+                details_count = self._extract_scalar_value(cursor.fetchone()) or 0
                 
                 if details_count > MAX_EMAIL_DETAILS_CACHE_COUNT * LRU_CLEANUP_THRESHOLD:
                     # 删除最少访问的20%
                     delete_count = int(details_count * 0.2)
-                    cursor.execute("""
+                    placeholder = self._get_param_placeholder()
+                    cursor.execute(f"""
                         DELETE FROM email_details_cache 
                         WHERE id IN (
                             SELECT id FROM email_details_cache 
                             ORDER BY 
                                 COALESCE(access_count, 0) ASC,
                                 COALESCE(last_accessed_at, created_at) ASC
-                            LIMIT ?
+                            LIMIT {placeholder}
                         )
                     """, (delete_count,))
                     deleted_details = cursor.rowcount

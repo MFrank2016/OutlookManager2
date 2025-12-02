@@ -133,7 +133,12 @@ def get_db_connection():
         except Exception as e:
             if conn:
                 conn.rollback()
-            logger.error(f"PostgreSQL error: {e}")
+            # 打印更详细的错误信息，包括类型和参数
+            logger.error(f"PostgreSQL error: {type(e).__name__}: {e}")
+            if hasattr(e, 'pgcode'):
+                logger.error(f"PG Code: {e.pgcode}")
+            if hasattr(e, 'pgerror'):
+                logger.error(f"PG Error: {e.pgerror}")
             raise
         finally:
             if conn:
@@ -224,8 +229,9 @@ def _init_postgresql_database() -> None:
     """
     from pathlib import Path
     
-    schema_file = Path(__file__).parent.parent / "database" / "postgresql_schema.sql"
-    indexes_file = Path(__file__).parent.parent / "database" / "postgresql_indexes.sql"
+    # database.py 在项目根目录，所以使用 parent 而不是 parent.parent
+    schema_file = Path(__file__).parent / "database" / "postgresql_schema.sql"
+    indexes_file = Path(__file__).parent / "database" / "postgresql_indexes.sql"
     
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -235,16 +241,38 @@ def _init_postgresql_database() -> None:
             logger.info("Creating PostgreSQL tables from schema file...")
             with open(schema_file, 'r', encoding='utf-8') as f:
                 schema_sql = f.read()
-                # 执行每个SQL语句（以分号分隔）
-                for statement in schema_sql.split(';'):
-                    statement = statement.strip()
-                    if statement and not statement.startswith('--'):
-                        try:
-                            cursor.execute(statement)
-                        except Exception as e:
-                            # 忽略已存在的表错误
-                            if "already exists" not in str(e).lower():
-                                logger.warning(f"Error executing schema statement: {e}")
+                # 按行解析，正确处理多行SQL语句
+                statements = []
+                current_statement = []
+                
+                for line in schema_sql.split('\n'):
+                    line = line.strip()
+                    # 跳过注释和空行
+                    if not line or line.startswith('--'):
+                        continue
+                    current_statement.append(line)
+                    # 如果行以分号结尾，说明是一个完整的语句
+                    if line.endswith(';'):
+                        statement = ' '.join(current_statement)
+                        if statement and statement != ';':
+                            statements.append(statement.rstrip(';'))
+                        current_statement = []
+                
+                # 处理最后一个语句（如果没有以分号结尾）
+                if current_statement:
+                    statement = ' '.join(current_statement)
+                    if statement:
+                        statements.append(statement)
+                
+                # 执行每个SQL语句
+                for statement in statements:
+                    try:
+                        cursor.execute(statement)
+                    except Exception as e:
+                        error_msg = str(e).lower()
+                        # 忽略已存在的表错误
+                        if "already exists" not in error_msg:
+                            logger.warning(f"Error executing schema statement: {e}")
         else:
             logger.warning(f"PostgreSQL schema file not found: {schema_file}")
         
@@ -253,16 +281,38 @@ def _init_postgresql_database() -> None:
             logger.info("Creating PostgreSQL indexes from indexes file...")
             with open(indexes_file, 'r', encoding='utf-8') as f:
                 indexes_sql = f.read()
-                # 执行每个SQL语句（以分号分隔）
-                for statement in indexes_sql.split(';'):
-                    statement = statement.strip()
-                    if statement and not statement.startswith('--') and not statement.startswith('='):
-                        try:
-                            cursor.execute(statement)
-                        except Exception as e:
-                            # 忽略已存在的索引错误
-                            if "already exists" not in str(e).lower():
-                                logger.warning(f"Error executing index statement: {e}")
+                # 按行解析，正确处理多行SQL语句
+                statements = []
+                current_statement = []
+                
+                for line in indexes_sql.split('\n'):
+                    line = line.strip()
+                    # 跳过注释、空行和分隔符
+                    if not line or line.startswith('--') or line.startswith('='):
+                        continue
+                    current_statement.append(line)
+                    # 如果行以分号结尾，说明是一个完整的语句
+                    if line.endswith(';'):
+                        statement = ' '.join(current_statement)
+                        if statement and statement != ';':
+                            statements.append(statement.rstrip(';'))
+                        current_statement = []
+                
+                # 处理最后一个语句（如果没有以分号结尾）
+                if current_statement:
+                    statement = ' '.join(current_statement)
+                    if statement:
+                        statements.append(statement)
+                
+                # 执行每个SQL语句
+                for statement in statements:
+                    try:
+                        cursor.execute(statement)
+                    except Exception as e:
+                        error_msg = str(e).lower()
+                        # 忽略已存在的索引错误
+                        if "already exists" not in error_msg:
+                            logger.warning(f"Error executing index statement: {e}")
         else:
             logger.warning(f"PostgreSQL indexes file not found: {indexes_file}")
         

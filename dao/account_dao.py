@@ -30,15 +30,22 @@ class AccountDAO(BaseDAO):
         Returns:
             账户信息字典或None
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM accounts WHERE email = ?", (email,))
+            cursor.execute(f"SELECT * FROM accounts WHERE email = {placeholder}", (email,))
             row = cursor.fetchone()
             
             if row:
                 account = dict(row)
-                # 解析 tags JSON
-                account['tags'] = json.loads(account['tags']) if account['tags'] else []
+                # 解析 tags JSON (PostgreSQL 会自动解析为 list，SQLite 返回 string)
+                tags = account.get('tags')
+                if isinstance(tags, str):
+                    account['tags'] = json.loads(tags) if tags else []
+                elif tags is None:
+                    account['tags'] = []
+                # 如果是 list，已经是正确的格式，不需要做任何处理
+                
                 return account
             return None
     
@@ -61,15 +68,16 @@ class AccountDAO(BaseDAO):
         Returns:
             (账户列表, 总数)
         """
+        placeholder = self._get_param_placeholder()
         conditions = []
         params = []
         
         if email_search:
-            conditions.append("email LIKE ?")
+            conditions.append(f"email LIKE {placeholder}")
             params.append(f"%{email_search}%")
         
         if tag_search:
-            conditions.append("tags LIKE ?")
+            conditions.append(f"tags LIKE {placeholder}")
             params.append(f"%{tag_search}%")
         
         where_clause = self._build_where_clause(conditions, params)
@@ -84,7 +92,11 @@ class AccountDAO(BaseDAO):
         
         # 解析 tags JSON
         for account in records:
-            account['tags'] = json.loads(account['tags']) if account.get('tags') else []
+            tags = account.get('tags')
+            if isinstance(tags, str):
+                account['tags'] = json.loads(tags) if tags else []
+            elif tags is None:
+                account['tags'] = []
         
         return records, total
     
@@ -125,8 +137,9 @@ class AccountDAO(BaseDAO):
         params = []
         
         # 邮箱搜索
+        placeholder = self._get_param_placeholder()
         if email_search:
-            conditions.append("email LIKE ?")
+            conditions.append(f"email LIKE {placeholder}")
             params.append(f"%{email_search}%")
         
         # 标签搜索（向后兼容，如果提供了tag_search，转换为include_tags）
@@ -136,13 +149,13 @@ class AccountDAO(BaseDAO):
         # 包含标签筛选（必须同时包含所有指定标签）
         if include_tags:
             for tag in include_tags:
-                conditions.append("tags LIKE ?")
+                conditions.append(f"tags LIKE {placeholder}")
                 params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         # 排除标签筛选（必须不包含任何指定标签）
         if exclude_tags:
             for tag in exclude_tags:
-                conditions.append("tags NOT LIKE ?")
+                conditions.append(f"tags NOT LIKE {placeholder}")
                 params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         # 刷新状态筛选
@@ -162,23 +175,23 @@ class AccountDAO(BaseDAO):
             
             if time_filter == 'today':
                 today_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
-                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
+                conditions.append(f"(last_refresh_time IS NULL OR last_refresh_time < {placeholder})")
                 params.append(today_start.isoformat())
             elif time_filter == 'week':
                 week_ago = current_time - timedelta(days=7)
-                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
+                conditions.append(f"(last_refresh_time IS NULL OR last_refresh_time < {placeholder})")
                 params.append(week_ago.isoformat())
             elif time_filter == 'month':
                 month_ago = current_time - timedelta(days=30)
-                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
+                conditions.append(f"(last_refresh_time IS NULL OR last_refresh_time < {placeholder})")
                 params.append(month_ago.isoformat())
             elif time_filter == 'custom' and after_date:
-                conditions.append("(last_refresh_time IS NULL OR last_refresh_time < ?)")
+                conditions.append(f"(last_refresh_time IS NULL OR last_refresh_time < {placeholder})")
                 params.append(after_date)
         
         # 自定义日期范围筛选
         if refresh_start_date and refresh_end_date:
-            conditions.append("(last_refresh_time >= ? AND last_refresh_time <= ?)")
+            conditions.append(f"(last_refresh_time >= {placeholder} AND last_refresh_time <= {placeholder})")
             params.append(refresh_start_date)
             params.append(refresh_end_date)
             logger.info(f"[筛选] 添加日期范围筛选: {refresh_start_date} 至 {refresh_end_date}")
@@ -198,7 +211,11 @@ class AccountDAO(BaseDAO):
         
         # 解析 tags JSON
         for account in records:
-            account['tags'] = json.loads(account['tags']) if account.get('tags') else []
+            tags = account.get('tags')
+            if isinstance(tags, str):
+                account['tags'] = json.loads(tags) if tags else []
+            elif tags is None:
+                account['tags'] = []
         
         logger.info(f"[筛选] 符合条件的总数: {total}")
         return records, total
@@ -235,11 +252,12 @@ class AccountDAO(BaseDAO):
             'api_method': api_method
         }
         
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(f"""
                 INSERT INTO accounts (email, refresh_token, client_id, tags, api_method)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
             """, (email, refresh_token, client_id, tags_json, api_method))
             conn.commit()
             
@@ -268,13 +286,14 @@ class AccountDAO(BaseDAO):
         kwargs['updated_at'] = datetime.now().isoformat()
         
         # 构建 UPDATE 语句
-        set_clause = ", ".join([f"{key} = ?" for key in kwargs.keys()])
+        placeholder = self._get_param_placeholder()
+        set_clause = ", ".join([f"{key} = {placeholder}" for key in kwargs.keys()])
         values = list(kwargs.values()) + [email]
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                f"UPDATE accounts SET {set_clause} WHERE email = ?",
+                f"UPDATE accounts SET {set_clause} WHERE email = {placeholder}",
                 values
             )
             conn.commit()
@@ -294,9 +313,10 @@ class AccountDAO(BaseDAO):
         Returns:
             是否删除成功
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM accounts WHERE email = ?", (email,))
+            cursor.execute(f"DELETE FROM accounts WHERE email = {placeholder}", (email,))
             conn.commit()
             
             success = cursor.rowcount > 0
@@ -314,10 +334,11 @@ class AccountDAO(BaseDAO):
         Returns:
             包含 access_token 和 token_expires_at 的字典，如果不存在则返回 None
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT access_token, token_expires_at FROM accounts WHERE email = ?",
+                f"SELECT access_token, token_expires_at FROM accounts WHERE email = {placeholder}",
                 (email,)
             )
             row = cursor.fetchone()
@@ -341,13 +362,14 @@ class AccountDAO(BaseDAO):
         Returns:
             是否更新成功
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                """
+                f"""
                 UPDATE accounts 
-                SET access_token = ?, token_expires_at = ?, updated_at = ?
-                WHERE email = ?
+                SET access_token = {placeholder}, token_expires_at = {placeholder}, updated_at = {placeholder}
+                WHERE email = {placeholder}
                 """,
                 (access_token, expires_at, datetime.now().isoformat(), email)
             )
@@ -377,19 +399,20 @@ class AccountDAO(BaseDAO):
         Returns:
             (账户列表, 总数)
         """
+        placeholder = self._get_param_placeholder()
         conditions = []
         params = []
         
         # 包含标签筛选
         if include_tags:
             for tag in include_tags:
-                conditions.append("tags LIKE ?")
+                conditions.append(f"tags LIKE {placeholder}")
                 params.append(f"%{tag}%")
         
         # 排除标签筛选
         if exclude_tags:
             for tag in exclude_tags:
-                conditions.append("tags NOT LIKE ?")
+                conditions.append(f"tags NOT LIKE {placeholder}")
                 params.append(f"%{tag}%")
         
         where_clause = self._build_where_clause(conditions, params)
@@ -405,7 +428,7 @@ class AccountDAO(BaseDAO):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                f"SELECT * FROM accounts WHERE {where_clause} ORDER BY RANDOM() LIMIT ? OFFSET ?",
+                f"SELECT * FROM accounts WHERE {where_clause} ORDER BY RANDOM() LIMIT {placeholder} OFFSET {placeholder}",
                 params + [page_size, offset]
             )
             rows = cursor.fetchall()
@@ -413,7 +436,12 @@ class AccountDAO(BaseDAO):
             accounts = []
             for row in rows:
                 account = dict(row)
-                account['tags'] = json.loads(account['tags']) if account['tags'] else []
+                # 解析 tags JSON
+                tags = account.get('tags')
+                if isinstance(tags, str):
+                    account['tags'] = json.loads(tags) if tags else []
+                elif tags is None:
+                    account['tags'] = []
                 accounts.append(account)
             
             logger.info(f"Random accounts query: {len(accounts)} accounts found (total: {total})")

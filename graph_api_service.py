@@ -287,11 +287,11 @@ async def list_emails_graph(
         return paginated_emails, total
         
     except httpx.HTTPStatusError as e:
-        logger.error(f"HTTP error fetching emails via Graph API: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch emails via Graph API")
+        logger.error(f"HTTP error fetching emails via Graph API for {credentials.email}: Status {e.response.status_code}, Response: {e.response.text[:200]}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch emails via Graph API: HTTP {e.response.status_code}")
     except Exception as e:
-        logger.error(f"Error fetching emails via Graph API: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch emails via Graph API")
+        logger.exception(f"Error fetching emails via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch emails via Graph API: {str(e)}")
 
 
 async def get_email_details_graph(
@@ -318,7 +318,7 @@ async def get_email_details_graph(
     try:
         cached_detail = db.get_cached_email_detail(credentials.email, message_id)
         if cached_detail:
-            logger.info(f"Returning cached email detail from SQLite for {message_id}")
+            logger.info(f"Returning cached email detail from database for {message_id}")
             # 缓存到内存LRU缓存
             cache_service.set_cached_email_detail(credentials.email, message_id, cached_detail)
             return EmailDetailsResponse(**cached_detail)
@@ -400,9 +400,9 @@ async def get_email_details_graph(
             # 缓存到 SQLite
             try:
                 db.cache_email_detail(credentials.email, email_detail_response.dict())
-                logger.info(f"Cached email detail to SQLite for {message_id}")
+                logger.info(f"Cached email detail to database for {message_id}")
             except Exception as e:
-                logger.warning(f"Failed to cache email detail to SQLite: {e}")
+                logger.warning(f"Failed to cache email detail to database: {e}")
             
             # 缓存到内存LRU缓存
             try:

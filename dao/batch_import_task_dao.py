@@ -30,13 +30,21 @@ class BatchImportTaskDAO(BaseDAO):
         Returns:
             任务信息字典或None
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM batch_import_tasks WHERE task_id = ?", (task_id,))
+            cursor.execute(f"SELECT * FROM batch_import_tasks WHERE task_id = {placeholder}", (task_id,))
             row = cursor.fetchone()
             if row:
                 task = dict(row)
-                task['tags'] = json.loads(task['tags']) if task.get('tags') else []
+                # 解析 tags JSON (PostgreSQL 会自动解析为 list，SQLite 返回 string)
+                tags = task.get('tags')
+                if isinstance(tags, str):
+                    task['tags'] = json.loads(tags) if tags else []
+                elif tags is None:
+                    task['tags'] = []
+                # 如果是 list，已经是正确的格式，不需要做任何处理
+                
                 return task
             return None
     
@@ -114,13 +122,14 @@ class BatchImportTaskDAO(BaseDAO):
             
             updates['updated_at'] = datetime.now().isoformat()
             
+            placeholder = self._get_param_placeholder()
             with get_db_connection() as conn:
                 cursor = conn.cursor()
-                set_clause = ", ".join([f"{key} = ?" for key in updates.keys()])
+                set_clause = ", ".join([f"{key} = {placeholder}" for key in updates.keys()])
                 values = list(updates.values()) + [task_id]
                 
                 cursor.execute(
-                    f"UPDATE batch_import_tasks SET {set_clause} WHERE task_id = ?",
+                    f"UPDATE batch_import_tasks SET {set_clause} WHERE task_id = {placeholder}",
                     values
                 )
                 conn.commit()
@@ -153,14 +162,15 @@ class BatchImportTaskItemDAO(BaseDAO):
         Returns:
             是否添加成功
         """
+        placeholder = self._get_param_placeholder()
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 for item in items:
-                    cursor.execute("""
+                    cursor.execute(f"""
                         INSERT INTO batch_import_task_items 
                         (task_id, email, refresh_token, client_id)
-                        VALUES (?, ?, ?, ?)
+                        VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
                     """, (task_id, item['email'], item['refresh_token'], item['client_id']))
                 conn.commit()
                 logger.info(f"Added {len(items)} items to batch import task: {task_id}")
@@ -184,11 +194,12 @@ class BatchImportTaskItemDAO(BaseDAO):
         Returns:
             任务项列表
         """
-        conditions = ["task_id = ?"]
+        placeholder = self._get_param_placeholder()
+        conditions = [f"task_id = {placeholder}"]
         params = [task_id]
         
         if status:
-            conditions.append("status = ?")
+            conditions.append(f"status = {placeholder}")
             params.append(status)
         
         where_clause = self._build_where_clause(conditions, params)
@@ -218,13 +229,14 @@ class BatchImportTaskItemDAO(BaseDAO):
         Returns:
             是否更新成功
         """
+        placeholder = self._get_param_placeholder()
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(f"""
                     UPDATE batch_import_task_items 
-                    SET status = ?, error_message = ?, processed_at = ?
-                    WHERE task_id = ? AND email = ?
+                    SET status = {placeholder}, error_message = {placeholder}, processed_at = {placeholder}
+                    WHERE task_id = {placeholder} AND email = {placeholder}
                 """, (status, error_message, datetime.now().isoformat(), task_id, email))
                 conn.commit()
                 return True

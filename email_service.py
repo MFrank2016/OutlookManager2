@@ -456,9 +456,9 @@ async def list_emails(
             try:
                 emails_to_cache = [email.dict() for email in email_items]
                 db.cache_emails(credentials.email, emails_to_cache)
-                logger.info(f"Cached {len(emails_to_cache)} emails to SQLite for {credentials.email}")
+                logger.info(f"Cached {len(emails_to_cache)} emails to database for {credentials.email}")
             except Exception as e:
-                logger.warning(f"Failed to cache emails to SQLite: {e}")
+                logger.warning(f"Failed to cache emails to database: {e}")
 
             fetch_time_ms = int((time.time() - start_time_ms) * 1000)
             
@@ -612,7 +612,7 @@ async def get_email_details(
     try:
         cached_detail = db.get_cached_email_detail(credentials.email, message_id)
         if cached_detail:
-            logger.info(f"Returning cached email detail from SQLite for {message_id}")
+            logger.info(f"Returning cached email detail from database for {message_id}")
             # 缓存到内存LRU缓存
             cache_service.set_cached_email_detail(credentials.email, message_id, cached_detail)
             return EmailDetailsResponse(**cached_detail)
@@ -697,9 +697,9 @@ async def get_email_details(
             # 缓存到 SQLite
             try:
                 db.cache_email_detail(credentials.email, email_detail_response.dict())
-                logger.info(f"Cached email detail to SQLite for {message_id}")
+                logger.info(f"Cached email detail to database for {message_id}")
             except Exception as e:
-                logger.warning(f"Failed to cache email detail to SQLite: {e}")
+                logger.warning(f"Failed to cache email detail to database: {e}")
             
             # 缓存到内存LRU缓存
             try:

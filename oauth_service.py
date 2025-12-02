@@ -34,74 +34,103 @@ async def get_access_token(credentials: AccountCredentials) -> str:
     """
     # Determine scope based on api_method
     api_method = getattr(credentials, "api_method", "imap")
-    logger.info(f"Credentials: {credentials}, api_method: {api_method}")
-    scope = GRAPH_API_SCOPE if api_method in ["graph", "graph_api"] else OAUTH_SCOPE
+    # 如果没有明确指定 api_method，或者已经是 imap，我们默认先试 OAUTH_SCOPE
+    # 如果是 graph，先试 GRAPH_API_SCOPE
+    primary_scope = GRAPH_API_SCOPE if api_method in ["graph", "graph_api"] else OAUTH_SCOPE
+    fallback_scope = OAUTH_SCOPE if api_method in ["graph", "graph_api"] else GRAPH_API_SCOPE
+    
+    logger.info(f"Credentials: {credentials.email}, api_method: {api_method}, trying scope: {primary_scope}")
 
-    # 构建OAuth2请求数据
-    token_request_data = {
-        "client_id": credentials.client_id,
-        "grant_type": "refresh_token",
-        "refresh_token": credentials.refresh_token,
-        "scope": scope,
-    }
-
-    try:
-        # 发送令牌请求
+    # 定义内部函数来尝试获取 token
+    async def _try_get_token(scope_to_try):
+        token_request_data = {
+            "client_id": credentials.client_id,
+            "grant_type": "refresh_token",
+            "refresh_token": credentials.refresh_token,
+            "scope": scope_to_try,
+        }
+        
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(TOKEN_URL, data=token_request_data)
-            
-            # 检查状态码，如果是400/401/403，说明refresh token无效或过期
-            if response.status_code in [400, 401, 403]:
-                logger.error(f"OAuth2 token request failed for {credentials.email}: {response.text}")
-                # 抛出具体的错误信息，而不是401 Unauthorized
-                error_detail = f"OAuth2 Error: {response.json().get('error_description', 'Invalid grant')}"
-                raise HTTPException(
-                    status_code=400,
-                    detail=error_detail,
-                )
-            
-            response.raise_for_status()
+            return response
 
-            # 解析响应
-            token_data = response.json()
-            access_token = token_data.get("access_token")
-            expires_in = token_data.get("expires_in", 3600)  # Microsoft 返回的过期时间（通常1小时）
-            
-            # 设置 access token 的最大缓存时间为 24 小时
-            # 即使 Microsoft 返回的 expires_in 更长，我们也只缓存 24 小时
-            max_cache_hours = 24
-            max_cache_seconds = max_cache_hours * 3600  # 24小时 = 86400秒
-            
-            # 使用较小的值：Microsoft 返回的过期时间或 24 小时，取较小者
-            actual_expires_in = min(expires_in, max_cache_seconds)
+    try:
+        # 第一次尝试
+        response = await _try_get_token(primary_scope)
+        
+        # 如果失败且状态码为 400 (invalid_grant/invalid_scope)，尝试 fallback scope
+        if response.status_code == 400:
+            error_data = response.json()
+            error_desc = error_data.get('error_description', '')
+            # AADSTS70000 包含 unauthorized_scope 等错误
+            if 'AADSTS70000' in error_desc or 'scope' in error_desc.lower():
+                logger.warning(f"Token request failed with scope {primary_scope}, trying fallback scope {fallback_scope}. Error: {error_desc[:100]}...")
+                response = await _try_get_token(fallback_scope)
+                
+                # 如果第二次尝试成功，我们需要更新账户的 api_method
+                if response.status_code == 200:
+                    new_method = "graph_api" if fallback_scope == GRAPH_API_SCOPE else "imap"
+                    logger.info(f"Fallback scope succeeded. Updating api_method to {new_method} for {credentials.email}")
+                    try:
+                        db.update_account(credentials.email, api_method=new_method)
+                        # 同时也更新 credentials 对象，以便后续使用
+                        if hasattr(credentials, 'api_method'):
+                            credentials.api_method = new_method
+                    except Exception as e:
+                        logger.error(f"Failed to update api_method in db: {e}")
 
-            if not access_token:
-                logger.error(f"No access token in response for {credentials.email}")
-                raise HTTPException(
-                    status_code=401,
-                    detail="Failed to obtain access token from response",
-                )
-
-            # 计算过期时间（使用实际过期时间，最多24小时）
-            expires_at = datetime.now() + timedelta(seconds=actual_expires_in)
-            expires_at_str = expires_at.isoformat()
-            
-            logger.debug(
-                f"Access token for {credentials.email}: Microsoft expires_in={expires_in}s, "
-                f"actual cache time={actual_expires_in}s ({actual_expires_in/3600:.1f}h)"
+        # 检查最终响应状态
+        if response.status_code in [400, 401, 403]:
+            logger.error(f"OAuth2 token request failed for {credentials.email}: {response.text}")
+            # 抛出具体的错误信息，而不是401 Unauthorized
+            error_detail = f"OAuth2 Error: {response.json().get('error_description', 'Invalid grant')}"
+            raise HTTPException(
+                status_code=400,
+                detail=error_detail,
             )
-            
-            # 保存 token 到数据库
-            db.update_account_access_token(credentials.email, access_token, expires_at_str)
-            
-            # 同时缓存到内存（LRU缓存）
-            cache_service.set_cached_access_token(credentials.email, access_token, expires_at_str)
+        
+        response.raise_for_status()
 
-            logger.info(
-                f"Successfully obtained access token for {credentials.email}, "
-                f"expires in {expires_in}s at {expires_at_str}"
+        # 解析响应
+        token_data = response.json()
+        access_token = token_data.get("access_token")
+        expires_in = token_data.get("expires_in", 3600)  # Microsoft 返回的过期时间（通常1小时）
+        
+        # 设置 access token 的最大缓存时间为 24 小时
+        # 即使 Microsoft 返回的 expires_in 更长，我们也只缓存 24 小时
+        max_cache_hours = 24
+        max_cache_seconds = max_cache_hours * 3600  # 24小时 = 86400秒
+        
+        # 使用较小的值：Microsoft 返回的过期时间或 24 小时，取较小者
+        actual_expires_in = min(expires_in, max_cache_seconds)
+
+        if not access_token:
+            logger.error(f"No access token in response for {credentials.email}")
+            raise HTTPException(
+                status_code=401,
+                detail="Failed to obtain access token from response",
             )
-            return access_token
+
+        # 计算过期时间（使用实际过期时间，最多24小时）
+        expires_at = datetime.now() + timedelta(seconds=actual_expires_in)
+        expires_at_str = expires_at.isoformat()
+        
+        logger.debug(
+            f"Access token for {credentials.email}: Microsoft expires_in={expires_in}s, "
+            f"actual cache time={actual_expires_in}s ({actual_expires_in/3600:.1f}h)"
+        )
+        
+        # 保存 token 到数据库
+        db.update_account_access_token(credentials.email, access_token, expires_at_str)
+        
+        # 同时缓存到内存（LRU缓存）
+        cache_service.set_cached_access_token(credentials.email, access_token, expires_at_str)
+
+        logger.info(
+            f"Successfully obtained access token for {credentials.email}, "
+            f"expires in {expires_in}s at {expires_at_str}"
+        )
+        return access_token
 
     except httpx.HTTPStatusError as e:
         logger.error(
@@ -146,51 +175,73 @@ async def refresh_account_token(credentials: AccountCredentials) -> dict:
     """
     # Determine scope based on api_method
     api_method = getattr(credentials, "api_method", "imap")
-    scope = GRAPH_API_SCOPE if api_method in ["graph", "graph_api"] else OAUTH_SCOPE
+    primary_scope = GRAPH_API_SCOPE if api_method in ["graph", "graph_api"] else OAUTH_SCOPE
+    fallback_scope = OAUTH_SCOPE if api_method in ["graph", "graph_api"] else GRAPH_API_SCOPE
     
-    # 构建OAuth2请求数据
-    token_request_data = {
-        "client_id": credentials.client_id,
-        "grant_type": "refresh_token",
-        "refresh_token": credentials.refresh_token,
-        "scope": scope,
-    }
+    # 定义内部函数来尝试刷新 token
+    async def _try_refresh_token(scope_to_try):
+        token_request_data = {
+            "client_id": credentials.client_id,
+            "grant_type": "refresh_token",
+            "refresh_token": credentials.refresh_token,
+            "scope": scope_to_try,
+        }
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            return await client.post(TOKEN_URL, data=token_request_data)
 
     try:
         # 发送令牌请求
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(TOKEN_URL, data=token_request_data)
+        response = await _try_refresh_token(primary_scope)
+        
+        # 如果失败且状态码为 400，尝试 fallback scope
+        if response.status_code == 400:
+            try:
+                error_data = response.json()
+                error_desc = error_data.get('error_description', '')
+                if 'AADSTS70000' in error_desc or 'scope' in error_desc.lower():
+                    logger.warning(f"Token refresh failed with scope {primary_scope}, trying fallback scope {fallback_scope} for {credentials.email}")
+                    response = await _try_refresh_token(fallback_scope)
+                    
+                    if response.status_code == 200:
+                        new_method = "graph_api" if fallback_scope == GRAPH_API_SCOPE else "imap"
+                        logger.info(f"Fallback refresh succeeded. Updating api_method to {new_method} for {credentials.email}")
+                        try:
+                            db.update_account(credentials.email, api_method=new_method)
+                        except Exception as e:
+                            logger.error(f"Failed to update api_method in db: {e}")
+            except Exception:
+                pass  # 如果解析JSON失败，忽略，继续处理原响应
+
+        if response.status_code in [400, 401, 403]:
+            error_msg = f"OAuth2 Error: {response.json().get('error_description', 'Invalid grant')}"
+            logger.error(f"Token refresh failed for {credentials.email}: {error_msg}")
+            return {"success": False, "error": error_msg}
             
-            if response.status_code in [400, 401, 403]:
-                error_msg = f"OAuth2 Error: {response.json().get('error_description', 'Invalid grant')}"
-                logger.error(f"Token refresh failed for {credentials.email}: {error_msg}")
-                return {"success": False, "error": error_msg}
-                
-            response.raise_for_status()
+        response.raise_for_status()
 
-            # 解析响应
-            token_data = response.json()
-            new_access_token = token_data.get("access_token")
-            new_refresh_token = token_data.get("refresh_token")
+        # 解析响应
+        token_data = response.json()
+        new_access_token = token_data.get("access_token")
+        new_refresh_token = token_data.get("refresh_token")
 
-            if not new_access_token:
-                logger.error(
-                    f"No access token in refresh response for {credentials.email}"
-                )
-                return {"success": False, "error": "No access token in response"}
+        if not new_access_token:
+            logger.error(
+                f"No access token in refresh response for {credentials.email}"
+            )
+            return {"success": False, "error": "No access token in response"}
 
-            if not new_refresh_token:
-                logger.warning(
-                    f"No new refresh token in response for {credentials.email}, using existing one"
-                )
-                new_refresh_token = credentials.refresh_token
+        if not new_refresh_token:
+            logger.warning(
+                f"No new refresh token in response for {credentials.email}, using existing one"
+            )
+            new_refresh_token = credentials.refresh_token
 
-            logger.info(f"Successfully refreshed token for {credentials.email}")
-            return {
-                "success": True,
-                "new_refresh_token": new_refresh_token,
-                "new_access_token": new_access_token,
-            }
+        logger.info(f"Successfully refreshed token for {credentials.email}")
+        return {
+            "success": True,
+            "new_refresh_token": new_refresh_token,
+            "new_access_token": new_access_token,
+        }
 
     except httpx.HTTPStatusError as e:
         error_msg = f"HTTP {e.response.status_code} error refreshing token"
@@ -235,8 +286,13 @@ async def get_cached_access_token(credentials: AccountCredentials) -> str:
         expires_at_str = token_info['token_expires_at']
         
         try:
-            # 解析过期时间
-            expires_at = datetime.fromisoformat(expires_at_str)
+            # 解析过期时间（处理 datetime 对象或字符串）
+            if isinstance(expires_at_str, datetime):
+                expires_at = expires_at_str
+                expires_at_str = expires_at.isoformat()  # 转换为字符串用于缓存
+            else:
+                expires_at = datetime.fromisoformat(expires_at_str)
+            
             now = datetime.now()
             
             # 检查 token 是否还有效（距离过期时间 > 1 小时，因为 access token 缓存时间为 24 小时）

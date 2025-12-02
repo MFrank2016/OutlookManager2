@@ -28,9 +28,10 @@ class ShareTokenDAO(BaseDAO):
         Returns:
             分享码信息字典或None
         """
+        placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT * FROM share_tokens WHERE token = ?", (token,))
+            cursor.execute(f"SELECT * FROM share_tokens WHERE token = {placeholder}", (token,))
             row = cursor.fetchone()
             return dict(row) if row else None
     
@@ -118,8 +119,9 @@ class ShareTokenDAO(BaseDAO):
         conditions = []
         params = []
         
+        placeholder = self._get_param_placeholder()
         if email_account_id:
-            conditions.append("email_account_id = ?")
+            conditions.append(f"email_account_id = {placeholder}")
             params.append(email_account_id)
         
         where_clause = self._build_where_clause(conditions, params)
