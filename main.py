@@ -63,7 +63,7 @@ def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
 
 # API请求专用的线程池执行器（用于处理API请求中的同步数据库操作）
 # 限制并发数为5，确保API请求能及时响应
-api_requests_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="api-request")
+api_requests_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="api-request")
 
 # 批量任务专用的线程池执行器（用于处理批量导入等批量任务）
 # 限制并发数为5，与API请求线程池分离，防止批量任务阻塞正常请求
