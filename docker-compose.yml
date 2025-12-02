@@ -86,6 +86,8 @@ services:
       # 如果使用PostgreSQL，取消下面的注释以等待PostgreSQL就绪
       # postgresql:
       #   condition: service_healthy
+    networks:
+      - outlook-network
 
   # PostgreSQL数据库服务（可选，用于本地开发）
   # 生产环境建议在单独的服务器上部署PostgreSQL
