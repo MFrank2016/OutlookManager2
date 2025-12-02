@@ -35,7 +35,9 @@ export function SendEmailDialog({ account }: { account: string | null }) {
         if (!account) return;
         sendEmail.mutate({
             account,
-            ...values
+            to: values.recipient,
+            subject: values.subject,
+            body: values.body
         }, {
             onSuccess: () => {
                 setOpen(false);
