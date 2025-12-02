@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 from .base_dao import BaseDAO, get_db_connection
+from config import DB_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +83,12 @@ class AccountDAO(BaseDAO):
             conditions.append(f"email LIKE {placeholder}")
             params.append(f"%{email_search}%")
         
+        # 对于PostgreSQL，tags是jsonb类型，需要转换为文本才能使用LIKE
+        # 对于SQLite，tags是TEXT类型，可以直接使用LIKE
+        tags_column = "tags::text" if DB_TYPE == "postgresql" else "tags"
+        
         if tag_search:
-            conditions.append(f"tags LIKE {placeholder}")
+            conditions.append(f"{tags_column} LIKE {placeholder}")
             params.append(f"%{tag_search}%")
         
         where_clause = self._build_where_clause(conditions, params)
@@ -158,16 +163,20 @@ class AccountDAO(BaseDAO):
         if tag_search and not include_tags:
             include_tags = [tag.strip() for tag in tag_search.split(",") if tag.strip()]
         
+        # 对于PostgreSQL，tags是jsonb类型，需要转换为文本才能使用LIKE
+        # 对于SQLite，tags是TEXT类型，可以直接使用LIKE
+        tags_column = "tags::text" if DB_TYPE == "postgresql" else "tags"
+        
         # 包含标签筛选（必须同时包含所有指定标签）
         if include_tags:
             for tag in include_tags:
-                conditions.append(f"tags LIKE {placeholder}")
+                conditions.append(f"{tags_column} LIKE {placeholder}")
                 params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         # 排除标签筛选（必须不包含任何指定标签）
         if exclude_tags:
             for tag in exclude_tags:
-                conditions.append(f"tags NOT LIKE {placeholder}")
+                conditions.append(f"{tags_column} NOT LIKE {placeholder}")
                 params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         # 刷新状态筛选
@@ -421,17 +430,21 @@ class AccountDAO(BaseDAO):
         conditions = []
         params = []
         
+        # 对于PostgreSQL，tags是jsonb类型，需要转换为文本才能使用LIKE
+        # 对于SQLite，tags是TEXT类型，可以直接使用LIKE
+        tags_column = "tags::text" if DB_TYPE == "postgresql" else "tags"
+        
         # 包含标签筛选
         if include_tags:
             for tag in include_tags:
-                conditions.append(f"tags LIKE {placeholder}")
-                params.append(f"%{tag}%")
+                conditions.append(f"{tags_column} LIKE {placeholder}")
+                params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         # 排除标签筛选
         if exclude_tags:
             for tag in exclude_tags:
-                conditions.append(f"tags NOT LIKE {placeholder}")
-                params.append(f"%{tag}%")
+                conditions.append(f"{tags_column} NOT LIKE {placeholder}")
+                params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         where_clause = self._build_where_clause(conditions, params)
         

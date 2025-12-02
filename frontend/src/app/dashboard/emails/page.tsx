@@ -319,25 +319,10 @@ export default function EmailsPage() {
     <div className="h-[calc(100vh-100px)] md:h-[calc(100vh-100px)] flex flex-col space-y-2 md:space-y-4 px-0 md:px-4">
       {/* Top Bar: Account Selection & Filters */}
       <div className="flex flex-col gap-2 bg-white p-3 md:p-4 rounded-lg shadow-sm border">
-        {/* 第一行：账户选择 */}
+        {/* 第一行：账户显示（点击复制） */}
         <div className="flex items-center gap-2">
-            <Select value={selectedAccount || ""} onValueChange={setSelectedAccount}>
-                <SelectTrigger className="flex-1 h-9">
-                    <SelectValue placeholder="选择账户" />
-                </SelectTrigger>
-                <SelectContent>
-                    {accountsData?.accounts.map(acc => (
-                        <SelectItem key={acc.email_id} value={acc.email_id}>
-                            {acc.email_id}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            {selectedAccount && (
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 shrink-0"
+            {selectedAccount ? (
+                <div
                     onClick={async () => {
                         const success = await copyToClipboard(selectedAccount);
                         if (success) {
@@ -346,10 +331,16 @@ export default function EmailsPage() {
                             toast.error("复制失败");
                         }
                     }}
-                    title="复制邮箱地址"
+                    className="flex-1 px-3 py-2 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg cursor-pointer transition-colors duration-200 flex items-center justify-between group"
+                    title="点击复制邮箱地址"
                 >
-                    <Copy className="h-4 w-4" />
-                </Button>
+                    <span className="text-sm font-medium text-gray-900 truncate">{selectedAccount}</span>
+                    <Copy className="h-4 w-4 text-gray-500 group-hover:text-gray-700 shrink-0 ml-2" />
+                </div>
+            ) : (
+                <div className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-500">
+                    未选择账户
+                </div>
             )}
         </div>
 
