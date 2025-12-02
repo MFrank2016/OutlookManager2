@@ -283,7 +283,7 @@ async def list_emails(
             ):
                 try:
                     # 使用 examine 而不是 select，以只读方式打开，可能更稳定
-                    imap_client.examine(f'"{folder_name}"')
+                    imap_client.select(f'"{folder_name}"')
 
                     msg_ids_to_fetch = [item["message_id_raw"] for item in group]
                     if not msg_ids_to_fetch:
