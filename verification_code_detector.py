@@ -80,31 +80,28 @@ class VerificationCodeDetector:
     
     def detect(self, subject: str = "", body: str = "") -> Optional[Dict[str, str]]:
         """
-        检测邮件中的验证码
+        检测邮件中的验证码（只从 body 中检测，忽略 subject）
         
         Args:
-            subject: 邮件主题
-            body: 邮件正文
+            subject: 邮件主题（已废弃，不再使用）
+            body: 邮件正文（只检测此内容）
             
         Returns:
             包含验证码信息的字典，如果未找到则返回None
-            格式: {"code": "验证码", "location": "subject/body", "context": "上下文"}
+            格式: {"code": "验证码", "location": "body", "context": "上下文"}
         """
-        # 首先检查是否包含验证码关键词
-        text = f"{subject} {body}"
-        has_keyword = any(keyword.lower() in text.lower() for keyword in self.KEYWORDS)
+        # 只检查 body 是否包含验证码关键词
+        if not body:
+            return None
+        
+        has_keyword = any(keyword.lower() in body.lower() for keyword in self.KEYWORDS)
         
         if not has_keyword:
             # 没有关键词，不太可能是验证码邮件
             return None
         
-        # 优先在正文中查找（验证码通常在正文中）
+        # 只在正文中查找验证码
         code_info = self._extract_code(body, "body")
-        if code_info:
-            return code_info
-        
-        # 如果正文中没找到，再在主题中查找
-        code_info = self._extract_code(subject, "subject")
         if code_info:
             return code_info
         
@@ -331,17 +328,18 @@ def get_detector() -> VerificationCodeDetector:
 
 def detect_verification_code(subject: str = "", body: str = "") -> Optional[Dict[str, str]]:
     """
-    便捷函数：检测验证码
+    便捷函数：检测验证码（只从 body 中检测）
     
     Args:
-        subject: 邮件主题
-        body: 邮件正文
+        subject: 邮件主题（已废弃，不再使用）
+        body: 邮件正文（只检测此内容，建议使用 body_plain）
         
     Returns:
         验证码信息或None
     """
     detector = get_detector()
-    return detector.detect(subject, body)
+    # 只传递 body，忽略 subject
+    return detector.detect("", body)
 
 
 # 测试代码

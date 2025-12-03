@@ -651,6 +651,10 @@ async def public_list_emails(
     if cache_valid and cached_emails:
         # 限制返回数量
         limited_emails = cached_emails[:max_emails]
+        # 确保 date 字段是字符串格式
+        for email in limited_emails:
+            if 'date' in email and isinstance(email['date'], datetime):
+                email['date'] = email['date'].isoformat()
         email_items = [EmailItem(**email) for email in limited_emails]
         total_pages = math.ceil(len(limited_emails) / page_size) if page_size > 0 else 0
         
@@ -738,6 +742,13 @@ async def public_list_emails(
     
     # 转换为EmailItem格式并限制数量
     limited_emails = email_list_data[:max_emails]
+    # 确保 date 字段是字符串格式
+    for email in limited_emails:
+        if 'date' in email:
+            if isinstance(email['date'], datetime):
+                email['date'] = email['date'].isoformat()
+            elif email['date'] is None:
+                email['date'] = datetime.now().isoformat()
     email_items = [EmailItem(**email) for email in limited_emails]
     
     # 分页

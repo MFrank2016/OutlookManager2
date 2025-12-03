@@ -282,11 +282,13 @@ async def list_emails_graph(
                         sender_initial = email_match.group(1).upper()
                     
                     subject = email.get("subject", "(No Subject)")
+                    body_preview = email.get("bodyPreview", "")
                     
-                    # 检测验证码
+                    # 检测验证码（只从 body_plain 中检测）
                     verification_code = None
                     try:
-                        code_info = detect_verification_code(subject=subject, body="")
+                        # 使用 bodyPreview 作为 body_plain 的替代
+                        code_info = detect_verification_code(subject="", body=body_preview)
                         if code_info:
                             verification_code = code_info["code"]
                     except Exception as e:
@@ -510,11 +512,13 @@ async def list_emails_graph2(
                     sender_initial = email_match.group(1).upper()
                 
                 subject = email.get("subject", "(No Subject)")
+                body_preview = email.get("bodyPreview", "")
                 
-                # 检测验证码
+                # 检测验证码（只从 body_plain 中检测）
                 verification_code = None
                 try:
-                    code_info = detect_verification_code(subject=subject, body="")
+                    # 使用 bodyPreview 作为 body_plain 的替代
+                    code_info = detect_verification_code(subject="", body=body_preview)
                     if code_info:
                         verification_code = code_info["code"]
                 except Exception as e:
@@ -768,11 +772,11 @@ async def list_emails_with_body_graph(
                 except Exception:
                     formatted_date = datetime.now().isoformat()
                 
-                # 检测验证码
+                # 检测验证码（只从 body_plain 中检测）
                 verification_code = None
                 try:
-                    body_for_detection = body_plain or body_html or ""
-                    code_info = detect_verification_code(subject=subject, body=body_for_detection)
+                    # 只使用 body_plain，不使用 body_html
+                    code_info = detect_verification_code(subject="", body=body_plain or "")
                     if code_info:
                         verification_code = code_info["code"]
                 except Exception as e:
@@ -957,11 +961,11 @@ async def get_email_details_graph(
             except Exception:
                 formatted_date = datetime.now().isoformat()
             
-            # 检测验证码
+            # 检测验证码（只从 body_plain 中检测）
             verification_code = None
             try:
-                body_for_detection = body_plain or body_html or ""
-                code_info = detect_verification_code(subject=subject, body=body_for_detection)
+                # 只使用 body_plain，不使用 body_html
+                code_info = detect_verification_code(subject="", body=body_plain or "")
                 if code_info:
                     verification_code = code_info["code"]
                     logger.info(f"Detected verification code in email {message_id}: {verification_code}")
