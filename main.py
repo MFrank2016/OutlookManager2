@@ -174,6 +174,7 @@ async def token_refresh_background_task():
                     # 等待1小时后再次检查
                     for _ in range(6):  # 1小时 = 6个10分钟
                         await asyncio.sleep(600)  # 10分钟
+                        logger.info("Waiting 10 minutes before checking again")
                     continue
 
                 # 使用信号量限制并发数为2

@@ -127,3 +127,31 @@ CREATE TABLE IF NOT EXISTS batch_import_task_items (
     processed_at TIMESTAMP
 );
 
+-- 创建 SQL 查询历史记录表
+CREATE TABLE IF NOT EXISTS sql_query_history (
+    id SERIAL PRIMARY KEY,
+    sql_query TEXT NOT NULL,
+    result_count INTEGER,
+    execution_time_ms INTEGER,
+    status VARCHAR(50) DEFAULT 'success' CHECK (status IN ('success', 'error')),
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100)
+);
+
+-- 创建 SQL 查询收藏表
+CREATE TABLE IF NOT EXISTS sql_query_favorites (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    sql_query TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 创建索引
+CREATE INDEX IF NOT EXISTS idx_sql_query_history_created_at ON sql_query_history(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sql_query_history_created_by ON sql_query_history(created_by);
+CREATE INDEX IF NOT EXISTS idx_sql_query_favorites_created_by ON sql_query_favorites(created_by);
+

@@ -156,11 +156,30 @@ interface TableDataResponse {
     records: any[];
 }
 
-export function useTableData(tableName: string, params: { page?: number; page_size?: number; search?: string }) {
+export function useTableData(
+    tableName: string, 
+    params: { 
+        page?: number; 
+        page_size?: number; 
+        search?: string;
+        sort_by?: string;
+        sort_order?: "asc" | "desc";
+        field_search?: Record<string, string>;
+    }
+) {
     return useQuery({
         queryKey: ["tableData", tableName, params],
         queryFn: async () => {
-            const { data } = await api.get<TableDataResponse>(`/admin/tables/${tableName}`, { params });
+            const apiParams: any = {
+                page: params.page || 1,
+                page_size: params.page_size || 20,
+            };
+            if (params.search) apiParams.search = params.search;
+            if (params.sort_by) apiParams.sort_by = params.sort_by;
+            if (params.sort_order) apiParams.sort_order = params.sort_order;
+            if (params.field_search) apiParams.field_search = JSON.stringify(params.field_search);
+            
+            const { data } = await api.get<TableDataResponse>(`/admin/tables/${tableName}`, { params: apiParams });
             return data;
         },
         enabled: !!tableName
@@ -266,6 +285,128 @@ export function useTriggerLruCleanup() {
         },
         onError: (error: any) => {
             toast.error(error.response?.data?.detail || "Failed to cleanup cache");
+        }
+    });
+}
+
+// --- SQL Query Management ---
+interface SqlExecuteRequest {
+    sql: string;
+    max_rows?: number;
+}
+
+interface SqlExecuteResponse {
+    success: boolean;
+    data?: any[];
+    row_count?: number;
+    execution_time_ms: number;
+    error_message?: string;
+}
+
+interface SqlQueryHistoryItem {
+    id: number;
+    sql_query: string;
+    result_count?: number;
+    execution_time_ms?: number;
+    status: string;
+    error_message?: string;
+    created_at: string;
+    created_by?: string;
+}
+
+interface SqlQueryHistoryResponse {
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+    history: SqlQueryHistoryItem[];
+}
+
+interface SqlQueryFavoriteItem {
+    id: number;
+    name: string;
+    sql_query: string;
+    description?: string;
+    created_at: string;
+    created_by?: string;
+    updated_at: string;
+}
+
+interface SqlQueryFavoriteListResponse {
+    favorites: SqlQueryFavoriteItem[];
+}
+
+export function useExecuteSql() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (request: SqlExecuteRequest) => {
+            const { data } = await api.post<SqlExecuteResponse>("/admin/sql/execute", request);
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["sqlHistory"] });
+            toast.success("SQL执行成功");
+        },
+        onError: (error: any) => {
+            const errorMsg = error.response?.data?.error_message || error.response?.data?.detail || "SQL执行失败";
+            toast.error(errorMsg);
+        }
+    });
+}
+
+export function useSqlHistory(params: { page?: number; page_size?: number } = {}) {
+    return useQuery({
+        queryKey: ["sqlHistory", params],
+        queryFn: async () => {
+            const { data } = await api.get<SqlQueryHistoryResponse>("/admin/sql/history", {
+                params: {
+                    page: params.page || 1,
+                    page_size: params.page_size || 50
+                }
+            });
+            return data;
+        }
+    });
+}
+
+export function useSqlFavorites() {
+    return useQuery({
+        queryKey: ["sqlFavorites"],
+        queryFn: async () => {
+            const { data } = await api.get<SqlQueryFavoriteListResponse>("/admin/sql/favorites");
+            return data;
+        }
+    });
+}
+
+export function useCreateSqlFavorite() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: { name: string; sql_query: string; description?: string }) => {
+            return api.post("/admin/sql/favorites", data);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["sqlFavorites"] });
+            toast.success("SQL收藏创建成功");
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.detail || "创建SQL收藏失败");
+        }
+    });
+}
+
+export function useDeleteSqlFavorite() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (favoriteId: number) => {
+            return api.delete(`/admin/sql/favorites/${favoriteId}`);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["sqlFavorites"] });
+            toast.success("SQL收藏删除成功");
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.detail || "删除SQL收藏失败");
         }
     });
 }

@@ -39,6 +39,17 @@ def _convert_datetime_to_str(value):
         return value.isoformat()
     return value
 
+
+def _extract_scalar_value(row: Any) -> Any:
+    """从数据库查询结果中提取标量值"""
+    if row is None:
+        return None
+    if isinstance(row, (list, tuple)) and len(row) > 0:
+        return row[0]
+    if isinstance(row, dict) and len(row) > 0:
+        return list(row.values())[0]
+    return row
+
 # 创建路由器
 router = APIRouter(prefix="/admin", tags=["管理面板"])
 
@@ -200,18 +211,38 @@ async def get_table_data(
     table_name: str,
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(1000, ge=1, le=10000, description="每页数量"),
-    search: Optional[str] = Query(None, description="搜索关键词"),
+    search: Optional[str] = Query(None, description="搜索关键词（全字段搜索）"),
+    sort_by: Optional[str] = Query(None, description="排序字段"),
+    sort_order: str = Query("asc", description="排序方向（asc/desc）"),
+    field_search: Optional[str] = Query(None, description="字段搜索（JSON格式：{\"字段名\":\"搜索值\"}）"),
     admin: dict = Depends(auth.get_current_admin)
 ):
     """
-    获取表数据（支持分页和搜索）
+    获取表数据（支持分页、搜索、排序和字段筛选）
     """
     # 验证表是否存在
     tables = db.get_all_tables()
     if table_name not in tables:
         raise HTTPException(status_code=404, detail=f"表 {table_name} 不存在")
     
-    data, total = db.get_table_data(table_name, page, page_size, search)
+    # 解析字段搜索JSON
+    field_search_dict = None
+    if field_search:
+        try:
+            import json
+            field_search_dict = json.loads(field_search)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="字段搜索参数格式错误，应为JSON格式")
+    
+    data, total = db.get_table_data(
+        table_name, 
+        page, 
+        page_size, 
+        search=search,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        field_search=field_search_dict
+    )
     
     total_pages = (total + page_size - 1) // page_size if total > 0 else 0
     
@@ -1030,4 +1061,389 @@ async def update_user_password(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"修改密码失败: {str(e)}")
+
+
+# ============================================================================
+# SQL查询管理API
+# ============================================================================
+
+class SqlExecuteRequest(BaseModel):
+    """SQL执行请求模型"""
+    sql: str
+    max_rows: Optional[int] = 10000  # 最大返回行数限制
+
+
+class SqlExecuteResponse(BaseModel):
+    """SQL执行响应模型"""
+    success: bool
+    data: Optional[List[Dict[str, Any]]] = None
+    row_count: Optional[int] = None
+    execution_time_ms: int
+    error_message: Optional[str] = None
+
+
+class SqlQueryHistoryItem(BaseModel):
+    """SQL查询历史记录项"""
+    id: int
+    sql_query: str
+    result_count: Optional[int]
+    execution_time_ms: Optional[int]
+    status: str
+    error_message: Optional[str]
+    created_at: str
+    created_by: Optional[str]
+
+
+class SqlQueryHistoryResponse(BaseModel):
+    """SQL查询历史记录响应"""
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    history: List[SqlQueryHistoryItem]
+
+
+class SqlQueryFavoriteItem(BaseModel):
+    """SQL查询收藏项"""
+    id: int
+    name: str
+    sql_query: str
+    description: Optional[str]
+    created_at: str
+    created_by: Optional[str]
+    updated_at: str
+
+
+class SqlQueryFavoriteListResponse(BaseModel):
+    """SQL查询收藏列表响应"""
+    favorites: List[SqlQueryFavoriteItem]
+
+
+class SqlQueryFavoriteCreateRequest(BaseModel):
+    """创建SQL收藏请求"""
+    name: str
+    sql_query: str
+    description: Optional[str] = None
+
+
+@router.post("/sql/execute", response_model=SqlExecuteResponse)
+async def execute_sql(
+    request: SqlExecuteRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    执行SQL查询（支持所有SQL语句，包括INSERT/UPDATE/DELETE）
+    
+    注意：此接口允许执行所有SQL语句，请谨慎使用
+    """
+    import time
+    start_time = time.time()
+    
+    try:
+        # 限制最大返回行数
+        max_rows = min(request.max_rows or 10000, 10000)
+        
+        with db.get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # 执行SQL
+            cursor.execute(request.sql)
+            
+            # 判断是查询还是DML语句
+            sql_upper = request.sql.strip().upper()
+            is_select = sql_upper.startswith('SELECT')
+            
+            if is_select:
+                # SELECT查询，返回结果
+                rows = cursor.fetchall()
+                row_count = len(rows)
+                
+                # 限制返回行数
+                if row_count > max_rows:
+                    rows = rows[:max_rows]
+                    logger.warning(f"SQL query returned {row_count} rows, limited to {max_rows}")
+                
+                # 转换为字典列表
+                if rows:
+                    if isinstance(rows[0], dict):
+                        data = list(rows)
+                    else:
+                        # 获取列名
+                        if hasattr(cursor, 'description') and cursor.description:
+                            columns = [desc[0] for desc in cursor.description]
+                            data = [dict(zip(columns, row)) for row in rows]
+                        else:
+                            data = [{"result": str(row)} for row in rows]
+                else:
+                    data = []
+                
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                
+                # 保存历史记录
+                try:
+                    _save_sql_history(
+                        request.sql,
+                        row_count,
+                        execution_time_ms,
+                        'success',
+                        None,
+                        admin.get('username')
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to save SQL history: {e}")
+                
+                return SqlExecuteResponse(
+                    success=True,
+                    data=data,
+                    row_count=row_count,
+                    execution_time_ms=execution_time_ms
+                )
+            else:
+                # DML语句（INSERT/UPDATE/DELETE），返回影响行数
+                conn.commit()
+                affected_rows = cursor.rowcount
+                execution_time_ms = int((time.time() - start_time) * 1000)
+                
+                # 保存历史记录
+                try:
+                    _save_sql_history(
+                        request.sql,
+                        affected_rows,
+                        execution_time_ms,
+                        'success',
+                        None,
+                        admin.get('username')
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to save SQL history: {e}")
+                
+                return SqlExecuteResponse(
+                    success=True,
+                    data=[{"affected_rows": affected_rows}],
+                    row_count=affected_rows,
+                    execution_time_ms=execution_time_ms
+                )
+                
+    except Exception as e:
+        execution_time_ms = int((time.time() - start_time) * 1000)
+        error_message = str(e)
+        logger.error(f"SQL execution error: {error_message}")
+        
+        # 保存错误历史记录
+        try:
+            _save_sql_history(
+                request.sql,
+                None,
+                execution_time_ms,
+                'error',
+                error_message,
+                admin.get('username')
+            )
+        except Exception as save_error:
+            logger.warning(f"Failed to save SQL error history: {save_error}")
+        
+        return SqlExecuteResponse(
+            success=False,
+            execution_time_ms=execution_time_ms,
+            error_message=error_message
+        )
+
+
+def _save_sql_history(
+    sql_query: str,
+    result_count: Optional[int],
+    execution_time_ms: int,
+    status: str,
+    error_message: Optional[str],
+    created_by: Optional[str]
+):
+    """保存SQL查询历史记录"""
+    from config import DB_TYPE
+    with db.get_db_connection() as conn:
+        cursor = conn.cursor()
+        param_placeholder = "%s" if DB_TYPE == "postgresql" else "?"
+        cursor.execute(
+            f"""
+            INSERT INTO sql_query_history 
+            (sql_query, result_count, execution_time_ms, status, error_message, created_by)
+            VALUES ({param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder})
+            """,
+            (sql_query, result_count, execution_time_ms, status, error_message, created_by)
+        )
+        conn.commit()
+
+
+@router.get("/sql/history", response_model=SqlQueryHistoryResponse)
+async def get_sql_history(
+    page: int = Query(1, ge=1, description="页码"),
+    page_size: int = Query(50, ge=1, le=200, description="每页数量"),
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    获取SQL查询历史记录（支持分页）
+    """
+    try:
+        from config import DB_TYPE
+        with db.get_db_connection() as conn:
+            cursor = conn.cursor()
+            param_placeholder = "%s" if DB_TYPE == "postgresql" else "?"
+            
+            # 获取总数
+            cursor.execute("SELECT COUNT(*) FROM sql_query_history")
+            row = cursor.fetchone()
+            total = _extract_scalar_value(row)
+            
+            # 获取分页数据
+            offset = (page - 1) * page_size
+            if DB_TYPE == "postgresql":
+                cursor.execute(
+                    f"""
+                    SELECT * FROM sql_query_history 
+                    ORDER BY created_at DESC 
+                    LIMIT {param_placeholder} OFFSET {param_placeholder}
+                    """,
+                    (page_size, offset)
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT * FROM sql_query_history 
+                    ORDER BY created_at DESC 
+                    LIMIT ? OFFSET ?
+                    """,
+                    (page_size, offset)
+                )
+            
+            rows = cursor.fetchall()
+            history_items = []
+            for row in rows:
+                row_dict = dict(row)
+                history_items.append(SqlQueryHistoryItem(
+                    id=row_dict['id'],
+                    sql_query=row_dict['sql_query'],
+                    result_count=row_dict.get('result_count'),
+                    execution_time_ms=row_dict.get('execution_time_ms'),
+                    status=row_dict.get('status', 'success'),
+                    error_message=row_dict.get('error_message'),
+                    created_at=_convert_datetime_to_str(row_dict.get('created_at')),
+                    created_by=row_dict.get('created_by')
+                ))
+            
+            total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+            
+            return SqlQueryHistoryResponse(
+                total=total,
+                page=page,
+                page_size=page_size,
+                total_pages=total_pages,
+                history=history_items
+            )
+    except Exception as e:
+        logger.error(f"Error getting SQL history: {e}")
+        raise HTTPException(status_code=500, detail=f"获取SQL历史记录失败: {str(e)}")
+
+
+@router.get("/sql/favorites", response_model=SqlQueryFavoriteListResponse)
+async def get_sql_favorites(
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    获取SQL查询收藏列表
+    """
+    try:
+        with db.get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM sql_query_favorites ORDER BY updated_at DESC")
+            rows = cursor.fetchall()
+            
+            favorites = []
+            for row in rows:
+                row_dict = dict(row)
+                favorites.append(SqlQueryFavoriteItem(
+                    id=row_dict['id'],
+                    name=row_dict['name'],
+                    sql_query=row_dict['sql_query'],
+                    description=row_dict.get('description'),
+                    created_at=_convert_datetime_to_str(row_dict.get('created_at')),
+                    created_by=row_dict.get('created_by'),
+                    updated_at=_convert_datetime_to_str(row_dict.get('updated_at'))
+                ))
+            
+            return SqlQueryFavoriteListResponse(favorites=favorites)
+    except Exception as e:
+        logger.error(f"Error getting SQL favorites: {e}")
+        raise HTTPException(status_code=500, detail=f"获取SQL收藏失败: {str(e)}")
+
+
+@router.post("/sql/favorites", response_model=MessageResponse)
+async def create_sql_favorite(
+    request: SqlQueryFavoriteCreateRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    创建SQL查询收藏
+    """
+    try:
+        from config import DB_TYPE
+        with db.get_db_connection() as conn:
+            cursor = conn.cursor()
+            param_placeholder = "%s" if DB_TYPE == "postgresql" else "?"
+            
+            if DB_TYPE == "postgresql":
+                cursor.execute(
+                    f"""
+                    INSERT INTO sql_query_favorites (name, sql_query, description, created_by)
+                    VALUES ({param_placeholder}, {param_placeholder}, {param_placeholder}, {param_placeholder})
+                    RETURNING id
+                    """,
+                    (request.name, request.sql_query, request.description, admin.get('username'))
+                )
+                result = cursor.fetchone()
+                favorite_id = result['id'] if result else None
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO sql_query_favorites (name, sql_query, description, created_by)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (request.name, request.sql_query, request.description, admin.get('username'))
+                )
+                favorite_id = cursor.lastrowid
+            
+            conn.commit()
+            return MessageResponse(message=f"SQL收藏创建成功，ID: {favorite_id}")
+    except Exception as e:
+        logger.error(f"Error creating SQL favorite: {e}")
+        raise HTTPException(status_code=400, detail=f"创建SQL收藏失败: {str(e)}")
+
+
+@router.delete("/sql/favorites/{favorite_id}", response_model=MessageResponse)
+async def delete_sql_favorite(
+    favorite_id: int,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    """
+    删除SQL查询收藏
+    """
+    try:
+        from config import DB_TYPE
+        with db.get_db_connection() as conn:
+            cursor = conn.cursor()
+            param_placeholder = "%s" if DB_TYPE == "postgresql" else "?"
+            
+            cursor.execute(
+                f"DELETE FROM sql_query_favorites WHERE id = {param_placeholder}",
+                (favorite_id,)
+            )
+            conn.commit()
+            
+            if cursor.rowcount > 0:
+                return MessageResponse(message=f"SQL收藏 {favorite_id} 删除成功")
+            else:
+                raise HTTPException(status_code=404, detail=f"SQL收藏 {favorite_id} 不存在")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting SQL favorite: {e}")
+        raise HTTPException(status_code=500, detail=f"删除SQL收藏失败: {str(e)}")
 

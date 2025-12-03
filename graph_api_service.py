@@ -188,12 +188,12 @@ async def list_emails_graph(
     
     try:
         # 增加超时时间，并添加重试机制
-        timeout = httpx.Timeout(60.0, connect=30.0)  # 总超时60秒，连接超时30秒
+        timeout = httpx.Timeout(10.0, connect=5.0)  # 总超时60秒，连接超时30秒
         async with httpx.AsyncClient(timeout=timeout) as client:
             for folder_name in folders_to_query:
                 # 构建查询参数（参考 mail-all.js 的实现，使用 $top=10000）
                 params = {
-                    "$top": 10000,  # 一次性获取大量邮件（参考 mail-all.js）
+                    "$top": 1000,  # 一次性获取大量邮件（参考 mail-all.js）
                     "$orderby": "receivedDateTime desc",  # 按接收时间降序排序
                     "$select": "id,subject,from,receivedDateTime,isRead,hasAttachments,bodyPreview"
                 }
@@ -214,12 +214,42 @@ async def list_emails_graph(
                 
                 url = f"{GRAPH_API_BASE_URL}/me/mailFolders/{folder_name}/messages"
                 
-                # 添加重试机制
+                # 添加重试机制（包括 401 错误处理）
                 max_retries = 2
                 last_error = None
+                token_refreshed = False
+                response = None
                 for attempt in range(max_retries + 1):
                     try:
+                        logger.info(f"Requesting URL: {url}, Headers: {headers}, Params: {params}")
                         response = await client.get(url, headers=headers, params=params)
+                        logger.info(f"Response: {response.text[:200]}...")
+                        # 处理 401 未授权错误（token 过期或无效）
+                        if response.status_code == 401:
+                            if not token_refreshed:
+                                logger.warning(
+                                    f"Received 401 Unauthorized for {credentials.email}, "
+                                    f"clearing cache and refreshing token..."
+                                )
+                                # 清除缓存的 token
+                                from oauth_service import clear_cached_access_token
+                                await clear_cached_access_token(credentials.email)
+                                
+                                # 重新获取 token
+                                access_token = await get_graph_access_token(credentials)
+                                headers["Authorization"] = f"Bearer {access_token}"
+                                token_refreshed = True
+                                
+                                # 重试请求（不增加 attempt 计数，继续循环）
+                                continue
+                            else:
+                                # 已经刷新过 token，还是 401，说明凭证有问题
+                                logger.error(
+                                    f"401 Unauthorized persists after token refresh for {credentials.email}. "
+                                    f"Response: {response.text[:200]}"
+                                )
+                                response.raise_for_status()  # 抛出异常
+                        
                         response.raise_for_status()
                         break  # 成功，退出重试循环
                     except (httpx.ConnectError, httpx.TimeoutException) as e:
@@ -233,6 +263,9 @@ async def list_emails_graph(
                             await asyncio.sleep(wait_time)
                         else:
                             raise  # 最后一次尝试失败，抛出异常
+                
+                if response is None:
+                    raise httpx.RequestError("Failed to get response after retries")
                 
                 data = response.json()
                 emails = data.get("value", [])
@@ -314,6 +347,17 @@ async def list_emails_graph(
         logger.error(f"Timeout error fetching emails via Graph API for {credentials.email}: {e}")
         raise HTTPException(status_code=504, detail=error_msg)
     except httpx.HTTPStatusError as e:
+        # 401 错误应该已经在循环中处理过了，如果还是失败，记录错误
+        if e.response.status_code == 401:
+            logger.error(
+                f"401 Unauthorized error for {credentials.email} after token refresh attempt. "
+                f"Response: {e.response.text[:200]}"
+            )
+            raise HTTPException(
+                status_code=401, 
+                detail="Authentication failed. Please check your account credentials."
+            )
+        
         logger.error(f"HTTP error fetching emails via Graph API for {credentials.email}: Status {e.response.status_code}, Response: {e.response.text[:200]}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch emails via Graph API: HTTP {e.response.status_code}")
     except Exception as e:
