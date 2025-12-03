@@ -342,6 +342,14 @@ def _init_postgresql_database() -> None:
         else:
             logger.warning(f"PostgreSQL indexes file not found: {indexes_file}")
         
+        # 尝试添加 max_emails 列（如果表已存在但没有此列）
+        try:
+            cursor.execute("ALTER TABLE share_tokens ADD COLUMN IF NOT EXISTS max_emails INTEGER DEFAULT 10")
+            logger.info("Added max_emails column to share_tokens table (if not exists)")
+        except Exception as e:
+            # 列已存在或其他错误，记录但不中断
+            logger.debug(f"max_emails column check: {e}")
+        
         conn.commit()
         logger.info("PostgreSQL database initialized successfully")
 
@@ -609,6 +617,14 @@ def init_database() -> None:
                 is_active INTEGER DEFAULT 1
             )
         """)
+        
+        # 尝试添加 max_emails 列（如果表已存在但没有此列）
+        try:
+            cursor.execute("ALTER TABLE share_tokens ADD COLUMN max_emails INTEGER DEFAULT 10")
+            logger.info("Added max_emails column to share_tokens table")
+        except Exception:
+            # 列已存在，忽略错误
+            pass
         
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_token ON share_tokens(token)")
@@ -900,8 +916,8 @@ def init_default_api_key() -> str:
 
 
 # Share Tokens 表操作 - 委托给 ShareTokenDAO
-def create_share_token(token: str, email_account_id: str, start_time: str, end_time: Optional[str] = None, subject_keyword: Optional[str] = None, sender_keyword: Optional[str] = None, expiry_time: Optional[str] = None, is_active: bool = True) -> int:
-    return _get_share_token_dao().create(token, email_account_id, start_time, end_time, subject_keyword, sender_keyword, expiry_time, is_active)
+def create_share_token(token: str, email_account_id: str, start_time: str, end_time: Optional[str] = None, subject_keyword: Optional[str] = None, sender_keyword: Optional[str] = None, expiry_time: Optional[str] = None, is_active: bool = True, max_emails: int = 10) -> int:
+    return _get_share_token_dao().create(token, email_account_id, start_time, end_time, subject_keyword, sender_keyword, expiry_time, is_active, max_emails)
 
 def get_share_token(token: str) -> Optional[Dict[str, Any]]:
     return _get_share_token_dao().get_by_token(token)

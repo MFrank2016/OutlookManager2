@@ -93,7 +93,8 @@ CREATE TABLE IF NOT EXISTS share_tokens (
     sender_keyword TEXT,
     expiry_time TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT TRUE
+    is_active BOOLEAN DEFAULT TRUE,
+    max_emails INTEGER DEFAULT 10
 );
 
 -- 创建 batch_import_tasks 表

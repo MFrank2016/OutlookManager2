@@ -406,6 +406,7 @@ class ShareTokenCreate(BaseModel):
     filter_end_time: Optional[str] = Field(None, description="邮件结束时间筛选 (ISO8601)")
     subject_keyword: Optional[str] = Field(None, description="主题关键词")
     sender_keyword: Optional[str] = Field(None, description="发件人关键词")
+    max_emails: Optional[int] = Field(10, description="最多返回邮件数量（默认10）")
 
 class ShareTokenUpdate(BaseModel):
     """更新分享码请求模型"""
@@ -415,6 +416,7 @@ class ShareTokenUpdate(BaseModel):
     sender_keyword: Optional[str] = Field(None, description="发件人关键词")
     expiry_time: Optional[str] = Field(None, description="过期时间")
     is_active: Optional[bool] = Field(None, description="是否激活")
+    max_emails: Optional[int] = Field(None, description="最多返回邮件数量")
 
 class ShareTokenResponse(BaseModel):
     """分享码响应模型"""
@@ -428,6 +430,7 @@ class ShareTokenResponse(BaseModel):
     expiry_time: Optional[str] = None
     created_at: str
     is_active: bool
+    max_emails: int = 10
     share_link: Optional[str] = None
 
 class BatchShareTokenCreate(BaseModel):
@@ -439,6 +442,7 @@ class BatchShareTokenCreate(BaseModel):
     filter_end_time: Optional[str] = Field(None, description="邮件结束时间筛选 (ISO8601)")
     subject_keyword: Optional[str] = Field(None, description="主题关键词")
     sender_keyword: Optional[str] = Field(None, description="发件人关键词")
+    max_emails: Optional[int] = Field(10, description="最多返回邮件数量（默认10）")
 
 class BatchShareResultItem(BaseModel):
     """批量分享单个账号的处理结果"""

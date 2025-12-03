@@ -16,10 +16,12 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Mail, ChevronLeft, ChevronRight, Eye, Copy, Check, Calendar, RefreshCw } from "lucide-react";
+import { Loader2, Mail, ChevronLeft, ChevronRight, Eye, Copy, Check, Calendar, RefreshCw, Search } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { useRouter } from "next/navigation";
 
 interface EmailItem {
   message_id: string;
@@ -53,12 +55,17 @@ interface ShareTokenInfo {
 
 export default function SharedEmailPage() {
   const params = useParams();
-  const token = params.token as string;
+  const router = useRouter();
+  const urlToken = params.token as string;
+  const [inputToken, setInputToken] = useState<string>(urlToken || "");
   const [page, setPage] = useState(1);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [emailDetailOpen, setEmailDetailOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"html" | "text">("html");
   const pageSize = 20;
+  
+  // 使用输入框的token或URL中的token
+  const token = inputToken || urlToken;
 
   // 处理API错误的辅助函数
   const handleApiError = async (response: Response): Promise<never> => {
@@ -145,6 +152,16 @@ export default function SharedEmailPage() {
     }
   };
 
+  // 查询token
+  const handleSearchToken = () => {
+    if (!inputToken || inputToken.trim() === "") {
+      toast.error("请输入分享码");
+      return;
+    }
+    // 导航到新的token页面
+    router.push(`/shared/${inputToken.trim()}`);
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -181,6 +198,39 @@ export default function SharedEmailPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Token输入框和查询按钮 */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                分享码
+              </label>
+              <Input
+                type="text"
+                placeholder="请输入分享码"
+                value={inputToken}
+                onChange={(e) => setInputToken(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleSearchToken();
+                  }
+                }}
+                className="w-full"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button
+                onClick={handleSearchToken}
+                disabled={!inputToken || inputToken.trim() === ""}
+                className="min-h-[44px]"
+              >
+                <Search className="h-4 w-4 mr-2" />
+                查询
+              </Button>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">

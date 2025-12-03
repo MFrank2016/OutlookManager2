@@ -63,5 +63,6 @@ export interface ShareToken {
   is_active: boolean;
   subject_keyword?: string;
   sender_keyword?: string;
+  max_emails?: number;
   created_at: string;
 }

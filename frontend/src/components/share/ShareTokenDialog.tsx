@@ -51,6 +51,7 @@ const formSchema = z.object({
   subject_keyword: z.string().optional(),
   sender_keyword: z.string().optional(),
   is_active: z.boolean().optional(),
+  max_emails: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -80,6 +81,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
       subject_keyword: "",
       sender_keyword: "",
       is_active: true,
+      max_emails: "10",
     },
   });
 
@@ -103,6 +105,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
                 subject_keyword: tokenToEdit.subject_keyword || "",
                 sender_keyword: tokenToEdit.sender_keyword || "",
                 is_active: tokenToEdit.is_active,
+                max_emails: String((tokenToEdit as any).max_emails || 10),
             });
         } else {
             // Reset to defaults
@@ -114,6 +117,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
                 subject_keyword: "",
                 sender_keyword: "",
                 is_active: true,
+                max_emails: "10",
             });
         }
     }
@@ -168,6 +172,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
             filter_end_time: values.filter_end_time ? new Date(values.filter_end_time).toISOString() : undefined,
             subject_keyword: values.subject_keyword || undefined,
             sender_keyword: values.sender_keyword || undefined,
+            max_emails: values.max_emails ? Number(values.max_emails) : 10,
         };
 
         api.post("/share/tokens", payload)
@@ -296,6 +301,19 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
                         <FormLabel>发件人关键词</FormLabel>
                         <FormControl>
                             <Input placeholder="例如: @google.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="max_emails"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>最多返回邮件数</FormLabel>
+                        <FormControl>
+                            <Input type="number" min="1" max="100" placeholder="10" {...field} />
                         </FormControl>
                         <FormMessage />
                         </FormItem>

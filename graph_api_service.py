@@ -365,6 +365,237 @@ async def list_emails_graph(
         raise HTTPException(status_code=500, detail=f"Failed to fetch emails via Graph API: {str(e)}")
 
 
+async def list_emails_with_body_graph(
+    credentials: AccountCredentials,
+    folder: str,
+    max_count: int,
+    sender_search: Optional[str] = None,
+    subject_search: Optional[str] = None,
+    sort_by: str = "date",
+    sort_order: str = "desc",
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """
+    使用 Graph API 直接获取包含body的邮件详情列表（用于分享页）
+    
+    Args:
+        credentials: 账户凭证
+        folder: 文件夹名称 ('inbox', 'junk', 'all')
+        max_count: 最多返回邮件数量
+        sender_search: 发件人搜索
+        subject_search: 主题搜索
+        sort_by: 排序字段
+        sort_order: 排序方向
+        start_time: 开始时间 (ISO8601)
+        end_time: 结束时间 (ISO8601)
+        
+    Returns:
+        List[Dict]: 包含完整body的邮件详情列表
+    """
+    access_token = await get_graph_access_token(credentials)
+    
+    # 映射文件夹名称
+    folder_map = {
+        "inbox": "inbox",
+        "junk": "junkemail",
+        "all": None
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    all_emails = []
+    
+    # 确定要查询的文件夹
+    folders_to_query = []
+    if folder == "all":
+        folders_to_query = ["inbox", "junkemail"]
+    else:
+        folders_to_query = [folder_map.get(folder, "inbox")]
+    
+    try:
+        timeout = httpx.Timeout(60.0, connect=30.0)  # 总超时60秒，连接超时30秒
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            for folder_name in folders_to_query:
+                # 构建查询参数，包含body字段
+                params = {
+                    "$top": max_count,  # 限制返回数量
+                    "$orderby": "receivedDateTime desc",
+                    "$select": "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,body,bodyPreview"
+                }
+                
+                # 添加过滤条件
+                filters = []
+                if sender_search:
+                    filters.append(f"contains(from/emailAddress/address, '{sender_search}')")
+                if subject_search:
+                    filters.append(f"contains(subject, '{subject_search}')")
+                if start_time:
+                    filters.append(f"receivedDateTime ge {start_time}")
+                if end_time:
+                    filters.append(f"receivedDateTime le {end_time}")
+                
+                if filters:
+                    params["$filter"] = " and ".join(filters)
+                
+                url = f"{GRAPH_API_BASE_URL}/me/mailFolders/{folder_name}/messages"
+                
+                # 添加重试机制
+                max_retries = 2
+                last_error = None
+                token_refreshed = False
+                response = None
+                for attempt in range(max_retries + 1):
+                    try:
+                        response = await client.get(url, headers=headers, params=params)
+                        # 处理 401 未授权错误
+                        if response.status_code == 401:
+                            if not token_refreshed:
+                                logger.warning(
+                                    f"Received 401 Unauthorized for {credentials.email}, "
+                                    f"clearing cache and refreshing token..."
+                                )
+                                from oauth_service import clear_cached_access_token
+                                clear_cached_access_token(credentials.email)
+                                access_token = await get_graph_access_token(credentials)
+                                headers["Authorization"] = f"Bearer {access_token}"
+                                token_refreshed = True
+                                continue
+                        response.raise_for_status()
+                        break
+                    except (httpx.ConnectError, httpx.TimeoutException) as e:
+                        last_error = e
+                        if attempt < max_retries:
+                            wait_time = (attempt + 1) * 2
+                            logger.warning(
+                                f"Network error fetching emails with body for {credentials.email} "
+                                f"(attempt {attempt + 1}/{max_retries + 1}): {e}. Retrying in {wait_time}s..."
+                            )
+                            await asyncio.sleep(wait_time)
+                        else:
+                            raise
+                
+                if response is None:
+                    continue
+                
+                data = response.json()
+                emails = data.get("value", [])
+                
+                # 处理每封邮件
+                for email in emails:
+                    # 提取基本信息
+                    from_data = email.get("from", {}).get("emailAddress", {})
+                    from_email = from_data.get("address", "(Unknown Sender)")
+                    
+                    to_recipients = email.get("toRecipients", [])
+                    to_email = ", ".join([r.get("emailAddress", {}).get("address", "") for r in to_recipients])
+                    
+                    subject = email.get("subject", "(No Subject)")
+                    
+                    # 获取邮件正文
+                    body_data = email.get("body", {})
+                    body_content = body_data.get("content", "")
+                    body_type = body_data.get("contentType", "text")
+                    
+                    body_plain = None
+                    body_html = None
+                    
+                    if body_type.lower() == "html":
+                        body_html = body_content
+                        body_plain = email.get("bodyPreview", "")
+                    else:
+                        body_plain = body_content
+                    
+                    # 格式化日期
+                    date_str = email.get("receivedDateTime", "")
+                    try:
+                        date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                        formatted_date = date_obj.isoformat()
+                    except Exception:
+                        formatted_date = datetime.now().isoformat()
+                    
+                    # 检测验证码
+                    verification_code = None
+                    try:
+                        body_for_detection = body_plain or body_html or ""
+                        code_info = detect_verification_code(subject=subject, body=body_for_detection)
+                        if code_info:
+                            verification_code = code_info["code"]
+                    except Exception as e:
+                        logger.warning(f"Failed to detect verification code: {e}")
+                    
+                    # 提取发件人首字母
+                    sender_initial = "?"
+                    if from_email:
+                        match = re.search(r'([a-zA-Z])', from_email)
+                        if match:
+                            sender_initial = match.group(1).upper()
+                    
+                    email_dict = {
+                        'message_id': email.get("id"),
+                        'folder': folder_name,
+                        'subject': subject,
+                        'from_email': from_email,
+                        'to_email': to_email,
+                        'date': formatted_date,
+                        'is_read': email.get("isRead", False),
+                        'has_attachments': email.get("hasAttachments", False),
+                        'sender_initial': sender_initial,
+                        'verification_code': verification_code,
+                        'body_preview': email.get("bodyPreview", ""),
+                        'body_plain': body_plain,
+                        'body_html': body_html,
+                    }
+                    all_emails.append(email_dict)
+        
+        # 排序
+        reverse = (sort_order == "desc")
+        if sort_by == "date":
+            def get_date_key(email_dict):
+                try:
+                    return datetime.fromisoformat(email_dict['date'].replace('Z', '+00:00'))
+                except:
+                    return datetime.min
+            all_emails.sort(key=get_date_key, reverse=reverse)
+        elif sort_by == "subject":
+            all_emails.sort(key=lambda x: x['subject'], reverse=reverse)
+        elif sort_by == "from_email":
+            all_emails.sort(key=lambda x: x['from_email'], reverse=reverse)
+        
+        # 限制返回数量
+        all_emails = all_emails[:max_count]
+        
+        logger.info(f"Fetched {len(all_emails)} emails with body via Graph API for {credentials.email}")
+        return all_emails
+        
+    except httpx.ConnectError as e:
+        error_msg = f"Network connection error: Unable to connect to Microsoft Graph API. Please check your network connection."
+        logger.error(f"Connection error fetching emails with body via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=503, detail=error_msg)
+    except httpx.TimeoutException as e:
+        error_msg = f"Request timeout: The request to Microsoft Graph API took too long. Please try again later."
+        logger.error(f"Timeout error fetching emails with body via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=504, detail=error_msg)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401:
+            logger.error(
+                f"401 Unauthorized error for {credentials.email} after token refresh attempt. "
+                f"Response: {e.response.text[:200]}"
+            )
+            raise HTTPException(
+                status_code=401, 
+                detail="Authentication failed. Please check your account credentials."
+            )
+        logger.error(f"HTTP error fetching emails with body via Graph API for {credentials.email}: Status {e.response.status_code}, Response: {e.response.text[:200]}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch emails with body via Graph API: HTTP {e.response.status_code}")
+    except Exception as e:
+        logger.exception(f"Error fetching emails with body via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch emails with body via Graph API: {str(e)}")
+
+
 async def get_email_details_graph(
     credentials: AccountCredentials,
     message_id: str

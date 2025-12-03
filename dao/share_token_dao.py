@@ -72,7 +72,8 @@ class ShareTokenDAO(BaseDAO):
         subject_keyword: Optional[str] = None,
         sender_keyword: Optional[str] = None,
         expiry_time: Optional[str] = None,
-        is_active: bool = True
+        is_active: bool = True,
+        max_emails: int = 10
     ) -> int:
         """
         创建分享码
@@ -86,6 +87,7 @@ class ShareTokenDAO(BaseDAO):
             sender_keyword: 发件人关键词
             expiry_time: 过期时间
             is_active: 是否激活
+            max_emails: 最多返回邮件数量
             
         Returns:
             新记录的 ID
@@ -101,7 +103,8 @@ class ShareTokenDAO(BaseDAO):
             'subject_keyword': subject_keyword,
             'sender_keyword': sender_keyword,
             'expiry_time': expiry_time,
-            'is_active': is_active_val
+            'is_active': is_active_val,
+            'max_emails': max_emails
         }
         return self.insert(data)
     

@@ -6,6 +6,8 @@
 
 import uuid
 import logging
+import asyncio
+import concurrent.futures
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -34,6 +36,9 @@ from rate_limiter import check_share_token_rate_limit
 
 # 获取日志记录器
 logger = logging.getLogger(__name__)
+
+# 创建单独的线程池用于分享页查询（5个线程）
+share_query_executor = concurrent.futures.ThreadPoolExecutor(max_workers=5, thread_name_prefix="share-query")
 
 # 创建路由器
 router = APIRouter(prefix="/share", tags=["分享码"])
@@ -98,7 +103,8 @@ async def create_token(
         subject_keyword=request.subject_keyword,
         sender_keyword=request.sender_keyword,
         expiry_time=expiry_time,
-        is_active=True
+        is_active=True,
+        max_emails=request.max_emails or 10
     )
     
     token_data = db.get_share_token(token)
@@ -166,7 +172,8 @@ async def create_tokens_batch(
                     subject_keyword=request.subject_keyword,
                     sender_keyword=request.sender_keyword,
                     expiry_time=expiry_time,
-                    is_active=True
+                    is_active=True,
+                    max_emails=request.max_emails or 10
                 )
                 
                 success_count += 1
@@ -462,6 +469,71 @@ async def get_share_token_info(
         "sender_keyword": token_data.get('sender_keyword'),
     }
 
+async def _fetch_emails_with_body_for_share(
+    email_account: str,
+    max_emails: int,
+    filter_start: str,
+    filter_end: Optional[str],
+    subject_filter: Optional[str],
+    sender_filter: Optional[str]
+) -> List[Dict[str, Any]]:
+    """
+    为分享页获取带body的邮件列表（使用线程池）
+    直接调用包含body的接口，避免多次API调用
+    
+    Args:
+        email_account: 邮箱账户
+        max_emails: 最多返回邮件数量
+        filter_start: 开始时间
+        filter_end: 结束时间
+        subject_filter: 主题关键词
+        sender_filter: 发件人关键词
+        
+    Returns:
+        邮件列表（包含body）
+    """
+    def _sync_fetch():
+        """同步获取邮件（在线程池中执行）"""
+        try:
+            # 获取账户凭证
+            credentials = get_account_credentials(email_account)
+            if not credentials:
+                logger.error(f"Account credentials not found for {email_account}")
+                return []
+            
+            # 使用 Graph API 直接获取包含body的邮件列表
+            from graph_api_service import list_emails_with_body_graph
+            import asyncio
+            
+            # 创建新的事件循环（因为在线程中）
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                emails_with_body = loop.run_until_complete(
+                    list_emails_with_body_graph(
+                        credentials=credentials,
+                        folder="all",
+                        max_count=max_emails,
+                        sender_search=sender_filter,
+                        subject_search=subject_filter,
+                        sort_by="date",
+                        sort_order="desc",
+                        start_time=filter_start,
+                        end_time=filter_end
+                    )
+                )
+                
+                return emails_with_body
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"Error fetching emails for share: {e}")
+            return []
+    
+    # 在线程池中执行
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(share_query_executor, _sync_fetch)
+
 @router.get("/{token}/emails", response_model=EmailListResponse)
 async def public_list_emails(
     token: str,
@@ -470,9 +542,16 @@ async def public_list_emails(
     token_data: dict = Depends(get_valid_share_token)
 ):
     """
-    公共接口：获取邮件列表（仅从数据库查询，不调用邮件服务）
+    公共接口：获取邮件列表
+    优先查缓存（1分钟过期），没有则查微软接口（带body），先存数据库再存缓存
     """
+    import time
+    import math
+    from models import EmailItem
+    
+    start_time = time.time()
     email_account = token_data['email_account_id']
+    max_emails = token_data.get('max_emails', 10)
     
     # 应用分享码的过滤规则
     filter_start = token_data['start_time']
@@ -480,12 +559,12 @@ async def public_list_emails(
     subject_filter = token_data.get('subject_keyword')
     sender_filter = token_data.get('sender_keyword')
     
-    # 从数据库获取邮件列表（仅查询缓存）
+    # 检查缓存是否有效（1分钟内）
     cached_emails, total = db.get_cached_emails(
         email_account=email_account,
-        page=page,
-        page_size=page_size,
-        folder=None,  # 分享码查看所有文件夹
+        page=1,
+        page_size=max_emails,
+        folder=None,
         sender_search=sender_filter,
         subject_search=subject_filter,
         sort_by='date',
@@ -494,20 +573,162 @@ async def public_list_emails(
         end_time=filter_end
     )
     
-    # 转换为EmailItem格式
-    from models import EmailItem
-    email_items = [EmailItem(**email) for email in cached_emails]
+    # 检查缓存是否在1分钟内创建
+    cache_valid = False
+    if cached_emails:
+        # 检查第一条邮件的缓存时间（假设缓存是最近创建的）
+        from dao.email_cache_dao import EmailCacheDAO
+        from dao.base_dao import get_db_connection
+        from config import DB_TYPE
+        
+        cache_dao = EmailCacheDAO()
+        placeholder = cache_dao._get_param_placeholder()
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            if cached_emails:
+                first_message_id = cached_emails[0].get('message_id')
+                if first_message_id:
+                    if DB_TYPE == "postgresql":
+                        cursor.execute(f"""
+                            SELECT created_at FROM emails_cache 
+                            WHERE email_account = {placeholder} AND message_id = {placeholder}
+                            ORDER BY created_at DESC LIMIT 1
+                        """, (email_account, first_message_id))
+                    else:
+                        cursor.execute(f"""
+                            SELECT created_at FROM emails_cache 
+                            WHERE email_account = {placeholder} AND message_id = {placeholder}
+                            ORDER BY created_at DESC LIMIT 1
+                        """, (email_account, first_message_id))
+                    
+                    row = cursor.fetchone()
+                    if row:
+                        cache_time_str = dict(row).get('created_at') if isinstance(row, dict) else row[0]
+                        if cache_time_str:
+                            try:
+                                if isinstance(cache_time_str, str):
+                                    cache_time = datetime.fromisoformat(cache_time_str.replace('Z', '+00:00'))
+                                else:
+                                    cache_time = cache_time_str
+                                
+                                # 检查是否在1分钟内
+                                time_diff = (datetime.now() - cache_time.replace(tzinfo=None)).total_seconds()
+                                cache_valid = time_diff < 60  # 1分钟
+                            except Exception:
+                                cache_valid = False
     
-    # 返回EmailListResponse
+    # 如果缓存有效，直接返回
+    if cache_valid and cached_emails:
+        # 限制返回数量
+        limited_emails = cached_emails[:max_emails]
+        email_items = [EmailItem(**email) for email in limited_emails]
+        total_pages = math.ceil(len(limited_emails) / page_size) if page_size > 0 else 0
+        
+        fetch_time_ms = int((time.time() - start_time) * 1000)
+        return EmailListResponse(
+            email_id=email_account,
+            folder_view="all",
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            total_emails=len(limited_emails),
+            emails=email_items,
+            from_cache=True,
+            fetch_time_ms=fetch_time_ms
+        )
+    
+    # 缓存无效或不存在，从微软接口获取（带body）
+    logger.info(f"Cache invalid or empty for {email_account}, fetching from Microsoft API...")
+    emails_with_body = await _fetch_emails_with_body_for_share(
+        email_account=email_account,
+        max_emails=max_emails,
+        filter_start=filter_start,
+        filter_end=filter_end,
+        subject_filter=subject_filter,
+        sender_filter=sender_filter
+    )
+    
+    if not emails_with_body:
+        # 如果获取失败，返回空列表
+        return EmailListResponse(
+            email_id=email_account,
+            folder_view="all",
+            page=page,
+            page_size=page_size,
+            total_pages=0,
+            total_emails=0,
+            emails=[],
+            from_cache=False,
+            fetch_time_ms=int((time.time() - start_time) * 1000)
+        )
+    
+    # 先存到数据库（邮件列表和详情）
+    # 分离列表数据和详情数据
+    email_list_data = []
+    email_details_data = []
+    
+    for email in emails_with_body:
+        # 列表数据
+        list_item = {
+            'message_id': email.get('message_id'),
+            'folder': email.get('folder', 'INBOX'),
+            'subject': email.get('subject'),
+            'from_email': email.get('from_email'),
+            'date': email.get('date'),
+            'is_read': email.get('is_read', False),
+            'has_attachments': email.get('has_attachments', False),
+            'sender_initial': email.get('sender_initial', '?'),
+            'verification_code': email.get('verification_code'),
+            'body_preview': email.get('body_preview')
+        }
+        email_list_data.append(list_item)
+        
+        # 详情数据
+        if email.get('body_plain') or email.get('body_html'):
+            detail_item = {
+                'message_id': email.get('message_id'),
+                'subject': email.get('subject'),
+                'from_email': email.get('from_email'),
+                'to_email': email.get('to_email'),
+                'date': email.get('date'),
+                'body_plain': email.get('body_plain'),
+                'body_html': email.get('body_html'),
+                'verification_code': email.get('verification_code')
+            }
+            email_details_data.append(detail_item)
+    
+    # 存储到数据库
+    try:
+        db.cache_emails(email_account, email_list_data)
+        for detail in email_details_data:
+            db.cache_email_detail(email_account, detail)
+        logger.info(f"Cached {len(email_list_data)} emails and {len(email_details_data)} details for {email_account}")
+    except Exception as e:
+        logger.error(f"Error caching emails: {e}")
+    
+    # 转换为EmailItem格式并限制数量
+    limited_emails = email_list_data[:max_emails]
+    email_items = [EmailItem(**email) for email in limited_emails]
+    
+    # 分页
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+    paginated_emails = email_items[start_idx:end_idx]
+    
+    total_pages = math.ceil(len(limited_emails) / page_size) if page_size > 0 else 0
+    
+    fetch_time_ms = int((time.time() - start_time) * 1000)
     return EmailListResponse(
         email_id=email_account,
         folder_view="all",
         page=page,
         page_size=page_size,
-        total_emails=total,
-        emails=email_items,
-        from_cache=True,
-        fetch_time_ms=0
+        total_pages=total_pages,
+        total_emails=len(limited_emails),
+        emails=paginated_emails,
+        from_cache=False,
+        fetch_time_ms=fetch_time_ms
     )
 
 @router.get("/{token}/emails/{message_id}", response_model=EmailDetailsResponse)

@@ -42,3 +42,4 @@ if __name__ == '__main__':
             print(f"主题: {email['subject']}")
             print(f"发件人: {email['from']['emailAddress']['address']}")
             print(f"内容预览: {email['bodyPreview']}\n")
+            print(f"email: {email}")
