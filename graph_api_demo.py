@@ -15,14 +15,15 @@ def Graph(refresh_token,client_id):
         access_token = get_accesstoken(refresh_token, client_id)
         if access_token == '':
             return []
+        print(access_token)
         # url = "https://graph.microsoft.com/v1.0/me/messages" #获取全部邮件
         
         # 构建查询参数，包含body字段
-        # params = {
-        #     # "$top": 1,  # 限制返回数量
-        #     "$orderby": "receivedDateTime desc",
-        #     "$select": "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,body,bodyPreview"
-        # }
+        params = {
+            # "$top": 1,  # 限制返回数量
+            "$orderby": "receivedDateTime desc",
+            "$select": "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,body,bodyPreview"
+        }
                 
         # # 添加过滤条件
         # filters = []
@@ -39,10 +40,10 @@ def Graph(refresh_token,client_id):
         # if filters:
         #     params["$filter"] = " and ".join(filters)
                 
-        url = 'https://graph.microsoft.com/v1.0/me/messages?$filter=contains(from/emailAddress/address, "microsoft") and contains(subject, "invoice")'
-        params = {}
-        url = 'https://graph.microsoft.com/v1.0/me/messages?$filter=(from/emailAddress/address) eq "qiuyingjia2019@gmail.com"'
-        # url = f"https://graph.microsoft.com/v1.0/me/messages"
+        # url = 'https://graph.microsoft.com/v1.0/me/messages?$filter=contains(from/emailAddress/address, "microsoft") and contains(subject, "invoice")'
+        # params = {}
+        # url = 'https://graph.microsoft.com/v1.0/me/messages?$filter=(from/emailAddress/address) eq "qiuyingjia2019@gmail.com"'
+        url = f"https://graph.microsoft.com/v1.0/me/messages"
         # url ="https://graph.microsoft.com/v1.0/me/messages?$top=1&$orderby=receivedDateTime desc" #获取最新的一封邮件 
         headers = {"Authorization": f"Bearer {access_token}"}
         response = requests.get(url, headers=headers, params=params)

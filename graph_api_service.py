@@ -520,45 +520,45 @@ async def list_emails_with_body_graph(
                 to_email = ", ".join([r.get("emailAddress", {}).get("address", "") for r in to_recipients])
                 
                 subject = email.get("subject", "(No Subject)")
-                    
-                    # 获取邮件正文
-                    body_data = email.get("body", {})
-                    body_content = body_data.get("content", "")
-                    body_type = body_data.get("contentType", "text")
-                    
-                    body_plain = None
-                    body_html = None
-                    
-                    if body_type.lower() == "html":
-                        body_html = body_content
-                        body_plain = email.get("bodyPreview", "")
-                    else:
-                        body_plain = body_content
-                    
-                    # 格式化日期
-                    date_str = email.get("receivedDateTime", "")
-                    try:
-                        date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                        formatted_date = date_obj.isoformat()
-                    except Exception:
-                        formatted_date = datetime.now().isoformat()
-                    
-                    # 检测验证码
-                    verification_code = None
-                    try:
-                        body_for_detection = body_plain or body_html or ""
-                        code_info = detect_verification_code(subject=subject, body=body_for_detection)
-                        if code_info:
-                            verification_code = code_info["code"]
-                    except Exception as e:
-                        logger.warning(f"Failed to detect verification code: {e}")
-                    
-                    # 提取发件人首字母
-                    sender_initial = "?"
-                    if from_email:
-                        match = re.search(r'([a-zA-Z])', from_email)
-                        if match:
-                            sender_initial = match.group(1).upper()
+                
+                # 获取邮件正文
+                body_data = email.get("body", {})
+                body_content = body_data.get("content", "")
+                body_type = body_data.get("contentType", "text")
+                
+                body_plain = None
+                body_html = None
+                
+                if body_type.lower() == "html":
+                    body_html = body_content
+                    body_plain = email.get("bodyPreview", "")
+                else:
+                    body_plain = body_content
+                
+                # 格式化日期
+                date_str = email.get("receivedDateTime", "")
+                try:
+                    date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                    formatted_date = date_obj.isoformat()
+                except Exception:
+                    formatted_date = datetime.now().isoformat()
+                
+                # 检测验证码
+                verification_code = None
+                try:
+                    body_for_detection = body_plain or body_html or ""
+                    code_info = detect_verification_code(subject=subject, body=body_for_detection)
+                    if code_info:
+                        verification_code = code_info["code"]
+                except Exception as e:
+                    logger.warning(f"Failed to detect verification code: {e}")
+                
+                # 提取发件人首字母
+                sender_initial = "?"
+                if from_email:
+                    match = re.search(r'([a-zA-Z])', from_email)
+                    if match:
+                        sender_initial = match.group(1).upper()
                     
                 # 获取邮件所在的文件夹（如果是从 /me/messages 获取的）
                 email_folder = folder_name
