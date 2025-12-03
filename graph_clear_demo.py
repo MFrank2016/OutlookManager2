@@ -11,7 +11,9 @@ headers = {
 def clear_inbox():
     # 1. 获取邮件列表（仅获取ID）
     # 注意：实际生产中需要处理翻页 (@odata.nextLink)，这里简化为只取前100封
-    list_url = "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$select=id&$top=100"
+    # list_url = "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$select=id&$top=100"
+
+    list_url = "https://graph.microsoft.com/v1.0/me/messages?$select=id&$top=100"
     
     response = requests.get(list_url, headers=headers)
     messages = response.json().get('value', [])

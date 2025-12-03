@@ -858,7 +858,9 @@ async def list_emails_via_graph_api(
     else:
         logger.info(f"[Token信息] 账户: {credentials.email}, Token信息未找到，将在获取邮件时自动获取")
     
-    email_items, total = await list_emails_graph(
+    # 使用新的 list_emails_graph2 方法，支持 $count=true 获取准确的总数
+    from graph_api_service import list_emails_graph2
+    email_items, total = await list_emails_graph2(
         credentials, folder, page, page_size,
         sender_search, subject_search, sort_by, sort_order,
         start_time, end_time
@@ -934,6 +936,37 @@ async def delete_email(
     else:
         logger.info(f"Deleting email via IMAP: {message_id}")
         return await delete_email_via_imap(credentials, message_id)
+
+
+async def delete_emails_batch(
+    credentials: AccountCredentials,
+    folder: str = "inbox"
+) -> dict:
+    """
+    批量删除邮件（支持 Graph API 和 IMAP）
+    
+    Args:
+        credentials: 账户凭证
+        folder: 文件夹名称 ('inbox', 'junk', 'all')
+        
+    Returns:
+        dict: {
+            'success_count': int,  # 成功删除的邮件数
+            'fail_count': int,     # 失败的邮件数
+            'total_count': int     # 总邮件数
+        }
+    """
+    if credentials.api_method in ["graph", "graph_api"]:
+        logger.info(f"Batch deleting emails via Graph API for folder: {folder}")
+        from graph_api_service import delete_emails_batch_graph
+        return await delete_emails_batch_graph(credentials, folder)
+    else:
+        # IMAP 暂不支持批量删除，返回错误
+        logger.warning(f"Batch delete not supported for IMAP, account: {credentials.email}")
+        raise HTTPException(
+            status_code=501, 
+            detail="Batch delete is not supported for IMAP accounts. Please use Graph API."
+        )
 
 
 async def delete_email_via_imap(

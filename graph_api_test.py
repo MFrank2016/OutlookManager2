@@ -15,13 +15,17 @@ def Graph(refresh_token,client_id):
         access_token = get_accesstoken(refresh_token, client_id)
         if access_token == '':
             return []
-        # url = "https://graph.microsoft.com/v1.0/me/messages" #获取全部邮件
-        url ="https://graph.microsoft.com/v1.0/me/messages?$top=1&$orderby=receivedDateTime desc" #获取最新的一封邮件 
+        url = "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$count=true&$top=1" # 添加count参数后会返回总数
+        # url = "https://graph.microsoft.com/v1.0/me/messages?$count=true&$top=1" # 添加count参数后会返回总数
+        # url ="https://graph.microsoft.com/v1.0/me/messages?$top=1&$orderby=receivedDateTime desc" #获取最新的一封邮件 
         headers = {"Authorization": f"Bearer {access_token}"}
         response = requests.get(url, headers=headers)
+        
         if response.status_code == 200:
             emails = response.json()["value"]
             print(emails)
+            total_count = response.json()["@odata.count"]
+            print('邮件总数:', total_count)
             return emails
         else:
             print("请求失败:", response.status_code, response.text)

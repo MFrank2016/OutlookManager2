@@ -365,6 +365,231 @@ async def list_emails_graph(
         raise HTTPException(status_code=500, detail=f"Failed to fetch emails via Graph API: {str(e)}")
 
 
+async def list_emails_graph2(
+    credentials: AccountCredentials,
+    folder: str,
+    page: int,
+    page_size: int,
+    sender_search: Optional[str] = None,
+    subject_search: Optional[str] = None,
+    sort_by: str = "date",
+    sort_order: str = "desc",
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None
+) -> tuple[List[EmailItem], int]:
+    """
+    使用 Graph API 获取邮件列表（新版本，使用 $count=true 获取总数）
+    参考 list_emails_with_body_graph 的实现
+    
+    Args:
+        credentials: 账户凭证
+        folder: 文件夹名称 ('inbox', 'junk', 'all')
+        page: 页码
+        page_size: 每页大小
+        sender_search: 发件人搜索
+        subject_search: 主题搜索
+        sort_by: 排序字段
+        sort_order: 排序方向
+        start_time: 开始时间 (ISO8601)
+        end_time: 结束时间 (ISO8601)
+        
+    Returns:
+        tuple: (邮件列表, 总数)
+    """
+    access_token = await get_graph_access_token(credentials)
+    
+    # 映射文件夹名称
+    folder_map = {
+        "inbox": "inbox",
+        "junk": "junkemail",
+        "all": None
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "ConsistencyLevel": "eventual"  # 使用 $count=true 时需要此 header
+    }
+    
+    # 确定要查询的URL和文件夹
+    # 如果不指定folder（即folder == "all"），使用 /me/messages 而不是分别请求inbox和junkemail
+    if folder == "all":
+        url = f"{GRAPH_API_BASE_URL}/me/messages"
+        folder_name = None  # 用于后续处理，表示所有文件夹
+    else:
+        folder_name = folder_map.get(folder, "inbox")
+        url = f"{GRAPH_API_BASE_URL}/me/mailFolders/{folder_name}/messages"
+    
+    try:
+        timeout = httpx.Timeout(60.0, connect=30.0)  # 总超时60秒，连接超时30秒
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            # 构建查询参数
+            # 计算分页参数
+            skip = (page - 1) * page_size
+            top = page_size
+            
+            params = {
+                "$top": top,
+                "$skip": skip,
+                "$count": "true",  # 添加 $count=true 获取总数
+                "$orderby": "receivedDateTime desc",  # 按接收时间降序排序
+                "$select": "id,subject,from,receivedDateTime,isRead,hasAttachments,bodyPreview"
+            }
+            
+            # 添加过滤条件
+            filters = []
+            if sender_search:
+                filters.append(f"contains(from/emailAddress/address, '{sender_search}')")
+            if subject_search:
+                filters.append(f"contains(subject, '{subject_search}')")
+            if start_time:
+                filters.append(f"receivedDateTime ge {start_time}")
+            if end_time:
+                filters.append(f"receivedDateTime le {end_time}")
+            
+            if filters:
+                params["$filter"] = " and ".join(filters)
+            
+            # 添加重试机制
+            max_retries = 2
+            token_refreshed = False
+            response = None
+            for attempt in range(max_retries + 1):
+                try:
+                    response = await client.get(url, headers=headers, params=params)
+                    # 处理 401 未授权错误
+                    if response.status_code == 401:
+                        if not token_refreshed:
+                            logger.warning(
+                                f"Received 401 Unauthorized for {credentials.email}, "
+                                f"clearing cache and refreshing token..."
+                            )
+                            from oauth_service import clear_cached_access_token
+                            await clear_cached_access_token(credentials.email)
+                            access_token = await get_graph_access_token(credentials)
+                            headers["Authorization"] = f"Bearer {access_token}"
+                            token_refreshed = True
+                            continue
+                    response.raise_for_status()
+                    break
+                except (httpx.ConnectError, httpx.TimeoutException) as e:
+                    if attempt < max_retries:
+                        wait_time = (attempt + 1) * 2
+                        logger.warning(
+                            f"Network error fetching emails for {credentials.email} "
+                            f"(attempt {attempt + 1}/{max_retries + 1}): {e}. Retrying in {wait_time}s..."
+                        )
+                        await asyncio.sleep(wait_time)
+                    else:
+                        raise
+            
+            if response is None:
+                raise httpx.RequestError("Failed to get response after retries")
+            
+            data = response.json()
+            emails = data.get("value", [])
+            
+            # 从响应中获取总数（使用 $count=true 时返回 @odata.count）
+            total_count = data.get("@odata.count")
+            if total_count is None:
+                # 如果没有 @odata.count，尝试从其他字段获取，或者使用当前返回的数量
+                # 注意：如果没有 $count=true 或服务器不支持，可能需要回退到其他方法
+                logger.warning(f"@odata.count not found in response for {credentials.email}, using fallback")
+                total_count = len(emails)  # 回退方案：使用当前页的数量
+            
+            # 转换为 EmailItem 格式
+            email_items = []
+            for email in emails:
+                from_data = email.get("from", {}).get("emailAddress", {})
+                from_email = from_data.get("address", "(Unknown Sender)")
+                
+                # 提取发件人首字母
+                sender_initial = "?"
+                email_match = re.search(r"([a-zA-Z])", from_email)
+                if email_match:
+                    sender_initial = email_match.group(1).upper()
+                
+                subject = email.get("subject", "(No Subject)")
+                
+                # 检测验证码
+                verification_code = None
+                try:
+                    code_info = detect_verification_code(subject=subject, body="")
+                    if code_info:
+                        verification_code = code_info["code"]
+                except Exception as e:
+                    logger.warning(f"Failed to detect verification code: {e}")
+                
+                # 格式化日期
+                date_str = email.get("receivedDateTime", "")
+                try:
+                    date_obj = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                    formatted_date = date_obj.isoformat()
+                except Exception:
+                    formatted_date = datetime.now().isoformat()
+                
+                # 获取邮件所在的文件夹
+                email_folder = folder_name
+                if folder_name is None:
+                    # 从 /me/messages 获取的邮件，尝试从 parentFolderId 或其他字段获取文件夹信息
+                    # 如果没有，默认为 "inbox"
+                    parent_folder_id = email.get("parentFolderId", "")
+                    # 尝试从 parentFolderId 推断文件夹名称
+                    if "inbox" in parent_folder_id.lower():
+                        email_folder = "inbox"
+                    elif "junk" in parent_folder_id.lower() or "spam" in parent_folder_id.lower():
+                        email_folder = "junkemail"
+                    else:
+                        email_folder = "inbox"  # 默认
+                
+                email_item = EmailItem(
+                    message_id=email.get("id"),
+                    folder=email_folder or "inbox",  # 如果无法确定，默认为 inbox
+                    subject=subject,
+                    from_email=from_email,
+                    date=formatted_date,
+                    is_read=email.get("isRead", False),
+                    has_attachments=email.get("hasAttachments", False),
+                    sender_initial=sender_initial,
+                    verification_code=verification_code,
+                    body_preview=email.get("bodyPreview", "")
+                )
+                email_items.append(email_item)
+            
+            # 如果需要客户端排序（当使用 $filter 时，服务器端排序可能不准确）
+            # 这里我们依赖服务器端排序，因为使用了 $orderby
+            
+            logger.info(
+                f"Fetched {len(email_items)} emails via Graph API for {credentials.email}, "
+                f"total count: {total_count}"
+            )
+            return email_items, total_count
+            
+    except httpx.ConnectError as e:
+        error_msg = f"Network connection error: Unable to connect to Microsoft Graph API. Please check your network connection."
+        logger.error(f"Connection error fetching emails via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=503, detail=error_msg)
+    except httpx.TimeoutException as e:
+        error_msg = f"Request timeout: The request to Microsoft Graph API took too long. Please try again later."
+        logger.error(f"Timeout error fetching emails via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=504, detail=error_msg)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 401:
+            logger.error(
+                f"401 Unauthorized error for {credentials.email} after token refresh attempt. "
+                f"Response: {e.response.text[:200]}"
+            )
+            raise HTTPException(
+                status_code=401, 
+                detail="Authentication failed. Please check your account credentials."
+            )
+        logger.error(f"HTTP error fetching emails via Graph API for {credentials.email}: Status {e.response.status_code}, Response: {e.response.text[:200]}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch emails via Graph API: HTTP {e.response.status_code}")
+    except Exception as e:
+        logger.exception(f"Error fetching emails via Graph API for {credentials.email}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch emails via Graph API: {str(e)}")
+
+
 async def list_emails_with_body_graph(
     credentials: AccountCredentials,
     folder: str,
@@ -840,6 +1065,154 @@ async def delete_email_graph(
     except Exception as e:
         logger.error(f"Error deleting email via Graph API: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete email via Graph API")
+
+
+async def delete_emails_batch_graph(
+    credentials: AccountCredentials,
+    folder: str = "inbox"
+) -> Dict[str, Any]:
+    """
+    使用 Graph API 批量删除邮件（使用 batch 请求）
+    参考 graph_clear_demo.py 的实现
+    
+    Args:
+        credentials: 账户凭证
+        folder: 文件夹名称 ('inbox', 'junk', 'all')
+        
+    Returns:
+        dict: {
+            'success_count': int,  # 成功删除的邮件数
+            'fail_count': int,     # 失败的邮件数
+            'total_count': int     # 总邮件数
+        }
+    """
+    access_token = await get_graph_access_token(credentials)
+    
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    # 映射文件夹名称
+    folder_map = {
+        "inbox": "inbox",
+        "junk": "junkemail",
+        "all": None
+    }
+    
+    # 确定要查询的URL
+    if folder == "all":
+        # 使用 /me/messages 获取所有邮件
+        list_url = f"{GRAPH_API_BASE_URL}/me/messages"
+    else:
+        folder_name = folder_map.get(folder, "inbox")
+        list_url = f"{GRAPH_API_BASE_URL}/me/mailFolders/{folder_name}/messages"
+    
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            # 1. 获取邮件列表（仅获取ID）
+            all_message_ids = []
+            url = list_url
+            
+            # 处理分页，获取所有邮件ID
+            while url:
+                params = {
+                    "$select": "id",
+                    "$top": 100  # 每次最多获取100封
+                }
+                
+                response = await client.get(url, headers=headers, params=params)
+                response.raise_for_status()
+                
+                data = response.json()
+                messages = data.get('value', [])
+                
+                for msg in messages:
+                    all_message_ids.append(msg['id'])
+                
+                # 检查是否有下一页
+                next_link = data.get('@odata.nextLink')
+                if next_link:
+                    # @odata.nextLink 通常是完整的 URL，直接使用
+                    url = next_link
+                else:
+                    url = None
+            
+            if not all_message_ids:
+                logger.info(f"No emails to delete in folder {folder} for {credentials.email}")
+                return {
+                    'success_count': 0,
+                    'fail_count': 0,
+                    'total_count': 0
+                }
+            
+            logger.info(f"Found {len(all_message_ids)} emails to delete in folder {folder} for {credentials.email}")
+            
+            # 2. 分批删除（Graph API 限制每次 batch 最多 20 个请求）
+            batch_size = 20
+            success_count = 0
+            fail_count = 0
+            
+            for i in range(0, len(all_message_ids), batch_size):
+                batch_chunk = all_message_ids[i:i + batch_size]
+                
+                batch_payload = {
+                    "requests": []
+                }
+                
+                # 构建 batch 请求体
+                for index, message_id in enumerate(batch_chunk):
+                    batch_payload["requests"].append({
+                        "id": str(index),  # 请求的序号，不是邮件 ID
+                        "method": "DELETE",
+                        "url": f"/me/messages/{message_id}"
+                    })
+                
+                # 发送批量删除请求
+                batch_url = f"{GRAPH_API_BASE_URL}/$batch"
+                del_resp = await client.post(batch_url, headers=headers, json=batch_payload)
+                
+                if del_resp.status_code == 200:
+                    batch_result = del_resp.json()
+                    responses = batch_result.get('responses', [])
+                    
+                    for resp in responses:
+                        if resp.get('status') == 204:  # 204 No Content 表示删除成功
+                            success_count += 1
+                        else:
+                            fail_count += 1
+                            logger.warning(f"Failed to delete email: {resp}")
+                    
+                    logger.info(f"Processed batch {i // batch_size + 1}: {len(batch_chunk)} emails")
+                else:
+                    # 整个批次失败
+                    fail_count += len(batch_chunk)
+                    logger.error(f"Batch delete failed: {del_resp.status_code}, {del_resp.text[:200]}")
+            
+            # 清除缓存
+            try:
+                cache_service.clear_email_cache(credentials.email)
+                logger.info(f"Cleared email cache for {credentials.email}")
+            except Exception as e:
+                logger.warning(f"Failed to clear email cache: {e}")
+            
+            logger.info(
+                f"Batch delete completed for {credentials.email} folder {folder}: "
+                f"success={success_count}, failed={fail_count}, total={len(all_message_ids)}"
+            )
+            
+            return {
+                'success_count': success_count,
+                'fail_count': fail_count,
+                'total_count': len(all_message_ids)
+            }
+            
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error batch deleting emails via Graph API: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to batch delete emails via Graph API: HTTP {e.response.status_code}")
+    except Exception as e:
+        logger.exception(f"Error batch deleting emails via Graph API: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to batch delete emails via Graph API: {str(e)}")
 
 
 async def send_email_graph(

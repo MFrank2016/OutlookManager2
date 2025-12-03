@@ -245,6 +245,16 @@ class DeleteEmailResponse(BaseModel):
     message_id: str
 
 
+class BatchDeleteEmailsResponse(BaseModel):
+    """批量删除邮件响应模型"""
+    
+    success: bool
+    message: str
+    success_count: int
+    fail_count: int
+    total_count: int
+
+
 # ============================================================================
 # 用户管理模型
 # ============================================================================

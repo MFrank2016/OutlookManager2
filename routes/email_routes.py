@@ -11,14 +11,15 @@ from fastapi import APIRouter, Depends, Query
 
 import auth
 from account_service import get_account_credentials
-from email_service import get_email_details, list_emails, delete_email, send_email
+from email_service import get_email_details, list_emails, delete_email, delete_emails_batch, send_email
 from models import (
     DualViewEmailResponse,
     EmailDetailsResponse,
     EmailListResponse,
     SendEmailRequest,
     SendEmailResponse,
-    DeleteEmailResponse
+    DeleteEmailResponse,
+    BatchDeleteEmailsResponse
 )
 from permissions import Permission
 from fastapi import HTTPException
@@ -125,6 +126,43 @@ async def delete_email_route(
         message="Email deleted successfully" if success else "Failed to delete email",
         message_id=message_id
     )
+
+
+@router.delete("/{email_id}/batch", response_model=BatchDeleteEmailsResponse)
+async def delete_emails_batch_route(
+    email_id: str,
+    folder: str = Query("inbox", regex="^(inbox|junk|all)$", description="要清空的文件夹"),
+    user: dict = Depends(auth.get_current_user)
+):
+    """批量删除邮件（需要删除邮件权限）"""
+    # 检查账户访问权限
+    if not auth.check_account_access(user, email_id):
+        raise HTTPException(status_code=403, detail=f"无权访问账户 {email_id}")
+    
+    # 检查删除邮件权限
+    auth.require_permission(user, Permission.DELETE_EMAILS)
+    
+    credentials = await get_account_credentials(email_id)
+    
+    try:
+        result = await delete_emails_batch(credentials, folder)
+        
+        return BatchDeleteEmailsResponse(
+            success=True,
+            message=f"Successfully deleted {result['success_count']} emails, {result['fail_count']} failed",
+            success_count=result['success_count'],
+            fail_count=result['fail_count'],
+            total_count=result['total_count']
+        )
+    except Exception as e:
+        logger.error(f"Error batch deleting emails: {e}")
+        return BatchDeleteEmailsResponse(
+            success=False,
+            message=str(e),
+            success_count=0,
+            fail_count=0,
+            total_count=0
+        )
 
 
 @router.post("/{email_id}/send", response_model=SendEmailResponse)

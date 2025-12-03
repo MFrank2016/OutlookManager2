@@ -249,56 +249,31 @@ export default function EmailsPage() {
     const targetFolder = folder === "all" ? "inbox" : folder;
     
     try {
-      interface EmailItem {
-        message_id: string;
-      }
-      let allFolderEmails: EmailItem[] = [];
-      let currentPage = 1;
-      let hasMore = true;
+      const folderName = targetFolder === "inbox" ? "收件箱" : targetFolder === "junk" ? "垃圾箱" : "收件箱";
+      toast.info(`开始清空${folderName}...`);
       
-      while (hasMore) {
-        try {
-          const response = await api.get(`/emails/${selectedAccount}`, {
-            params: {
-              folder: targetFolder,
-              page: currentPage,
-              page_size: 100,
-            }
-          });
-          const pageEmails = response.data.emails || [];
-          allFolderEmails = [...allFolderEmails, ...pageEmails];
-          
-          if (currentPage >= response.data.total_pages) {
-            hasMore = false;
-          } else {
-            currentPage++;
-          }
-        } catch {
-          hasMore = false;
+      // 调用批量删除 API
+      const response = await api.delete(`/emails/${selectedAccount}/batch`, {
+        params: {
+          folder: targetFolder
         }
-      }
+      });
       
-      if (allFolderEmails.length === 0) {
-        toast.info(`${targetFolder === "inbox" ? "收件箱" : targetFolder === "junk" ? "垃圾箱" : "文件夹"}已经是空的`);
-        return;
-      }
-
-      let successCount = 0;
-      let failCount = 0;
+      const result = response.data;
       
-      toast.info(`开始删除 ${allFolderEmails.length} 封邮件...`);
-      
-      for (const email of allFolderEmails) {
-        try {
-          await api.delete(`/emails/${selectedAccount}/${email.message_id}`);
-          successCount++;
-        } catch {
-          failCount++;
+      if (result.success) {
+        if (result.total_count === 0) {
+          toast.info(`${folderName}已经是空的`);
+        } else {
+          toast.success(
+            `清空${folderName}完成！成功删除 ${result.success_count} 封邮件${result.fail_count > 0 ? `，失败 ${result.fail_count} 封` : ""}`
+          );
         }
+      } else {
+        toast.error(result.message || "清空失败");
       }
-
-      const folderName = targetFolder === "inbox" ? "收件箱" : targetFolder === "junk" ? "垃圾箱" : "文件夹";
-      toast.success(`清空${folderName}完成！成功删除 ${successCount} 封邮件${failCount > 0 ? `，失败 ${failCount} 封` : ""}`);
+      
+      // 刷新邮件列表
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       setSelectedEmailId(null);
       setEmailDetailOpen(false);
