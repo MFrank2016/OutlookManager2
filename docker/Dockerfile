@@ -14,8 +14,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # 安装系统依赖和时区数据
 RUN apk add --no-cache tzdata \
     && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
-    && echo "Asia/Shanghai" > /etc/timezone \
-    && apk del tzdata
+    && echo "Asia/Shanghai" > /etc/timezone
 
 # 复制requirements文件并安装Python依赖
 COPY requirements.txt .
