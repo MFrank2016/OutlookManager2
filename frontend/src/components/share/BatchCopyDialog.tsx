@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +17,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { ShareToken } from "@/types";
 import { format } from "date-fns";
+import { useConfigs } from "@/hooks/useAdmin";
+import { generateShareLink, getShareDomainFromConfigs } from "@/lib/shareUtils";
 
 interface BatchCopyDialogProps {
   open: boolean;
@@ -54,6 +56,24 @@ export function BatchCopyDialog({
   ]);
   const [rowSelection, setRowSelection] = useState<"current" | "selected">("current");
 
+  // 获取系统配置（用于分享页域名）
+  const { data: configsData } = useConfigs();
+  const shareDomain = getShareDomainFromConfigs(configsData?.configs);
+
+  // 当 selectedTokens 变为空时，重置 rowSelection 为 "current"
+  useEffect(() => {
+    if (selectedTokens.length === 0 && rowSelection === "selected") {
+      setRowSelection("current");
+    }
+  }, [selectedTokens.length, rowSelection]);
+
+  // 当对话框打开时，如果 selectedTokens 为空，确保 rowSelection 是 "current"
+  useEffect(() => {
+    if (open && selectedTokens.length === 0) {
+      setRowSelection("current");
+    }
+  }, [open, selectedTokens.length]);
+
   const getDelimiterValue = () => {
     switch (delimiter) {
       case "comma":
@@ -76,7 +96,7 @@ export function BatchCopyDialog({
       case "token":
         return token.token;
       case "link":
-        return `${window.location.origin}/shared/${token.token}`;
+        return generateShareLink(token.token, shareDomain || undefined);
       case "expiry":
         return token.expiry_time
           ? format(new Date(token.expiry_time), "yyyy-MM-dd HH:mm")
@@ -99,12 +119,17 @@ export function BatchCopyDialog({
   };
 
   const handleCopy = () => {
-    const tokensToCopy =
-      rowSelection === "selected"
-        ? selectedTokens.length > 0
-          ? selectedTokens
-          : tokens
-        : tokens;
+    let tokensToCopy: ShareToken[];
+
+    if (rowSelection === "selected") {
+      if (selectedTokens.length === 0) {
+        toast.error("没有选中的行，请先选择要复制的行");
+        return;
+      }
+      tokensToCopy = selectedTokens;
+    } else {
+      tokensToCopy = tokens;
+    }
 
     if (tokensToCopy.length === 0) {
       toast.error("没有可复制的数据");

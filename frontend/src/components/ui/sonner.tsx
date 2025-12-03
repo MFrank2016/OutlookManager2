@@ -36,6 +36,18 @@ const Toaster = ({ ...props }: ToasterProps) => {
         error: <OctagonXIcon className="size-4" />,
         loading: <Loader2Icon className="size-4 animate-spin" />,
       }}
+      toastOptions={{
+        // 点击 toast 后立即关闭
+        onClick: (toast) => {
+          toast.dismiss();
+        },
+        // 显示关闭按钮
+        closeButton: true,
+        // 设置默认样式，让点击区域更明显
+        classNames: {
+          toast: "cursor-pointer",
+        },
+      }}
       style={
         {
           "--normal-bg": "var(--popover)",

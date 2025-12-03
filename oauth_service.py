@@ -307,8 +307,8 @@ async def get_cached_access_token(credentials: AccountCredentials) -> str:
                     now = datetime.now()
                     time_until_expiry = (expires_at - now).total_seconds()
                     
-                    # 检查 token 是否还有效（距离过期时间 > 1 小时）
-                    if time_until_expiry > 3600:  # 1小时 = 3600秒
+                    # 检查 token 是否还有效（距离过期时间 > 10 minutes）
+                    if time_until_expiry > 600:  # 10 minutes = 600 seconds
                         logger.debug(
                             f"Using LRU cached access token for {credentials.email}, "
                             f"expires in {int(time_until_expiry/60)} minutes"

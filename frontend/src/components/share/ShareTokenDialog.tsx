@@ -26,6 +26,8 @@ import { Copy, Check } from "lucide-react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { ShareToken } from "@/types";
+import { useConfigs } from "@/hooks/useAdmin";
+import { generateShareLink, getShareDomainFromConfigs } from "@/lib/shareUtils";
 
 // 将 Date 对象格式化为本地时间的 datetime-local 格式 (YYYY-MM-DDTHH:mm)
 const formatLocalDateTime = (date: Date): string => {
@@ -71,6 +73,10 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
   const [copied, setCopied] = useState(false);
   const isEditing = !!tokenToEdit;
 
+  // 获取系统配置（用于分享页域名）
+  const { data: configsData } = useConfigs();
+  const shareDomain = getShareDomainFromConfigs(configsData?.configs);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -88,10 +94,10 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
   // Compute share link from tokenToEdit
   const computedShareLink = useMemo(() => {
     if (tokenToEdit) {
-      return `${window.location.origin}/shared/${tokenToEdit.token}`;
+      return generateShareLink(tokenToEdit.token, shareDomain || undefined);
     }
     return null;
-  }, [tokenToEdit]);
+  }, [tokenToEdit, shareDomain]);
 
   useEffect(() => {
     if (open) {
@@ -178,7 +184,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
         api.post("/share/tokens", payload)
         .then((response: { data: { token: string } }) => {
             const token = response.data.token;
-            const link = `${window.location.origin}/shared/${token}`;
+            const link = generateShareLink(token, shareDomain || undefined);
             setShareLink(link);
             toast.success("分享码创建成功");
             onSuccess?.();

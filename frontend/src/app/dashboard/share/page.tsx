@@ -24,6 +24,8 @@ import { ShareToken, Account } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useConfigs } from "@/hooks/useAdmin";
+import { generateShareLink, getShareDomainFromConfigs } from "@/lib/shareUtils";
 
 export default function ShareManagementPage() {
   const queryClient = useQueryClient();
@@ -45,6 +47,10 @@ export default function ShareManagementPage() {
   });
   
   const accountsData = accountsResponse?.accounts || [];
+
+  // 获取系统配置（用于分享页域名）
+  const { data: configsData } = useConfigs();
+  const shareDomain = getShareDomainFromConfigs(configsData?.configs);
 
   const { data: tokens, isLoading } = useQuery({
     queryKey: ["share-tokens", page],
@@ -84,9 +90,14 @@ export default function ShareManagementPage() {
   });
 
   const handleCopyLink = (token: string) => {
-    const link = `${window.location.origin}/shared/${token}`;
+    const link = generateShareLink(token, shareDomain || undefined);
     navigator.clipboard.writeText(link);
     toast.success("链接已复制");
+  };
+
+  const handleDoubleClickCopy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(`${label}已复制到剪贴板`);
   };
 
   if (isLoading) {
@@ -181,6 +192,7 @@ export default function ShareManagementPage() {
                 />
               </TableHead>
               <TableHead>账户</TableHead>
+              <TableHead>Token</TableHead>
               <TableHead>有效期</TableHead>
               <TableHead>筛选规则</TableHead>
               <TableHead>创建时间</TableHead>
@@ -191,7 +203,7 @@ export default function ShareManagementPage() {
           <TableBody>
             {!tokens || tokens.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
+                <TableCell colSpan={8} className="text-center text-muted-foreground h-24">
                   暂无分享链接
                 </TableCell>
               </TableRow>
@@ -215,8 +227,30 @@ export default function ShareManagementPage() {
                         }}
                       />
                     </TableCell>
-                    <TableCell className="font-medium">{token.email_account_id}</TableCell>
-                    <TableCell>
+                    <TableCell 
+                      className="font-medium cursor-pointer select-none hover:bg-gray-50"
+                      onDoubleClick={() => handleDoubleClickCopy(token.email_account_id, "账户")}
+                      title="双击复制账户"
+                    >
+                      {token.email_account_id}
+                    </TableCell>
+                    <TableCell 
+                      className="font-mono text-sm cursor-pointer select-none hover:bg-gray-50"
+                      onDoubleClick={() => handleDoubleClickCopy(token.token, "Token")}
+                      title="双击复制Token"
+                    >
+                      {token.token}
+                    </TableCell>
+                    <TableCell 
+                      className="cursor-pointer select-none hover:bg-gray-50"
+                      onDoubleClick={() => {
+                        const expiryText = token.expiry_time 
+                          ? format(new Date(token.expiry_time), "yyyy-MM-dd HH:mm")
+                          : "永久有效";
+                        handleDoubleClickCopy(expiryText, "有效期");
+                      }}
+                      title="双击复制有效期"
+                    >
                       {token.expiry_time ? (
                         <div className="flex flex-col">
                           <span>{format(new Date(token.expiry_time), "yyyy-MM-dd HH:mm")}</span>
@@ -228,7 +262,19 @@ export default function ShareManagementPage() {
                         <span className="text-muted-foreground">永久有效</span>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell 
+                      className="cursor-pointer select-none hover:bg-gray-50"
+                      onDoubleClick={() => {
+                        const filterText = [
+                          `开始: ${format(new Date(token.start_time), "yyyy-MM-dd HH:mm")}`,
+                          token.end_time && `结束: ${format(new Date(token.end_time), "yyyy-MM-dd HH:mm")}`,
+                          token.subject_keyword && `主题: ${token.subject_keyword}`,
+                          token.sender_keyword && `发件人: ${token.sender_keyword}`
+                        ].filter(Boolean).join('\n');
+                        handleDoubleClickCopy(filterText, "筛选规则");
+                      }}
+                      title="双击复制筛选规则"
+                    >
                       <div className="flex flex-col gap-1 text-xs">
                         <div>开始: {format(new Date(token.start_time), "yyyy-MM-dd HH:mm")}</div>
                         {token.end_time && <div>结束: {format(new Date(token.end_time), "yyyy-MM-dd HH:mm")}</div>}
@@ -236,7 +282,11 @@ export default function ShareManagementPage() {
                         {token.sender_keyword && <div>发件人: {token.sender_keyword}</div>}
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    <TableCell 
+                      className="text-muted-foreground text-sm cursor-pointer select-none hover:bg-gray-50"
+                      onDoubleClick={() => handleDoubleClickCopy(format(new Date(token.created_at), "yyyy-MM-dd HH:mm"), "创建时间")}
+                      title="双击复制创建时间"
+                    >
                       {format(new Date(token.created_at), "MM-dd HH:mm")}
                     </TableCell>
                     <TableCell>
@@ -271,7 +321,11 @@ export default function ShareManagementPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleCopyLink(token.token)}
+                          onClick={() => {
+                            const link = generateShareLink(token.token, shareDomain || undefined);
+                            navigator.clipboard.writeText(link);
+                            toast.success("链接已复制");
+                          }}
                           title="复制链接"
                         >
                           <Copy className="h-4 w-4" />

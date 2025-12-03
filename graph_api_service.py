@@ -409,91 +409,117 @@ async def list_emails_with_body_graph(
     
     all_emails = []
     
-    # 确定要查询的文件夹
-    folders_to_query = []
+    # 确定要查询的URL和文件夹
+    # 如果不指定folder（即folder == "all"），使用 /me/messages 而不是分别请求inbox和junkemail
     if folder == "all":
-        folders_to_query = ["inbox", "junkemail"]
+        url = f"{GRAPH_API_BASE_URL}/me/messages"
+        folder_name = None  # 用于后续处理，表示所有文件夹
     else:
-        folders_to_query = [folder_map.get(folder, "inbox")]
+        folder_name = folder_map.get(folder, "inbox")
+        url = f"{GRAPH_API_BASE_URL}/me/mailFolders/{folder_name}/messages"
     
     try:
         timeout = httpx.Timeout(60.0, connect=30.0)  # 总超时60秒，连接超时30秒
         async with httpx.AsyncClient(timeout=timeout) as client:
-            for folder_name in folders_to_query:
-                # 构建查询参数，包含body字段
-                params = {
-                    "$top": max_count,  # 限制返回数量
-                    "$orderby": "receivedDateTime desc",
-                    "$select": "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,body,bodyPreview"
-                }
+            # 构建查询参数，包含body字段
+            # 取件数设置为入参的两倍，以便过滤后仍有足够的数据
+            params = {
+                "$top": max_count * 2,  # 取两倍数量，过滤后再截取
+                "$orderby": "receivedDateTime desc",
+                "$select": "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,body,bodyPreview"
+            }
+            
+            # 不再使用 $filter，改为代码过滤
                 
-                # 添加过滤条件
-                filters = []
-                if sender_search:
-                    filters.append(f"contains(from/emailAddress/address, '{sender_search}')")
-                if subject_search:
-                    filters.append(f"contains(subject, '{subject_search}')")
-                if start_time:
-                    filters.append(f"receivedDateTime ge {start_time}")
-                if end_time:
-                    filters.append(f"receivedDateTime le {end_time}")
-                
-                if filters:
-                    params["$filter"] = " and ".join(filters)
-                
-                url = f"{GRAPH_API_BASE_URL}/me/mailFolders/{folder_name}/messages"
-                
-                # 添加重试机制
-                max_retries = 2
-                last_error = None
-                token_refreshed = False
-                response = None
-                for attempt in range(max_retries + 1):
-                    try:
-                        response = await client.get(url, headers=headers, params=params)
-                        # 处理 401 未授权错误
-                        if response.status_code == 401:
-                            if not token_refreshed:
-                                logger.warning(
-                                    f"Received 401 Unauthorized for {credentials.email}, "
-                                    f"clearing cache and refreshing token..."
-                                )
-                                from oauth_service import clear_cached_access_token
-                                clear_cached_access_token(credentials.email)
-                                access_token = await get_graph_access_token(credentials)
-                                headers["Authorization"] = f"Bearer {access_token}"
-                                token_refreshed = True
-                                continue
-                        response.raise_for_status()
-                        break
-                    except (httpx.ConnectError, httpx.TimeoutException) as e:
-                        last_error = e
-                        if attempt < max_retries:
-                            wait_time = (attempt + 1) * 2
+            # 添加重试机制
+            max_retries = 2
+            last_error = None
+            token_refreshed = False
+            response = None
+            for attempt in range(max_retries + 1):
+                try:
+                    response = await client.get(url, headers=headers, params=params)
+                    # 处理 401 未授权错误
+                    if response.status_code == 401:
+                        if not token_refreshed:
                             logger.warning(
-                                f"Network error fetching emails with body for {credentials.email} "
-                                f"(attempt {attempt + 1}/{max_retries + 1}): {e}. Retrying in {wait_time}s..."
+                                f"Received 401 Unauthorized for {credentials.email}, "
+                                f"clearing cache and refreshing token..."
                             )
-                            await asyncio.sleep(wait_time)
-                        else:
-                            raise
+                            from oauth_service import clear_cached_access_token
+                            clear_cached_access_token(credentials.email)
+                            access_token = await get_graph_access_token(credentials)
+                            headers["Authorization"] = f"Bearer {access_token}"
+                            token_refreshed = True
+                            continue
+                    response.raise_for_status()
+                    break
+                except (httpx.ConnectError, httpx.TimeoutException) as e:
+                    last_error = e
+                    if attempt < max_retries:
+                        wait_time = (attempt + 1) * 2
+                        logger.warning(
+                            f"Network error fetching emails with body for {credentials.email} "
+                            f"(attempt {attempt + 1}/{max_retries + 1}): {e}. Retrying in {wait_time}s..."
+                        )
+                        await asyncio.sleep(wait_time)
+                    else:
+                        raise
+            
+            if response is None:
+                logger.warning(f"No response received for {credentials.email}")
+                return []
+            
+            data = response.json()
+            emails = data.get("value", [])
+            
+            # 代码过滤：在取件后进行过滤
+            filtered_emails = []
+            for email in emails:
+                # 提取基本信息用于过滤
+                from_data = email.get("from", {}).get("emailAddress", {})
+                from_email = from_data.get("address", "")
+                subject = email.get("subject", "")
+                date_str = email.get("receivedDateTime", "")
                 
-                if response is None:
-                    continue
+                # 发件人过滤
+                if sender_search:
+                    if sender_search.lower() not in from_email.lower():
+                        continue
                 
-                data = response.json()
-                emails = data.get("value", [])
+                # 主题过滤
+                if subject_search:
+                    if subject_search.lower() not in subject.lower():
+                        continue
                 
-                # 处理每封邮件
-                for email in emails:
-                    # 提取基本信息
-                    from_data = email.get("from", {}).get("emailAddress", {})
-                    from_email = from_data.get("address", "(Unknown Sender)")
-                    
-                    to_recipients = email.get("toRecipients", [])
-                    to_email = ", ".join([r.get("emailAddress", {}).get("address", "") for r in to_recipients])
-                    
-                    subject = email.get("subject", "(No Subject)")
+                # 时间过滤
+                if start_time or end_time:
+                    try:
+                        email_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                        if start_time:
+                            start_dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                            if email_date < start_dt:
+                                continue
+                        if end_time:
+                            end_dt = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
+                            if email_date > end_dt:
+                                continue
+                    except Exception as e:
+                        logger.warning(f"Error parsing date for filtering: {e}")
+                        # 如果日期解析失败，跳过时间过滤
+                
+                filtered_emails.append(email)
+            
+            # 处理每封过滤后的邮件
+            for email in filtered_emails:
+                # 提取基本信息（过滤时已提取，这里重新提取以确保完整性）
+                from_data = email.get("from", {}).get("emailAddress", {})
+                from_email = from_data.get("address", "(Unknown Sender)")
+                
+                to_recipients = email.get("toRecipients", [])
+                to_email = ", ".join([r.get("emailAddress", {}).get("address", "") for r in to_recipients])
+                
+                subject = email.get("subject", "(No Subject)")
                     
                     # 获取邮件正文
                     body_data = email.get("body", {})
@@ -534,22 +560,33 @@ async def list_emails_with_body_graph(
                         if match:
                             sender_initial = match.group(1).upper()
                     
-                    email_dict = {
-                        'message_id': email.get("id"),
-                        'folder': folder_name,
-                        'subject': subject,
-                        'from_email': from_email,
-                        'to_email': to_email,
-                        'date': formatted_date,
-                        'is_read': email.get("isRead", False),
-                        'has_attachments': email.get("hasAttachments", False),
-                        'sender_initial': sender_initial,
-                        'verification_code': verification_code,
-                        'body_preview': email.get("bodyPreview", ""),
-                        'body_plain': body_plain,
-                        'body_html': body_html,
-                    }
-                    all_emails.append(email_dict)
+                # 获取邮件所在的文件夹（如果是从 /me/messages 获取的）
+                email_folder = folder_name
+                if folder_name is None:
+                    # 从 /me/messages 获取的邮件，尝试从 parentFolderId 或其他字段获取文件夹信息
+                    # 如果没有，默认为 "all" 表示所有文件夹
+                    email_folder = email.get("parentFolderId") or "all"
+                
+                email_dict = {
+                    'message_id': email.get("id"),
+                    'folder': email_folder,
+                    'subject': subject,
+                    'from_email': from_email,
+                    'to_email': to_email,
+                    'date': formatted_date,
+                    'is_read': email.get("isRead", False),
+                    'has_attachments': email.get("hasAttachments", False),
+                    'sender_initial': sender_initial,
+                    'verification_code': verification_code,
+                    'body_preview': email.get("bodyPreview", ""),
+                    'body_plain': body_plain,
+                    'body_html': body_html,
+                }
+                all_emails.append(email_dict)
+                
+                # 如果已经达到所需数量，提前退出
+                if len(all_emails) >= max_count:
+                    break
         
         # 排序
         reverse = (sort_order == "desc")

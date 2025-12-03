@@ -43,6 +43,31 @@ share_query_executor = concurrent.futures.ThreadPoolExecutor(max_workers=5, thre
 # 创建路由器
 router = APIRouter(prefix="/share", tags=["分享码"])
 
+def _generate_share_link(token: str) -> str:
+    """
+    生成分享链接
+    如果系统配置中设置了 share_domain，则使用该域名
+    否则返回相对路径（由前端处理）
+    """
+    share_domain = db.get_config("share_domain")
+    if share_domain and share_domain.strip():
+        domain = share_domain.strip()
+        # 确保域名以 http:// 或 https:// 开头
+        if not domain.startswith("http://") and not domain.startswith("https://"):
+            domain = f"https://{domain}"
+        return f"{domain}/shared/{token}"
+    # 如果没有配置，返回相对路径（前端会使用 window.location.origin）
+    return f"/shared/{token}"
+
+def _add_share_link_to_token_data(token_data: dict) -> dict:
+    """
+    为token数据添加share_link字段
+    """
+    result = dict(token_data)
+    if 'token' in result:
+        result['share_link'] = _generate_share_link(result['token'])
+    return result
+
 def get_valid_share_token(token: str) -> dict:
     """
     验证分享码有效性并执行限流检查
@@ -108,6 +133,7 @@ async def create_token(
     )
     
     token_data = db.get_share_token(token)
+    token_data = _add_share_link_to_token_data(token_data)
     return ShareTokenResponse(**token_data)
 
 @router.post("/tokens/batch", response_model=BatchShareTokenResponse)
@@ -236,7 +262,8 @@ async def list_tokens(
         raise HTTPException(status_code=400, detail="普通用户必须指定 email_account_id")
 
     tokens, _ = db.list_share_tokens(email_account_id, page, page_size)
-    return [ShareTokenResponse(**t) for t in tokens]
+    tokens_with_link = [_add_share_link_to_token_data(t) for t in tokens]
+    return [ShareTokenResponse(**t) for t in tokens_with_link]
 
 @router.put("/tokens/{token_id}", response_model=ShareTokenResponse)
 async def update_token(
@@ -304,6 +331,7 @@ async def update_token_by_token(
     db.update_share_token(token_data['id'], **request.dict(exclude_unset=True))
     
     updated_data = db.get_share_token(token)
+    updated_data = _add_share_link_to_token_data(updated_data)
     return ShareTokenResponse(**updated_data)
 
 @router.delete("/tokens/{token_id}")
@@ -444,6 +472,7 @@ async def extend_token(
     
     # 返回更新后的数据
     updated_data = db.get_share_token(token)
+    updated_data = _add_share_link_to_token_data(updated_data)
     return ShareTokenResponse(**updated_data)
 
 
