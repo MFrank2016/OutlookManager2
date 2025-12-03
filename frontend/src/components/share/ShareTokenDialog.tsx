@@ -27,6 +27,22 @@ import api from "@/lib/api";
 import { toast } from "sonner";
 import { ShareToken } from "@/types";
 
+// 将 Date 对象格式化为本地时间的 datetime-local 格式 (YYYY-MM-DDTHH:mm)
+const formatLocalDateTime = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
+// 将 ISO 8601 时间字符串转换为本地时间的 datetime-local 格式
+const isoToLocalDateTime = (isoString: string): string => {
+  const date = new Date(isoString);
+  return formatLocalDateTime(date);
+};
+
 const formSchema = z.object({
   valid_hours: z.string().optional(),
   valid_days: z.string().optional(),
@@ -59,7 +75,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
     defaultValues: {
       valid_hours: "24",
       valid_days: "0",
-      filter_start_time: new Date().toISOString().slice(0, 16),
+      filter_start_time: formatLocalDateTime(new Date()),
       filter_end_time: "",
       subject_keyword: "",
       sender_keyword: "",
@@ -82,8 +98,8 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
             form.reset({
                 valid_hours: "0", // We don't reverse calculate validity for now
                 valid_days: "0",
-                filter_start_time: tokenToEdit.start_time.slice(0, 16),
-                filter_end_time: tokenToEdit.end_time ? tokenToEdit.end_time.slice(0, 16) : "",
+                filter_start_time: isoToLocalDateTime(tokenToEdit.start_time),
+                filter_end_time: tokenToEdit.end_time ? isoToLocalDateTime(tokenToEdit.end_time) : "",
                 subject_keyword: tokenToEdit.subject_keyword || "",
                 sender_keyword: tokenToEdit.sender_keyword || "",
                 is_active: tokenToEdit.is_active,
@@ -93,7 +109,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
             form.reset({
                 valid_hours: "24",
                 valid_days: "0",
-                filter_start_time: new Date().toISOString().slice(0, 16),
+                filter_start_time: formatLocalDateTime(new Date()),
                 filter_end_time: "",
                 subject_keyword: "",
                 sender_keyword: "",

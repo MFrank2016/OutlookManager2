@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 from .base_dao import BaseDAO, get_db_connection
+from config import DB_TYPE
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,9 @@ class ShareTokenDAO(BaseDAO):
         Returns:
             新记录的 ID
         """
+        # PostgreSQL 使用 True/False，SQLite 使用 1/0
+        is_active_val = is_active if DB_TYPE == "postgresql" else (1 if is_active else 0)
+        
         data = {
             'token': token,
             'email_account_id': email_account_id,
@@ -70,7 +74,7 @@ class ShareTokenDAO(BaseDAO):
             'subject_keyword': subject_keyword,
             'sender_keyword': sender_keyword,
             'expiry_time': expiry_time,
-            'is_active': 1 if is_active else 0
+            'is_active': is_active_val
         }
         return self.insert(data)
     

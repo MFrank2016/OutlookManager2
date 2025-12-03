@@ -28,6 +28,16 @@ import { toast } from "sonner";
 import { Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
+// 将 Date 对象格式化为本地时间的 datetime-local 格式 (YYYY-MM-DDTHH:mm)
+const formatLocalDateTime = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 const formSchema = z.object({
   email_accounts: z.string().min(1, "邮箱账号不能为空"),
   valid_hours: z.string().optional(),
@@ -71,7 +81,7 @@ export function BatchShareDialog({ open, onOpenChange, onSuccess }: BatchShareDi
       email_accounts: "",
       valid_hours: "24",
       valid_days: "0",
-      filter_start_time: new Date().toISOString().slice(0, 16),
+      filter_start_time: formatLocalDateTime(new Date()),
       filter_end_time: "",
       subject_keyword: "",
       sender_keyword: "",
@@ -84,7 +94,7 @@ export function BatchShareDialog({ open, onOpenChange, onSuccess }: BatchShareDi
         email_accounts: "",
         valid_hours: "24",
         valid_days: "0",
-        filter_start_time: new Date().toISOString().slice(0, 16),
+        filter_start_time: formatLocalDateTime(new Date()),
         filter_end_time: "",
         subject_keyword: "",
         sender_keyword: "",
