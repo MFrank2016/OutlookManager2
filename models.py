@@ -430,3 +430,27 @@ class ShareTokenResponse(BaseModel):
     is_active: bool
     share_link: Optional[str] = None
 
+class BatchShareTokenCreate(BaseModel):
+    """批量创建分享码请求模型"""
+    email_accounts: List[str] = Field(..., description="邮箱账户ID列表")
+    valid_hours: Optional[int] = Field(None, description="有效期（小时）")
+    valid_days: Optional[int] = Field(None, description="有效期（天）")
+    filter_start_time: str = Field(..., description="邮件开始时间筛选 (ISO8601)")
+    filter_end_time: Optional[str] = Field(None, description="邮件结束时间筛选 (ISO8601)")
+    subject_keyword: Optional[str] = Field(None, description="主题关键词")
+    sender_keyword: Optional[str] = Field(None, description="发件人关键词")
+
+class BatchShareResultItem(BaseModel):
+    """批量分享单个账号的处理结果"""
+    email_account_id: str
+    status: str = Field(..., description="处理状态: success, failed, ignored")
+    token: Optional[str] = Field(None, description="分享码（成功时返回）")
+    error_message: Optional[str] = Field(None, description="错误信息（失败时返回）")
+
+class BatchShareTokenResponse(BaseModel):
+    """批量创建分享码响应模型"""
+    success_count: int = Field(..., description="成功数量")
+    failed_count: int = Field(..., description="失败数量")
+    ignored_count: int = Field(..., description="忽略数量（账号不存在）")
+    results: List[BatchShareResultItem] = Field(..., description="详细结果列表")
+

@@ -18,6 +18,9 @@ from models import (
     ShareTokenCreate,
     ShareTokenUpdate,
     ShareTokenResponse,
+    BatchShareTokenCreate,
+    BatchShareTokenResponse,
+    BatchShareResultItem,
     EmailListResponse,
     EmailDetailsResponse,
     AccountCredentials
@@ -97,6 +100,104 @@ async def create_token(
     
     token_data = db.get_share_token(token)
     return ShareTokenResponse(**token_data)
+
+@router.post("/tokens/batch", response_model=BatchShareTokenResponse)
+async def create_tokens_batch(
+    request: BatchShareTokenCreate,
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """
+    批量创建分享码
+    """
+    # 对输入的邮箱账号列表进行去重
+    unique_accounts = list(set(request.email_accounts))
+    
+    success_count = 0
+    failed_count = 0
+    ignored_count = 0
+    results = []
+    
+    # 计算过期时间
+    expiry_time = None
+    if request.valid_hours:
+        expiry_time = (datetime.now() + timedelta(hours=request.valid_hours)).isoformat()
+    elif request.valid_days:
+        expiry_time = (datetime.now() + timedelta(days=request.valid_days)).isoformat()
+    
+    # 遍历每个账号
+    for email_account_id in unique_accounts:
+        try:
+            # 检查账号是否存在
+            account = db.get_account_by_email(email_account_id)
+            if not account:
+                ignored_count += 1
+                results.append(BatchShareResultItem(
+                    email_account_id=email_account_id,
+                    status="ignored",
+                    token=None,
+                    error_message="账号不存在"
+                ))
+                continue
+            
+            # 检查权限
+            if not auth.check_account_access(current_user, email_account_id):
+                failed_count += 1
+                results.append(BatchShareResultItem(
+                    email_account_id=email_account_id,
+                    status="failed",
+                    token=None,
+                    error_message="无权访问该邮箱账户"
+                ))
+                continue
+            
+            # 生成唯一token
+            token = str(uuid.uuid4())
+            
+            # 创建分享码
+            try:
+                token_id = db.create_share_token(
+                    token=token,
+                    email_account_id=email_account_id,
+                    start_time=request.filter_start_time,
+                    end_time=request.filter_end_time,
+                    subject_keyword=request.subject_keyword,
+                    sender_keyword=request.sender_keyword,
+                    expiry_time=expiry_time,
+                    is_active=True
+                )
+                
+                success_count += 1
+                results.append(BatchShareResultItem(
+                    email_account_id=email_account_id,
+                    status="success",
+                    token=token,
+                    error_message=None
+                ))
+            except Exception as e:
+                logger.error(f"Failed to create share token for {email_account_id}: {e}")
+                failed_count += 1
+                results.append(BatchShareResultItem(
+                    email_account_id=email_account_id,
+                    status="failed",
+                    token=None,
+                    error_message=str(e)
+                ))
+        except Exception as e:
+            logger.error(f"Error processing account {email_account_id}: {e}")
+            failed_count += 1
+            results.append(BatchShareResultItem(
+                email_account_id=email_account_id,
+                status="failed",
+                token=None,
+                error_message=str(e)
+            ))
+    
+    return BatchShareTokenResponse(
+        success_count=success_count,
+        failed_count=failed_count,
+        ignored_count=ignored_count,
+        results=results
+    )
 
 @router.get("/tokens", response_model=List[ShareTokenResponse])
 async def list_tokens(

@@ -13,13 +13,16 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash, Copy, Loader2, Edit, Plus } from "lucide-react";
+import { Trash, Copy, Loader2, Edit, Plus, CopyCheck, Users } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
+import { BatchShareDialog } from "@/components/share/BatchShareDialog";
+import { BatchCopyDialog } from "@/components/share/BatchCopyDialog";
 import { ShareToken, Account } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function ShareManagementPage() {
   const queryClient = useQueryClient();
@@ -27,7 +30,10 @@ export default function ShareManagementPage() {
   const [editToken, setEditToken] = useState<ShareToken | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isBatchShareDialogOpen, setIsBatchShareDialogOpen] = useState(false);
+  const [isBatchCopyDialogOpen, setIsBatchCopyDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<string>("");
+  const [selectedTokens, setSelectedTokens] = useState<Set<number>>(new Set());
 
   // 获取账户列表（使用现有的hook）
   const { data: accountsResponse } = useAccounts({
@@ -102,6 +108,24 @@ export default function ShareManagementPage() {
                 <Plus className="h-4 w-4" />
                 创建分享
               </Button>
+              <Button
+                onClick={() => setIsBatchShareDialogOpen(true)}
+                variant="outline"
+                className="gap-2"
+              >
+                <Users className="h-4 w-4" />
+                批量分享
+              </Button>
+              {tokens && tokens.length > 0 && (
+                <Button
+                  onClick={() => setIsBatchCopyDialogOpen(true)}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <CopyCheck className="h-4 w-4" />
+                  批量复制
+                </Button>
+              )}
             </>
           )}
         </div>
@@ -111,6 +135,18 @@ export default function ShareManagementPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50">
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={tokens && tokens.length > 0 && selectedTokens.size === tokens.length}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedTokens(new Set(tokens?.map((t) => t.id) || []));
+                    } else {
+                      setSelectedTokens(new Set());
+                    }
+                  }}
+                />
+              </TableHead>
               <TableHead>账户</TableHead>
               <TableHead>有效期</TableHead>
               <TableHead>筛选规则</TableHead>
@@ -122,15 +158,30 @@ export default function ShareManagementPage() {
           <TableBody>
             {!tokens || tokens.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
+                <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
                   暂无分享链接
                 </TableCell>
               </TableRow>
             ) : (
               tokens.map((token) => {
                 const isExpired = token.expiry_time && new Date(token.expiry_time) < new Date();
+                const isSelected = selectedTokens.has(token.id);
                 return (
                   <TableRow key={token.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          const newSelected = new Set(selectedTokens);
+                          if (checked) {
+                            newSelected.add(token.id);
+                          } else {
+                            newSelected.delete(token.id);
+                          }
+                          setSelectedTokens(newSelected);
+                        }}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{token.email_account_id}</TableCell>
                     <TableCell>
                       {token.expiry_time ? (
@@ -229,6 +280,21 @@ export default function ShareManagementPage() {
           setIsCreateDialogOpen(false);
           setSelectedAccount("");
         }}
+      />
+
+      <BatchShareDialog
+        open={isBatchShareDialogOpen}
+        onOpenChange={setIsBatchShareDialogOpen}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["share-tokens"] });
+        }}
+      />
+
+      <BatchCopyDialog
+        open={isBatchCopyDialogOpen}
+        onOpenChange={setIsBatchCopyDialogOpen}
+        tokens={tokens || []}
+        selectedTokens={tokens?.filter((t) => selectedTokens.has(t.id)) || []}
       />
     </div>
   );
