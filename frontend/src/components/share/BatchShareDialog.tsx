@@ -135,13 +135,27 @@ export function BatchShareDialog({ open, onOpenChange, onSuccess }: BatchShareDi
       .then((response) => {
         setBatchResult(response.data);
         const { success_count, failed_count, ignored_count } = response.data;
-        toast.success(
-          `批量创建完成：成功 ${success_count}，失败 ${failed_count}，忽略 ${ignored_count}`
-        );
-        onSuccess?.();
+        
+        // 根据结果显示不同的提示
+        if (success_count > 0) {
+          toast.success(
+            `批量创建完成：成功 ${success_count}，失败 ${failed_count}，忽略 ${ignored_count}`
+          );
+          onSuccess?.();
+        } else if (failed_count > 0 || ignored_count > 0) {
+          toast.warning(
+            `批量创建完成：成功 ${success_count}，失败 ${failed_count}，忽略 ${ignored_count}`
+          );
+          // 即使没有成功，也刷新列表以显示最新状态
+          onSuccess?.();
+        } else {
+          toast.error("批量创建失败：没有处理任何账号");
+        }
       })
       .catch((err: { response?: { data?: { detail?: string } } }) => {
-        toast.error(err.response?.data?.detail || "批量创建失败");
+        const errorMsg = err.response?.data?.detail || "批量创建失败";
+        toast.error(errorMsg);
+        console.error("Batch share creation failed:", err);
       })
       .finally(() => {
         setIsSubmitting(false);

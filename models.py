@@ -454,3 +454,19 @@ class BatchShareTokenResponse(BaseModel):
     ignored_count: int = Field(..., description="忽略数量（账号不存在）")
     results: List[BatchShareResultItem] = Field(..., description="详细结果列表")
 
+class BatchDeactivateRequest(BaseModel):
+    """批量失效请求模型"""
+    token_ids: List[int] = Field(..., description="分享码ID列表")
+
+class BatchDeactivateResponse(BaseModel):
+    """批量失效响应模型"""
+    success_count: int = Field(..., description="成功数量")
+    failed_count: int = Field(..., description="失败数量")
+    total_count: int = Field(..., description="总数")
+
+class ExtendShareTokenRequest(BaseModel):
+    """延期分享码请求模型"""
+    extend_hours: Optional[int] = Field(None, description="延长小时数")
+    extend_days: Optional[int] = Field(None, description="延长天数")
+    extend_to_time: Optional[str] = Field(None, description="延长至指定时间 (ISO8601)")
+

@@ -13,12 +13,13 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash, Copy, Loader2, Edit, Plus, CopyCheck, Users } from "lucide-react";
+import { Trash, Copy, Loader2, Edit, Plus, CopyCheck, Users, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
 import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
 import { BatchShareDialog } from "@/components/share/BatchShareDialog";
 import { BatchCopyDialog } from "@/components/share/BatchCopyDialog";
+import { ExtendShareDialog } from "@/components/share/ExtendShareDialog";
 import { ShareToken, Account } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -32,6 +33,8 @@ export default function ShareManagementPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isBatchShareDialogOpen, setIsBatchShareDialogOpen] = useState(false);
   const [isBatchCopyDialogOpen, setIsBatchCopyDialogOpen] = useState(false);
+  const [isExtendDialogOpen, setIsExtendDialogOpen] = useState(false);
+  const [extendToken, setExtendToken] = useState<ShareToken | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<string>("");
   const [selectedTokens, setSelectedTokens] = useState<Set<number>>(new Set());
 
@@ -63,6 +66,20 @@ export default function ShareManagementPage() {
     },
     onError: (error: { response?: { data?: { detail?: string } } }) => {
       toast.error(error.response?.data?.detail || "删除失败");
+    }
+  });
+
+  const batchDeactivate = useMutation({
+    mutationFn: async (tokenIds: number[]) => {
+      await api.post("/share/tokens/batch-deactivate", { token_ids: tokenIds });
+    },
+    onSuccess: () => {
+      toast.success("批量失效成功");
+      queryClient.invalidateQueries({ queryKey: ["share-tokens"] });
+      setSelectedTokens(new Set());
+    },
+    onError: (error: { response?: { data?: { detail?: string } } }) => {
+      toast.error(error.response?.data?.detail || "批量失效失败");
     }
   });
 
@@ -117,14 +134,30 @@ export default function ShareManagementPage() {
                 批量分享
               </Button>
               {tokens && tokens.length > 0 && (
-                <Button
-                  onClick={() => setIsBatchCopyDialogOpen(true)}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <CopyCheck className="h-4 w-4" />
-                  批量复制
-                </Button>
+                <>
+                  <Button
+                    onClick={() => setIsBatchCopyDialogOpen(true)}
+                    variant="outline"
+                    className="gap-2"
+                  >
+                    <CopyCheck className="h-4 w-4" />
+                    批量复制
+                  </Button>
+                  {selectedTokens.size > 0 && (
+                    <Button
+                      onClick={() => {
+                        if (window.confirm(`确定要将选中的 ${selectedTokens.size} 个分享码设置为失效吗？`)) {
+                          batchDeactivate.mutate(Array.from(selectedTokens));
+                        }
+                      }}
+                      variant="outline"
+                      className="gap-2 text-orange-600 hover:text-orange-700"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      批量失效 ({selectedTokens.size})
+                    </Button>
+                  )}
+                </>
               )}
             </>
           )}
@@ -217,6 +250,17 @@ export default function ShareManagementPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => {
+                            setExtendToken(token);
+                            setIsExtendDialogOpen(true);
+                          }}
+                          title="延期"
+                        >
+                          <Clock className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
                             setEditToken(token);
                             setIsEditDialogOpen(true);
                           }}
@@ -296,6 +340,21 @@ export default function ShareManagementPage() {
         tokens={tokens || []}
         selectedTokens={tokens?.filter((t) => selectedTokens.has(t.id)) || []}
       />
+
+      {extendToken && (
+        <ExtendShareDialog
+          open={isExtendDialogOpen}
+          onOpenChange={(open) => {
+            setIsExtendDialogOpen(open);
+            if (!open) setExtendToken(null);
+          }}
+          token={extendToken}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["share-tokens"] });
+            setExtendToken(null);
+          }}
+        />
+      )}
     </div>
   );
 }

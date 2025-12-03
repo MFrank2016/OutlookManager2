@@ -4,6 +4,7 @@ ShareTokenDAO - 分享码表数据访问对象
 
 from typing import Any, Dict, List, Optional, Tuple
 import logging
+from datetime import datetime
 
 from .base_dao import BaseDAO, get_db_connection
 from config import DB_TYPE
@@ -18,6 +19,29 @@ class ShareTokenDAO(BaseDAO):
         super().__init__("share_tokens")
         self.default_page_size = 50
         self.max_page_size = 100
+    
+    def _serialize_datetime_fields(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        将字典中的 datetime 对象转换为 ISO 格式字符串（PostgreSQL 需要）
+        
+        Args:
+            data: 包含 datetime 字段的字典
+            
+        Returns:
+            转换后的字典
+        """
+        if DB_TYPE != "postgresql":
+            return data
+        
+        result = dict(data)
+        datetime_fields = ['start_time', 'end_time', 'expiry_time', 'created_at']
+        
+        for field in datetime_fields:
+            if field in result and result[field] is not None:
+                if isinstance(result[field], datetime):
+                    result[field] = result[field].isoformat()
+        
+        return result
     
     def get_by_token(self, token: str) -> Optional[Dict[str, Any]]:
         """
@@ -34,7 +58,10 @@ class ShareTokenDAO(BaseDAO):
             cursor = conn.cursor()
             cursor.execute(f"SELECT * FROM share_tokens WHERE token = {placeholder}", (token,))
             row = cursor.fetchone()
-            return dict(row) if row else None
+            if row:
+                data = dict(row)
+                return self._serialize_datetime_fields(data)
+            return None
     
     def create(
         self,
@@ -130,11 +157,16 @@ class ShareTokenDAO(BaseDAO):
         
         where_clause = self._build_where_clause(conditions, params)
         
-        return self.find_paginated(
+        records, total = self.find_paginated(
             page=page,
             page_size=page_size,
             where_clause=where_clause,
             params=params,
             order_by="created_at DESC"
         )
+        
+        # 转换 datetime 字段为字符串（PostgreSQL 需要）
+        serialized_records = [self._serialize_datetime_fields(record) for record in records]
+        
+        return serialized_records, total
 

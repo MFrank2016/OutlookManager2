@@ -21,6 +21,9 @@ from models import (
     BatchShareTokenCreate,
     BatchShareTokenResponse,
     BatchShareResultItem,
+    BatchDeactivateRequest,
+    BatchDeactivateResponse,
+    ExtendShareTokenRequest,
     EmailListResponse,
     EmailDetailsResponse,
     AccountCredentials
@@ -337,6 +340,104 @@ async def delete_token_by_token(
         
     db.delete_share_token(token_data['id'])
     return {"message": "Token deleted"}
+
+@router.post("/tokens/batch-deactivate", response_model=BatchDeactivateResponse)
+async def batch_deactivate_tokens(
+    request: BatchDeactivateRequest,
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """
+    批量失效分享码
+    """
+    if not request.token_ids:
+        raise HTTPException(status_code=400, detail="token_ids 不能为空")
+    
+    # 获取所有分享码以检查权限
+    all_tokens, _ = db.list_share_tokens(page=1, page_size=10000)
+    token_map = {t['id']: t for t in all_tokens}
+    
+    success_count = 0
+    failed_count = 0
+    
+    for token_id in request.token_ids:
+        try:
+            token_data = token_map.get(token_id)
+            if not token_data:
+                failed_count += 1
+                logger.warning(f"Token ID {token_id} not found")
+                continue
+            
+            # 检查权限
+            if not auth.check_account_access(current_user, token_data['email_account_id']):
+                failed_count += 1
+                logger.warning(f"User {current_user['username']} has no access to token {token_id}")
+                continue
+            
+            # 设置为失效
+            db.update_share_token(token_id, is_active=False)
+            success_count += 1
+        except Exception as e:
+            logger.error(f"Failed to deactivate token {token_id}: {e}")
+            failed_count += 1
+    
+    return BatchDeactivateResponse(
+        success_count=success_count,
+        failed_count=failed_count,
+        total_count=len(request.token_ids)
+    )
+
+@router.post("/tokens/by-token/{token}/extend", response_model=ShareTokenResponse)
+async def extend_token(
+    token: str,
+    request: ExtendShareTokenRequest,
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """
+    延期分享码
+    支持两种方式：
+    1. 延长指定时间（extend_hours 或 extend_days）
+    2. 延长至指定时间（extend_to_time）
+    """
+    token_data = db.get_share_token(token)
+    if not token_data:
+        raise HTTPException(status_code=404, detail="Token not found")
+        
+    if not auth.check_account_access(current_user, token_data['email_account_id']):
+        raise HTTPException(status_code=403, detail="无权操作该分享码")
+    
+    # 计算新的过期时间
+    new_expiry_time = None
+    
+    if request.extend_to_time:
+        # 延长至指定时间
+        new_expiry_time = request.extend_to_time
+    elif request.extend_hours:
+        # 延长指定小时数
+        current_expiry = token_data.get('expiry_time')
+        if current_expiry:
+            base_time = datetime.fromisoformat(current_expiry)
+        else:
+            # 如果没有过期时间，从当前时间开始计算
+            base_time = datetime.now()
+        new_expiry_time = (base_time + timedelta(hours=request.extend_hours)).isoformat()
+    elif request.extend_days:
+        # 延长指定天数
+        current_expiry = token_data.get('expiry_time')
+        if current_expiry:
+            base_time = datetime.fromisoformat(current_expiry)
+        else:
+            # 如果没有过期时间，从当前时间开始计算
+            base_time = datetime.now()
+        new_expiry_time = (base_time + timedelta(days=request.extend_days)).isoformat()
+    else:
+        raise HTTPException(status_code=400, detail="必须提供 extend_hours、extend_days 或 extend_to_time 之一")
+    
+    # 更新过期时间
+    db.update_share_token(token_data['id'], expiry_time=new_expiry_time)
+    
+    # 返回更新后的数据
+    updated_data = db.get_share_token(token)
+    return ShareTokenResponse(**updated_data)
 
 
 # ============================================================================
