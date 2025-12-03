@@ -28,9 +28,7 @@ import { Loader2 } from "lucide-react";
 import { ShareToken } from "@/types";
 
 const formSchema = z.object({
-  extend_type: z.enum(["duration", "datetime"], {
-    required_error: "请选择延期方式",
-  }),
+  extend_type: z.enum(["duration", "datetime"] as const),
   extend_hours: z.string().optional(),
   extend_days: z.string().optional(),
   extend_to_time: z.string().optional(),
