@@ -106,28 +106,6 @@ async def get_email_detail(
     return await get_email_details(credentials, message_id)
 
 
-@router.delete("/{email_id}/{message_id}", response_model=DeleteEmailResponse)
-async def delete_email_route(
-    email_id: str, message_id: str, user: dict = Depends(auth.get_current_user)
-):
-    """删除指定邮件（需要删除邮件权限）"""
-    # 检查账户访问权限
-    if not auth.check_account_access(user, email_id):
-        raise HTTPException(status_code=403, detail=f"无权访问账户 {email_id}")
-    
-    # 检查删除邮件权限
-    auth.require_permission(user, Permission.DELETE_EMAILS)
-    
-    credentials = await get_account_credentials(email_id)
-    success = await delete_email(credentials, message_id)
-    
-    return DeleteEmailResponse(
-        success=success,
-        message="Email deleted successfully" if success else "Failed to delete email",
-        message_id=message_id
-    )
-
-
 @router.delete("/{email_id}/batch", response_model=BatchDeleteEmailsResponse)
 async def delete_emails_batch_route(
     email_id: str,
@@ -163,6 +141,28 @@ async def delete_emails_batch_route(
             fail_count=0,
             total_count=0
         )
+
+
+@router.delete("/{email_id}/{message_id}", response_model=DeleteEmailResponse)
+async def delete_email_route(
+    email_id: str, message_id: str, user: dict = Depends(auth.get_current_user)
+):
+    """删除指定邮件（需要删除邮件权限）"""
+    # 检查账户访问权限
+    if not auth.check_account_access(user, email_id):
+        raise HTTPException(status_code=403, detail=f"无权访问账户 {email_id}")
+    
+    # 检查删除邮件权限
+    auth.require_permission(user, Permission.DELETE_EMAILS)
+    
+    credentials = await get_account_credentials(email_id)
+    success = await delete_email(credentials, message_id)
+    
+    return DeleteEmailResponse(
+        success=success,
+        message="Email deleted successfully" if success else "Failed to delete email",
+        message_id=message_id
+    )
 
 
 @router.post("/{email_id}/send", response_model=SendEmailResponse)

@@ -47,6 +47,10 @@ class EmailItem(BaseModel):
     sender_initial: str = "?"
     verification_code: Optional[str] = None  # 验证码（如果检测到）
     body_preview: Optional[str] = None  # 邮件内容预览
+    # 以下字段为可选，如果列表接口返回了完整内容，可直接使用，无需再次请求详情
+    to_email: Optional[str] = None  # 收件人（详情字段）
+    body_plain: Optional[str] = None  # 纯文本正文（详情字段）
+    body_html: Optional[str] = None  # HTML正文（详情字段）
 
     class Config:
         json_schema_extra = {
@@ -474,6 +478,16 @@ class BatchDeactivateRequest(BaseModel):
 
 class BatchDeactivateResponse(BaseModel):
     """批量失效响应模型"""
+    success_count: int = Field(..., description="成功数量")
+    failed_count: int = Field(..., description="失败数量")
+    total_count: int = Field(..., description="总数")
+
+class BatchDeleteShareTokenRequest(BaseModel):
+    """批量删除分享码请求模型"""
+    token_ids: List[int] = Field(..., description="分享码ID列表")
+
+class BatchDeleteShareTokenResponse(BaseModel):
+    """批量删除分享码响应模型"""
     success_count: int = Field(..., description="成功数量")
     failed_count: int = Field(..., description="失败数量")
     total_count: int = Field(..., description="总数")

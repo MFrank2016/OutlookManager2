@@ -34,6 +34,10 @@ EMAIL_DETAIL_CACHE_TTL = None  # 不过期
 ACCESS_TOKEN_CACHE_SIZE = 200
 ACCESS_TOKEN_CACHE_TTL = 86400  # 24小时 = 86400秒
 
+# 分享页邮件列表缓存：最大500个条目，每个条目缓存10秒
+SHARE_EMAIL_LIST_CACHE_SIZE = 100
+SHARE_EMAIL_LIST_CACHE_TTL = 10  # 10秒
+
 # ============================================================================
 # LRU 缓存实例
 # ============================================================================
@@ -43,6 +47,8 @@ email_list_cache: TTLCache = TTLCache(maxsize=EMAIL_LIST_CACHE_SIZE, ttl=EMAIL_L
 # 邮件详情缓存使用 LRUCache（不过期，只受最大条目数限制）
 email_detail_cache: LRUCache = LRUCache(maxsize=EMAIL_DETAIL_CACHE_SIZE)
 access_token_cache: TTLCache = TTLCache(maxsize=ACCESS_TOKEN_CACHE_SIZE, ttl=ACCESS_TOKEN_CACHE_TTL)
+# 分享页邮件列表缓存（10秒TTL）
+share_email_list_cache: TTLCache = TTLCache(maxsize=SHARE_EMAIL_LIST_CACHE_SIZE, ttl=SHARE_EMAIL_LIST_CACHE_TTL)
 
 # ============================================================================
 # 缓存键生成函数
@@ -118,6 +124,25 @@ def get_access_token_cache_key(email: str) -> Tuple:
         缓存键元组
     """
     return hashkey("access_token", email)
+
+
+def get_share_email_list_cache_key(
+    token: str,
+    page: int,
+    page_size: int
+) -> Tuple:
+    """
+    生成分享页邮件列表缓存键
+    
+    Args:
+        token: 分享码
+        page: 页码
+        page_size: 每页大小
+        
+    Returns:
+        缓存键元组
+    """
+    return hashkey("share_email_list", token, page, page_size)
 
 # ============================================================================
 # 邮件列表缓存操作
@@ -359,17 +384,93 @@ def clear_email_cache(email: str = None) -> None:
 
 def clear_all_cache() -> None:
     """
-    清除所有缓存（包括邮件和access token）
+    清除所有缓存（包括邮件、access token和分享页缓存）
     """
     list_count = len(email_list_cache)
     detail_count = len(email_detail_cache)
     token_count = len(access_token_cache)
+    share_count = len(share_email_list_cache)
     
     email_list_cache.clear()
     email_detail_cache.clear()
     access_token_cache.clear()
+    share_email_list_cache.clear()
     
-    logger.info(f"Cleared all caches ({list_count} list, {detail_count} detail, {token_count} token entries)")
+    logger.info(f"Cleared all caches ({list_count} list, {detail_count} detail, {token_count} token, {share_count} share entries)")
+
+
+# ============================================================================
+# 分享页邮件列表缓存操作
+# ============================================================================
+
+def get_cached_share_email_list(
+    token: str,
+    page: int,
+    page_size: int
+) -> Optional[Dict[str, Any]]:
+    """
+    获取缓存的分享页邮件列表
+    
+    Args:
+        token: 分享码
+        page: 页码
+        page_size: 每页大小
+        
+    Returns:
+        缓存的数据或None
+    """
+    cache_key = get_share_email_list_cache_key(token, page, page_size)
+    
+    if cache_key in share_email_list_cache:
+        cached_data = share_email_list_cache[cache_key]
+        logger.debug(f"Cache hit for share email list: {token}:{page}")
+        return cached_data
+    
+    return None
+
+
+def set_cached_share_email_list(
+    token: str,
+    page: int,
+    page_size: int,
+    data: Dict[str, Any]
+) -> None:
+    """
+    设置分享页邮件列表缓存
+    
+    Args:
+        token: 分享码
+        page: 页码
+        page_size: 每页大小
+        data: 要缓存的数据
+    """
+    cache_key = get_share_email_list_cache_key(token, page, page_size)
+    share_email_list_cache[cache_key] = data
+    logger.debug(f"Cache set for share email list: {token}:{page} (cache size: {len(share_email_list_cache)})")
+
+
+def clear_share_email_cache(token: str = None) -> None:
+    """
+    清除分享页邮件缓存
+    
+    Args:
+        token: 指定分享码，如果为None则清除所有缓存
+    """
+    if token:
+        # 清除特定token的缓存
+        keys_to_delete = []
+        for key in list(share_email_list_cache.keys()):
+            if len(key) > 1 and key[1] == token:  # key[1] 是 token
+                keys_to_delete.append(key)
+        for key in keys_to_delete:
+            del share_email_list_cache[key]
+        
+        logger.info(f"Cleared share email cache for token {token} ({len(keys_to_delete)} entries)")
+    else:
+        # 清除所有缓存
+        cache_count = len(share_email_list_cache)
+        share_email_list_cache.clear()
+        logger.info(f"Cleared all share email cache ({cache_count} entries)")
 
 
 def get_cache_stats() -> Dict[str, Any]:
@@ -394,5 +495,10 @@ def get_cache_stats() -> Dict[str, Any]:
             'size': len(access_token_cache),
             'max_size': ACCESS_TOKEN_CACHE_SIZE,
             'ttl': ACCESS_TOKEN_CACHE_TTL
+        },
+        'share_email_list_cache': {
+            'size': len(share_email_list_cache),
+            'max_size': SHARE_EMAIL_LIST_CACHE_SIZE,
+            'ttl': SHARE_EMAIL_LIST_CACHE_TTL
         }
     }

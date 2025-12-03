@@ -136,6 +136,8 @@ class ShareTokenDAO(BaseDAO):
     def list_tokens(
         self,
         email_account_id: Optional[str] = None,
+        account_search: Optional[str] = None,
+        token_search: Optional[str] = None,
         page: int = 1,
         page_size: Optional[int] = None
     ) -> Tuple[List[Dict[str, Any]], int]:
@@ -143,7 +145,9 @@ class ShareTokenDAO(BaseDAO):
         列出分享码
         
         Args:
-            email_account_id: 邮箱账户ID（可选）
+            email_account_id: 邮箱账户ID（精确匹配，可选）
+            account_search: 账户模糊搜索（可选）
+            token_search: Token模糊搜索（可选）
             page: 页码
             page_size: 每页数量
             
@@ -154,9 +158,26 @@ class ShareTokenDAO(BaseDAO):
         params = []
         
         placeholder = self._get_param_placeholder()
+        
+        # 精确匹配账户（优先级高于模糊搜索）
         if email_account_id:
             conditions.append(f"email_account_id = {placeholder}")
             params.append(email_account_id)
+        elif account_search:
+            # 账户模糊搜索
+            if DB_TYPE == "postgresql":
+                conditions.append(f"email_account_id ILIKE {placeholder}")
+            else:
+                conditions.append(f"email_account_id LIKE {placeholder}")
+            params.append(f"%{account_search}%")
+        
+        # Token模糊搜索
+        if token_search:
+            if DB_TYPE == "postgresql":
+                conditions.append(f"token ILIKE {placeholder}")
+            else:
+                conditions.append(f"token LIKE {placeholder}")
+            params.append(f"%{token_search}%")
         
         where_clause = self._build_where_clause(conditions, params)
         

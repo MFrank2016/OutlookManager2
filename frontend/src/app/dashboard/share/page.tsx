@@ -3,29 +3,20 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Trash, Copy, Loader2, Edit, Plus, CopyCheck, Users, XCircle, Clock } from "lucide-react";
+import { Copy, Loader2, Plus, CopyCheck, Users, XCircle, Trash } from "lucide-react";
 import { toast } from "sonner";
-import { formatDistanceToNow, format } from "date-fns";
 import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
 import { BatchShareDialog } from "@/components/share/BatchShareDialog";
 import { BatchCopyDialog } from "@/components/share/BatchCopyDialog";
 import { ExtendShareDialog } from "@/components/share/ExtendShareDialog";
+import { ShareTokenTable } from "@/components/share/ShareTokenTable";
+import { ShareTokenSearch } from "@/components/share/ShareTokenSearch";
 import { ShareToken, Account } from "@/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useConfigs } from "@/hooks/useAdmin";
-import { generateShareLink, getShareDomainFromConfigs } from "@/lib/shareUtils";
+import { getShareDomainFromConfigs } from "@/lib/shareUtils";
 
 export default function ShareManagementPage() {
   const queryClient = useQueryClient();
@@ -39,6 +30,14 @@ export default function ShareManagementPage() {
   const [extendToken, setExtendToken] = useState<ShareToken | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<string>("");
   const [selectedTokens, setSelectedTokens] = useState<Set<number>>(new Set());
+  
+  // 本地查询条件状态（用于输入，不立即触发查询）
+  const [localAccountSearch, setLocalAccountSearch] = useState("");
+  const [localTokenSearch, setLocalTokenSearch] = useState("");
+  
+  // 实际查询条件状态（用于真正发起查询）
+  const [accountSearch, setAccountSearch] = useState<string | undefined>(undefined);
+  const [tokenSearch, setTokenSearch] = useState<string | undefined>(undefined);
 
   // 获取账户列表（使用现有的hook）
   const { data: accountsResponse } = useAccounts({
@@ -53,14 +52,25 @@ export default function ShareManagementPage() {
   const shareDomain = getShareDomainFromConfigs(configsData?.configs);
 
   const { data: tokens, isLoading } = useQuery({
-    queryKey: ["share-tokens", page],
+    queryKey: ["share-tokens", page, accountSearch, tokenSearch],
     queryFn: async () => {
-      const res = await api.get<ShareToken[]>("/share/tokens", {
-        params: { page, page_size: 50 }
-      });
+      const params: Record<string, unknown> = { page, page_size: 50 };
+      if (accountSearch && accountSearch.trim()) {
+        params.account_search = accountSearch.trim();
+      }
+      if (tokenSearch && tokenSearch.trim()) {
+        params.token_search = tokenSearch.trim();
+      }
+      const res = await api.get<ShareToken[]>("/share/tokens", { params });
       return res.data;
     }
   });
+  
+  // 处理查询按钮点击
+  const handleSearch = () => {
+    setAccountSearch(localAccountSearch.trim() || undefined);
+    setTokenSearch(localTokenSearch.trim() || undefined);
+  };
 
   const deleteToken = useMutation({
     mutationFn: async (token: string) => {
@@ -89,30 +99,48 @@ export default function ShareManagementPage() {
     }
   });
 
-  const handleCopyLink = (token: string) => {
-    const link = generateShareLink(token, shareDomain || undefined);
-    navigator.clipboard.writeText(link);
-    toast.success("链接已复制");
+  const batchDelete = useMutation({
+    mutationFn: async (tokenIds: number[]) => {
+      await api.post("/share/tokens/batch-delete", { token_ids: tokenIds });
+    },
+    onSuccess: () => {
+      toast.success("批量删除成功");
+      queryClient.invalidateQueries({ queryKey: ["share-tokens"] });
+      setSelectedTokens(new Set());
+    },
+    onError: (error: { response?: { data?: { detail?: string } } }) => {
+      toast.error(error.response?.data?.detail || "批量删除失败");
+    }
+  });
+
+  // 处理表格选择
+  const handleToggleSelect = (tokenId: number, checked: boolean) => {
+    const newSelected = new Set(selectedTokens);
+    if (checked) {
+      newSelected.add(tokenId);
+    } else {
+      newSelected.delete(tokenId);
+    }
+    setSelectedTokens(newSelected);
   };
 
-  const handleDoubleClickCopy = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success(`${label}已复制到剪贴板`);
+  const handleToggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedTokens(new Set(tokens?.map((t) => t.id) || []));
+    } else {
+      setSelectedTokens(new Set());
+    }
   };
-
-  if (isLoading) {
-    return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>;
-  }
 
   return (
-    <div className="space-y-6 px-0 md:px-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">分享管理</h1>
-        <div className="flex gap-2">
+    <div className="space-y-3 md:space-y-6 px-0 md:px-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0">
+        <h1 className="hidden md:block text-2xl font-bold tracking-tight">分享管理</h1>
+        <div className="flex gap-1.5 md:gap-2 flex-wrap md:flex-nowrap w-full md:w-auto">
           {accountsData && accountsData.length > 0 && (
             <>
               <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full md:w-[200px]">
                   <SelectValue placeholder="选择邮箱账户" />
                 </SelectTrigger>
                 <SelectContent>
@@ -131,42 +159,66 @@ export default function ShareManagementPage() {
                   }
                   setIsCreateDialogOpen(true);
                 }}
-                className="gap-2"
+                className="gap-2 text-xs md:text-sm"
+                size="sm"
               >
-                <Plus className="h-4 w-4" />
-                创建分享
+                <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">创建分享</span>
+                <span className="sm:hidden">创建</span>
               </Button>
               <Button
                 onClick={() => setIsBatchShareDialogOpen(true)}
                 variant="outline"
-                className="gap-2"
+                className="gap-2 text-xs md:text-sm"
+                size="sm"
               >
-                <Users className="h-4 w-4" />
-                批量分享
+                <Users className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">批量分享</span>
+                <span className="sm:hidden">分享</span>
               </Button>
               {tokens && tokens.length > 0 && (
                 <>
                   <Button
                     onClick={() => setIsBatchCopyDialogOpen(true)}
                     variant="outline"
-                    className="gap-2"
+                    className="gap-2 text-xs md:text-sm"
+                    size="sm"
                   >
-                    <CopyCheck className="h-4 w-4" />
-                    批量复制
+                    <CopyCheck className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    <span className="hidden sm:inline">批量复制</span>
+                    <span className="sm:hidden">复制</span>
                   </Button>
                   {selectedTokens.size > 0 && (
-                    <Button
-                      onClick={() => {
-                        if (window.confirm(`确定要将选中的 ${selectedTokens.size} 个分享码设置为失效吗？`)) {
-                          batchDeactivate.mutate(Array.from(selectedTokens));
-                        }
-                      }}
-                      variant="outline"
-                      className="gap-2 text-orange-600 hover:text-orange-700"
-                    >
-                      <XCircle className="h-4 w-4" />
-                      批量失效 ({selectedTokens.size})
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => {
+                          if (window.confirm(`确定要将选中的 ${selectedTokens.size} 个分享码设置为失效吗？`)) {
+                            batchDeactivate.mutate(Array.from(selectedTokens));
+                          }
+                        }}
+                        variant="outline"
+                        className="gap-2 text-orange-600 hover:text-orange-700 text-xs md:text-sm"
+                        size="sm"
+                      >
+                        <XCircle className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                        <span className="hidden sm:inline">批量失效 ({selectedTokens.size})</span>
+                        <span className="sm:hidden">失效 ({selectedTokens.size})</span>
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          if (window.confirm(`确定要删除选中的 ${selectedTokens.size} 个分享码吗？此操作不可恢复！`)) {
+                            batchDelete.mutate(Array.from(selectedTokens));
+                          }
+                        }}
+                        variant="outline"
+                        className="gap-2 text-red-600 hover:text-red-700 text-xs md:text-sm"
+                        size="sm"
+                      >
+                        <Trash className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                        <span className="hidden sm:inline">批量删除 ({selectedTokens.size})</span>
+                        <span className="sm:hidden">删除 ({selectedTokens.size})</span>
+                      </Button>
+                    </>
                   )}
                 </>
               )}
@@ -175,183 +227,38 @@ export default function ShareManagementPage() {
         </div>
       </div>
 
-      <div className="rounded-md border bg-white shadow-sm overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="bg-slate-50">
-              <TableHead className="w-[50px]">
-                <Checkbox
-                  checked={tokens && tokens.length > 0 && selectedTokens.size === tokens.length}
-                  onCheckedChange={(checked) => {
-                    if (checked) {
-                      setSelectedTokens(new Set(tokens?.map((t) => t.id) || []));
-                    } else {
-                      setSelectedTokens(new Set());
-                    }
-                  }}
-                />
-              </TableHead>
-              <TableHead>账户</TableHead>
-              <TableHead>Token</TableHead>
-              <TableHead>有效期</TableHead>
-              <TableHead>筛选规则</TableHead>
-              <TableHead>创建时间</TableHead>
-              <TableHead>状态</TableHead>
-              <TableHead className="text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {!tokens || tokens.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground h-24">
-                  暂无分享链接
-                </TableCell>
-              </TableRow>
-            ) : (
-              tokens.map((token) => {
-                const isExpired = token.expiry_time && new Date(token.expiry_time) < new Date();
-                const isSelected = selectedTokens.has(token.id);
-                return (
-                  <TableRow key={token.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={(checked) => {
-                          const newSelected = new Set(selectedTokens);
-                          if (checked) {
-                            newSelected.add(token.id);
-                          } else {
-                            newSelected.delete(token.id);
-                          }
-                          setSelectedTokens(newSelected);
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell 
-                      className="font-medium cursor-pointer select-none hover:bg-gray-50"
-                      onDoubleClick={() => handleDoubleClickCopy(token.email_account_id, "账户")}
-                      title="双击复制账户"
-                    >
-                      {token.email_account_id}
-                    </TableCell>
-                    <TableCell 
-                      className="font-mono text-sm cursor-pointer select-none hover:bg-gray-50"
-                      onDoubleClick={() => handleDoubleClickCopy(token.token, "Token")}
-                      title="双击复制Token"
-                    >
-                      {token.token}
-                    </TableCell>
-                    <TableCell 
-                      className="cursor-pointer select-none hover:bg-gray-50"
-                      onDoubleClick={() => {
-                        const expiryText = token.expiry_time 
-                          ? format(new Date(token.expiry_time), "yyyy-MM-dd HH:mm")
-                          : "永久有效";
-                        handleDoubleClickCopy(expiryText, "有效期");
-                      }}
-                      title="双击复制有效期"
-                    >
-                      {token.expiry_time ? (
-                        <div className="flex flex-col">
-                          <span>{format(new Date(token.expiry_time), "yyyy-MM-dd HH:mm")}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {isExpired ? "已过期" : formatDistanceToNow(new Date(token.expiry_time), { addSuffix: true })}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">永久有效</span>
-                      )}
-                    </TableCell>
-                    <TableCell 
-                      className="cursor-pointer select-none hover:bg-gray-50"
-                      onDoubleClick={() => {
-                        const filterText = [
-                          `开始: ${format(new Date(token.start_time), "yyyy-MM-dd HH:mm")}`,
-                          token.end_time && `结束: ${format(new Date(token.end_time), "yyyy-MM-dd HH:mm")}`,
-                          token.subject_keyword && `主题: ${token.subject_keyword}`,
-                          token.sender_keyword && `发件人: ${token.sender_keyword}`
-                        ].filter(Boolean).join('\n');
-                        handleDoubleClickCopy(filterText, "筛选规则");
-                      }}
-                      title="双击复制筛选规则"
-                    >
-                      <div className="flex flex-col gap-1 text-xs">
-                        <div>开始: {format(new Date(token.start_time), "yyyy-MM-dd HH:mm")}</div>
-                        {token.end_time && <div>结束: {format(new Date(token.end_time), "yyyy-MM-dd HH:mm")}</div>}
-                        {token.subject_keyword && <div>主题: {token.subject_keyword}</div>}
-                        {token.sender_keyword && <div>发件人: {token.sender_keyword}</div>}
-                      </div>
-                    </TableCell>
-                    <TableCell 
-                      className="text-muted-foreground text-sm cursor-pointer select-none hover:bg-gray-50"
-                      onDoubleClick={() => handleDoubleClickCopy(format(new Date(token.created_at), "yyyy-MM-dd HH:mm"), "创建时间")}
-                      title="双击复制创建时间"
-                    >
-                      {format(new Date(token.created_at), "MM-dd HH:mm")}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={token.is_active && !isExpired ? "default" : "secondary"}>
-                        {token.is_active ? (isExpired ? "已过期" : "有效") : "已禁用"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setExtendToken(token);
-                            setIsExtendDialogOpen(true);
-                          }}
-                          title="延期"
-                        >
-                          <Clock className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditToken(token);
-                            setIsEditDialogOpen(true);
-                          }}
-                          title="编辑"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            const link = generateShareLink(token.token, shareDomain || undefined);
-                            navigator.clipboard.writeText(link);
-                            toast.success("链接已复制");
-                          }}
-                          title="复制链接"
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            if (window.confirm("确定要删除此分享链接吗？")) {
-                              deleteToken.mutate(token.token);
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          title="删除"
-                        >
-                          <Trash className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {/* 查询区域 */}
+      <ShareTokenSearch
+        accountSearch={localAccountSearch}
+        tokenSearch={localTokenSearch}
+        onAccountSearchChange={setLocalAccountSearch}
+        onTokenSearchChange={setLocalTokenSearch}
+        onSearch={handleSearch}
+        isLoading={isLoading}
+      />
+
+      {isLoading ? (
+        <div className="flex justify-center p-8">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      ) : (
+        <ShareTokenTable
+          tokens={tokens}
+          selectedTokens={selectedTokens}
+          onToggleSelect={handleToggleSelect}
+          onToggleSelectAll={handleToggleSelectAll}
+          onEdit={(token) => {
+            setEditToken(token);
+            setIsEditDialogOpen(true);
+          }}
+          onExtend={(token) => {
+            setExtendToken(token);
+            setIsExtendDialogOpen(true);
+          }}
+          onDelete={(token) => deleteToken.mutate(token)}
+          shareDomain={shareDomain || undefined}
+        />
+      )}
 
       <ShareTokenDialog
         open={isEditDialogOpen}

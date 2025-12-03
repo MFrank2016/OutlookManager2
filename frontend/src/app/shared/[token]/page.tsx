@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import api from "@/lib/api";
 import {
   Table,
   TableBody,
@@ -16,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Mail, ChevronLeft, ChevronRight, Eye, Copy, Check, Calendar, RefreshCw, Search } from "lucide-react";
+import { Loader2, Mail, ChevronLeft, ChevronRight, Calendar, RefreshCw, Search } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -30,6 +29,11 @@ interface EmailItem {
   date: string;
   folder: string;
   sender_initial: string;
+  // 以下字段为可选，如果列表接口返回了完整内容，可直接使用，无需再次请求详情
+  to_email?: string;
+  body_plain?: string;
+  body_html?: string;
+  verification_code?: string;
 }
 
 interface EmailDetail {
@@ -60,6 +64,7 @@ export default function SharedEmailPage() {
   const [inputToken, setInputToken] = useState<string>(urlToken || "");
   const [page, setPage] = useState(1);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [selectedEmailData, setSelectedEmailData] = useState<EmailItem | null>(null);
   const [emailDetailOpen, setEmailDetailOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"html" | "text">("html");
   const pageSize = 20;
@@ -118,7 +123,10 @@ export default function SharedEmailPage() {
     },
   });
 
-  // 获取邮件详情
+  // 检查选中的邮件是否已有完整内容（body_plain 或 body_html）
+  const hasFullContent = selectedEmailData && (selectedEmailData.body_plain || selectedEmailData.body_html);
+  
+  // 获取邮件详情（只有在列表数据没有完整内容时才请求）
   const { data: emailDetail, isLoading: isDetailLoading, refetch: refetchEmailDetail } = useQuery<EmailDetail>({
     queryKey: ["shared-email-detail", token, selectedEmailId],
     queryFn: async () => {
@@ -129,7 +137,7 @@ export default function SharedEmailPage() {
       }
       return response.json();
     },
-    enabled: !!selectedEmailId && emailDetailOpen,
+    enabled: !!selectedEmailId && emailDetailOpen && !hasFullContent,
     retry: (failureCount, error) => {
       // 429错误不重试
       if (error instanceof Error && error.message.includes("请求过于频繁")) {
@@ -138,6 +146,9 @@ export default function SharedEmailPage() {
       return failureCount < 2;
     },
   });
+  
+  // 优先使用列表数据，如果没有完整内容则使用详情数据
+  const displayEmail = hasFullContent ? selectedEmailData : emailDetail;
 
   // 手动刷新
   const handleRefresh = async () => {
@@ -147,7 +158,7 @@ export default function SharedEmailPage() {
         refetchEmails(),
       ]);
       toast.success("刷新成功");
-    } catch (error) {
+    } catch {
       // 错误已在handleApiError中处理
     }
   };
@@ -300,6 +311,7 @@ export default function SharedEmailPage() {
                         className="hover:bg-gray-50 cursor-pointer"
                         onClick={() => {
                           setSelectedEmailId(email.message_id);
+                          setSelectedEmailData(email);
                           setEmailDetailOpen(true);
                         }}
                       >
@@ -363,37 +375,37 @@ export default function SharedEmailPage() {
         <DialogContent className="max-w-[95vw] lg:max-w-5xl max-h-[90vh] overflow-hidden flex flex-col w-full">
           <DialogHeader className="pb-4 border-b">
             <DialogTitle className="text-lg font-bold break-words pr-8">
-              {emailDetail?.subject || "加载中..."}
+              {displayEmail?.subject || "加载中..."}
             </DialogTitle>
           </DialogHeader>
 
-          {isDetailLoading ? (
+          {isDetailLoading && !hasFullContent ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
             </div>
-          ) : emailDetail ? (
+          ) : displayEmail ? (
             <>
               {/* 邮件元数据 */}
               <div className="p-4 space-y-2 border-b">
                 <div className="text-sm">
                   <span className="font-medium text-gray-600">发件人: </span>
-                  <span className="text-gray-900">{emailDetail.from_email}</span>
+                  <span className="text-gray-900">{displayEmail.from_email}</span>
                 </div>
                 <div className="text-sm">
                   <span className="font-medium text-gray-600">收件人: </span>
-                  <span className="text-gray-900">{emailDetail.to_email || "无"}</span>
+                  <span className="text-gray-900">{displayEmail.to_email || "无"}</span>
                 </div>
                 <div className="text-sm">
                   <span className="font-medium text-gray-600">日期: </span>
                   <span className="text-gray-900">
-                    {format(new Date(emailDetail.date), "yyyy-MM-dd HH:mm:ss")}
+                    {format(new Date(displayEmail.date), "yyyy-MM-dd HH:mm:ss")}
                   </span>
                 </div>
-                {emailDetail.verification_code && (
+                {displayEmail.verification_code && (
                   <div className="text-sm">
                     <span className="font-medium text-gray-600">验证码: </span>
                     <Badge variant="secondary" className="bg-green-100 text-green-800">
-                      {emailDetail.verification_code}
+                      {displayEmail.verification_code}
                     </Badge>
                   </div>
                 )}
@@ -419,28 +431,30 @@ export default function SharedEmailPage() {
                     纯文本
                   </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => refetchEmailDetail()}
-                  disabled={isDetailLoading}
-                  className="h-8"
-                >
-                  <RefreshCw className={cn("h-4 w-4 mr-2", isDetailLoading && "animate-spin")} />
-                  刷新
-                </Button>
+                {!hasFullContent && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => refetchEmailDetail()}
+                    disabled={isDetailLoading}
+                    className="h-8"
+                  >
+                    <RefreshCw className={cn("h-4 w-4 mr-2", isDetailLoading && "animate-spin")} />
+                    刷新
+                  </Button>
+                )}
               </div>
 
               {/* 邮件正文 */}
               <ScrollArea className="flex-1 p-6">
-                {viewMode === "html" && emailDetail.body_html ? (
+                {viewMode === "html" && displayEmail.body_html ? (
                   <div 
                     className="prose prose-slate max-w-none dark:prose-invert email-content text-sm leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: emailDetail.body_html }} 
+                    dangerouslySetInnerHTML={{ __html: displayEmail.body_html }} 
                   />
                 ) : (
                   <pre className="whitespace-pre-wrap text-sm font-mono bg-gray-50 p-4 rounded">
-                    {emailDetail.body_plain || emailDetail.body_html || "无内容"}
+                    {displayEmail.body_plain || displayEmail.body_html || "无内容"}
                   </pre>
                 )}
               </ScrollArea>

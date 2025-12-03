@@ -195,7 +195,7 @@ async def list_emails_graph(
                 params = {
                     "$top": 1000,  # 一次性获取大量邮件（参考 mail-all.js）
                     "$orderby": "receivedDateTime desc",  # 按接收时间降序排序
-                    "$select": "id,subject,from,receivedDateTime,isRead,hasAttachments,bodyPreview"
+                    "$select": "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview,body"
                 }
                 
                 # 添加过滤条件
@@ -284,11 +284,30 @@ async def list_emails_graph(
                     subject = email.get("subject", "(No Subject)")
                     body_preview = email.get("bodyPreview", "")
                     
-                    # 检测验证码（只从 body_plain 中检测）
+                    # 提取收件人
+                    to_recipients = email.get("toRecipients", [])
+                    to_email = ", ".join([r.get("emailAddress", {}).get("address", "") for r in to_recipients])
+                    
+                    # 获取邮件正文
+                    body_data = email.get("body", {})
+                    body_content = body_data.get("content", "")
+                    body_type = body_data.get("contentType", "text")
+                    
+                    body_plain = None
+                    body_html = None
+                    
+                    if body_content:
+                        if body_type.lower() == "html":
+                            body_html = body_content
+                            body_plain = body_preview  # 使用预览作为纯文本
+                        else:
+                            body_plain = body_content
+                    
+                    # 检测验证码（从 body_plain 中检测）
                     verification_code = None
                     try:
-                        # 使用 bodyPreview 作为 body_plain 的替代
-                        code_info = detect_verification_code(subject="", body=body_preview)
+                        # 使用 body_plain 或 body_preview 检测验证码
+                        code_info = detect_verification_code(subject="", body=body_plain or body_preview)
                         if code_info:
                             verification_code = code_info["code"]
                     except Exception as e:
@@ -312,7 +331,10 @@ async def list_emails_graph(
                         has_attachments=email.get("hasAttachments", False),
                         sender_initial=sender_initial,
                         verification_code=verification_code,
-                        body_preview=email.get("bodyPreview", "")
+                        body_preview=body_preview,
+                        to_email=to_email if to_email else None,
+                        body_plain=body_plain if body_plain else None,
+                        body_html=body_html if body_html else None
                     )
                     all_emails.append(email_item)
         
@@ -435,7 +457,7 @@ async def list_emails_graph2(
                 "$skip": skip,
                 "$count": "true",  # 添加 $count=true 获取总数
                 "$orderby": "receivedDateTime desc",  # 按接收时间降序排序
-                "$select": "id,subject,from,receivedDateTime,isRead,hasAttachments,bodyPreview"
+                "$select": "id,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview,body"
             }
             
             # 添加过滤条件
@@ -514,11 +536,30 @@ async def list_emails_graph2(
                 subject = email.get("subject", "(No Subject)")
                 body_preview = email.get("bodyPreview", "")
                 
-                # 检测验证码（只从 body_plain 中检测）
+                # 提取收件人
+                to_recipients = email.get("toRecipients", [])
+                to_email = ", ".join([r.get("emailAddress", {}).get("address", "") for r in to_recipients])
+                
+                # 获取邮件正文
+                body_data = email.get("body", {})
+                body_content = body_data.get("content", "")
+                body_type = body_data.get("contentType", "text")
+                
+                body_plain = None
+                body_html = None
+                
+                if body_content:
+                    if body_type.lower() == "html":
+                        body_html = body_content
+                        body_plain = body_preview  # 使用预览作为纯文本
+                    else:
+                        body_plain = body_content
+                
+                # 检测验证码（从 body_plain 中检测）
                 verification_code = None
                 try:
-                    # 使用 bodyPreview 作为 body_plain 的替代
-                    code_info = detect_verification_code(subject="", body=body_preview)
+                    # 使用 body_plain 或 body_preview 检测验证码
+                    code_info = detect_verification_code(subject="", body=body_plain or body_preview)
                     if code_info:
                         verification_code = code_info["code"]
                 except Exception as e:
@@ -556,7 +597,10 @@ async def list_emails_graph2(
                     has_attachments=email.get("hasAttachments", False),
                     sender_initial=sender_initial,
                     verification_code=verification_code,
-                    body_preview=email.get("bodyPreview", "")
+                    body_preview=body_preview,
+                    to_email=to_email if to_email else None,
+                    body_plain=body_plain if body_plain else None,
+                    body_html=body_html if body_html else None
                 )
                 email_items.append(email_item)
             

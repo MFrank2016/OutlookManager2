@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface UseAutoRefreshOptions {
   enabled: boolean;
@@ -31,18 +31,13 @@ export function useAutoRefresh({
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
 
-  // 清理函数
-  const cleanup = useCallback(() => {
+  // 主逻辑
+  useEffect(() => {
+    // 先清理旧的 interval
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-  }, []);
-
-  // 主逻辑
-  useEffect(() => {
-    // 先清理旧的 interval
-    cleanup();
 
     // 如果不满足启动条件，直接返回
     if (!enabled || isLoading || isRefetching) {
@@ -51,15 +46,25 @@ export function useAutoRefresh({
         isRefreshingRef.current = false;
       }
       
-      return cleanup;
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      };
     }
 
-    // 重置倒计时
-    setCountdown(intervalSeconds);
-
     // 创建新的 interval
+    // 使用函数式更新来初始化倒计时，避免在 effect 中同步调用 setState
+    let isFirstTick = true;
     const interval = setInterval(() => {
       setCountdown((prevCountdown) => {
+        // 第一次执行时，重置为初始值
+        if (isFirstTick) {
+          isFirstTick = false;
+          return intervalSeconds;
+        }
+        
         const newCountdown = prevCountdown - 1;
 
         if (newCountdown <= 0) {
@@ -91,8 +96,13 @@ export function useAutoRefresh({
     intervalRef.current = interval;
 
     // 返回清理函数
-    return cleanup;
-  }, [enabled, isLoading, isRefetching, intervalSeconds, cleanup]);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [enabled, isLoading, isRefetching, intervalSeconds]);
 
   return {
     countdown,

@@ -354,7 +354,7 @@ async def get_cached_access_token(credentials: AccountCredentials) -> str:
             # 检查 token 是否还有效（距离过期时间 > 1 小时，因为 access token 缓存时间为 3 小时）
             time_until_expiry = (expires_at - now).total_seconds()
             
-            if time_until_expiry > 3600:  # 1小时 = 3600秒（access token 缓存时间为 3 小时，提前 1 小时刷新）
+            if time_until_expiry > 600:  # 10分钟 = 600秒（access token 缓存时间为 3 小时，提前 10分钟刷新）
                 # 将数据库中的token缓存到内存
                 cache_service.set_cached_access_token(credentials.email, access_token, expires_at_str)
                 logger.info(

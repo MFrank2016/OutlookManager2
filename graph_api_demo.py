@@ -8,7 +8,13 @@ def get_accesstoken(refresh_token,client_id):
         'refresh_token': refresh_token,
         'scope': 'https://graph.microsoft.com/.default'
     }
-    return requests.post('https://login.microsoftonline.com/consumers/oauth2/v2.0/token', data=data).json()['access_token']
+    response = requests.post('https://login.microsoftonline.com/consumers/oauth2/v2.0/token', data=data)
+    if response.status_code == 200:
+        print(response.json())
+        return response.json()['access_token']
+    else:
+        print(f"获取Token失败: {response.text}")
+        return ""
 
 def Graph(refresh_token,client_id):
     try:

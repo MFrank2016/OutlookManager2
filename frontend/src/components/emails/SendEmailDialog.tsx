@@ -49,8 +49,14 @@ export function SendEmailDialog({ account }: { account: string | null }) {
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button disabled={!account}>
-                    <Send className="mr-2 h-4 w-4" /> 撰写
+                <Button 
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3"
+                    disabled={!account}
+                >
+                    <Send className="mr-1.5 h-3.5 w-3.5" />
+                    <span className="text-xs md:text-sm">撰写</span>
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">

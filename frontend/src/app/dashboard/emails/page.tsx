@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { SendEmailDialog } from "@/components/emails/SendEmailDialog";
+import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
 import { 
     Search, 
     ArrowUpDown, 
@@ -24,7 +25,8 @@ import {
     Check,
     RefreshCw,
     Trash,
-    Eye
+    Eye,
+    Share2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -57,23 +59,33 @@ export default function EmailsPage() {
   const router = useRouter();
   const initialAccount = searchParams.get("account");
 
-  console.log('[EmailsPage] 组件渲染', {
-    timestamp: new Date().toISOString(),
-    initialAccount
-  });
+//   console.log('[EmailsPage] 组件渲染', {
+//     timestamp: new Date().toISOString(),
+//     initialAccount
+//   });
 
   const [selectedAccount, setSelectedAccount] = useState<string | null>(initialAccount);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [selectedEmailData, setSelectedEmailData] = useState<Email | null>(null);
   const [emailDetailOpen, setEmailDetailOpen] = useState(false);
   const [deleteEmailId, setDeleteEmailId] = useState<string | null>(null);
   const [clearInboxOpen, setClearInboxOpen] = useState(false);
+  const [isCreateShareDialogOpen, setIsCreateShareDialogOpen] = useState(false);
   
-  // Filters
+  // 本地搜索条件状态（用于输入，不立即触发查询）
+  const [localSearch, setLocalSearch] = useState("");
+  const [localSearchType, setLocalSearchType] = useState<"subject" | "sender">("subject");
+  const [localFolder, setLocalFolder] = useState<string>("all");
+  
+  // 实际查询条件状态（用于真正发起查询）
   const [search, setSearch] = useState("");
   const [searchType, setSearchType] = useState<"subject" | "sender">("subject");
   const [folder, setFolder] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  // 用于查询的排序字段（只有点击查询按钮时才更新）
+  const [querySortBy, setQuerySortBy] = useState<string>("date");
+  const [querySortOrder, setQuerySortOrder] = useState<"asc" | "desc">("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [jumpPage, setJumpPage] = useState("");
@@ -82,22 +94,28 @@ export default function EmailsPage() {
   const [isAutoRefreshEnabled] = useState(true);
   const queryClient = useQueryClient();
 
-  const { data: accountsData } = useAccounts({ page_size: 100 });
-  console.log('[EmailsPage] 调用 useEmails', {
-    timestamp: new Date().toISOString(),
-    account: selectedAccount || "",
-    search,
-    folder,
-    page
+  const { data: accountsData } = useAccounts({ page_size: 100 }, {
+    // 禁用账户列表的自动刷新，避免在邮件列表页自动刷新账户列表
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: 5 * 60 * 1000, // 5分钟内认为数据新鲜
   });
+//   console.log('[EmailsPage] 调用 useEmails', {
+//     timestamp: new Date().toISOString(),
+//     account: selectedAccount || "",
+//     search,
+//     folder,
+//     page
+//   });
 
   const { data: emailsData, isLoading: isEmailsLoading, refetch: refetchEmails } = useEmails({
     account: selectedAccount || "",
     search,
     searchType,
     folder,
-    sortBy,
-    sortOrder,
+    sortBy: querySortBy, // 使用查询用的排序字段
+    sortOrder: querySortOrder, // 使用查询用的排序字段
     page,
     page_size: pageSize,
     forceRefresh: true // 邮件列表页始终从微软服务器获取最新数据
@@ -106,13 +124,39 @@ export default function EmailsPage() {
   // 使用 ref 跟踪上一次更新的账户，避免循环更新
   const lastUpdatedAccountRef = useRef<string | null>(null);
 
+  // 使用 useCallback 稳定刷新回调，倒计时刷新时使用当前的查询条件（包括排序字段）
+  const handleAutoRefresh = useCallback(async () => {
+    // 倒计时刷新时，先同步当前的排序字段到查询用的排序字段
+    // 这样如果用户在倒计时期间更改了排序字段，刷新时会使用新的排序字段
+    setQuerySortBy(sortBy);
+    setQuerySortOrder(sortOrder);
+    
+    // 使用 refetchQueries 直接使用当前的查询条件进行刷新
+    // 使用 predicate 来精确匹配当前的查询条件（包括当前的排序字段）
+    await queryClient.refetchQueries({ 
+      queryKey: ["emails", selectedAccount],
+      predicate: (query) => {
+        const queryKey = query.queryKey;
+        // 精确匹配当前的查询条件，包括当前的排序字段
+        return queryKey.length >= 9 &&
+               queryKey[0] === "emails" &&
+               queryKey[1] === selectedAccount &&
+               queryKey[2] === page &&
+               queryKey[3] === pageSize &&
+               queryKey[4] === folder &&
+               queryKey[5] === search &&
+               queryKey[6] === searchType &&
+               queryKey[7] === sortBy && // 使用当前的排序字段
+               queryKey[8] === sortOrder; // 使用当前的排序字段
+      }
+    });
+  }, [queryClient, selectedAccount, page, pageSize, folder, search, searchType, sortBy, sortOrder]);
+
   // 使用 useAutoRefresh Hook 进行自动刷新
   const { countdown: refreshCountdown } = useAutoRefresh({
     enabled: isAutoRefreshEnabled && !!selectedAccount,
     intervalSeconds: 30,
-    onRefresh: async () => {
-      await refetchEmails();
-    },
+    onRefresh: handleAutoRefresh,
     isLoading: isEmailsLoading,
   });
 
@@ -207,10 +251,34 @@ export default function EmailsPage() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountsData]);
 
-  // Reset page when filters change
+  // Reset page when query filters change (not local filters, not sortBy/sortOrder)
   useEffect(() => {
       setPage(1);
-  }, [search, folder, sortBy, sortOrder, selectedAccount]);
+  }, [search, folder, selectedAccount]);
+  
+  // 当账户变化时，重置本地搜索条件和排序字段
+  useEffect(() => {
+    setLocalSearch("");
+    setLocalSearchType("subject");
+    setLocalFolder("all");
+    setSearch("");
+    setSearchType("subject");
+    setFolder("all");
+    setSortBy("date");
+    setSortOrder("desc");
+    setQuerySortBy("date");
+    setQuerySortOrder("desc");
+  }, [selectedAccount]);
+  
+  // 处理查询按钮点击
+  const handleSearch = () => {
+    setSearch(localSearch);
+    setSearchType(localSearchType);
+    setFolder(localFolder);
+    setQuerySortBy(sortBy); // 更新查询用的排序字段
+    setQuerySortOrder(sortOrder); // 更新查询用的排序字段
+    setPage(1); // 查询时重置到第一页
+  };
 
   // 复制验证码处理函数
   const handleCopyCode = async (code: string) => {
@@ -246,10 +314,11 @@ export default function EmailsPage() {
   const handleClearFolder = async () => {
     if (!selectedAccount) return;
     
-    const targetFolder = folder === "all" ? "inbox" : folder;
+    // 直接使用当前 folder 值，不再转换
+    const targetFolder = folder;
     
     try {
-      const folderName = targetFolder === "inbox" ? "收件箱" : targetFolder === "junk" ? "垃圾箱" : "收件箱";
+      const folderName = targetFolder === "inbox" ? "收件箱" : targetFolder === "junk" ? "垃圾箱" : targetFolder === "all" ? "全部邮件" : "收件箱";
       toast.info(`开始清空${folderName}...`);
       
       // 调用批量删除 API
@@ -285,8 +354,9 @@ export default function EmailsPage() {
     }
   };
 
-  const openEmailDetail = (messageId: string) => {
+  const openEmailDetail = (messageId: string, emailData?: Email) => {
     setSelectedEmailId(messageId);
+    setSelectedEmailData(emailData || null);
     setEmailDetailOpen(true);
   };
 
@@ -324,13 +394,18 @@ export default function EmailsPage() {
             <div className="relative flex-[2]">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
                 <Input 
-                    placeholder={searchType === "subject" ? "搜索主题..." : "搜索发件人..."}
+                    placeholder={localSearchType === "subject" ? "搜索主题..." : "搜索发件人..."}
                     className="pl-9 h-9" 
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    value={localSearch}
+                    onChange={(e) => setLocalSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            handleSearch();
+                        }
+                    }}
                 />
             </div>
-            <Select value={searchType} onValueChange={(v: "subject" | "sender") => setSearchType(v)}>
+            <Select value={localSearchType} onValueChange={(v: "subject" | "sender") => setLocalSearchType(v)}>
                 <SelectTrigger className="flex-1 h-9">
                     <SelectValue />
                 </SelectTrigger>
@@ -341,9 +416,9 @@ export default function EmailsPage() {
             </Select>
         </div>
 
-        {/* 第三行：文件夹 + 日期 */}
+        {/* 第三行：文件夹 + 排序字段 + 排序按钮 */}
         <div className="flex items-center gap-2">
-            <Select value={folder} onValueChange={setFolder}>
+            <Select value={localFolder} onValueChange={setLocalFolder}>
                 <SelectTrigger className="flex-1 h-9 text-xs md:text-sm">
                     <SelectValue />
                 </SelectTrigger>
@@ -363,48 +438,75 @@ export default function EmailsPage() {
                     <SelectItem value="from_email">发件人</SelectItem>
                 </SelectContent>
             </Select>
-        </div>
-
-        {/* 第四行：排序按钮 + 倒计时 + 撰写 + 清空 + 刷新 */}
-        <div className="flex items-center gap-2">
             <Button 
                 variant="ghost" 
                 size="sm" 
-                className="h-8 px-2"
+                className="h-8 px-3"
                 onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
             >
-                <ArrowUpDown className={cn("h-4 w-4 mr-1", sortOrder === "asc" && "rotate-180")} />
+                <ArrowUpDown className={cn("h-3.5 w-3.5 mr-1.5", sortOrder === "asc" && "rotate-180")} />
                 <span className="text-xs md:text-sm">{sortOrder === "asc" ? "升序" : "降序"}</span>
             </Button>
+        </div>
+
+        {/* 第四行：倒计时 + 查询 + 撰写 + 创建分享 + 清空 + 刷新 */}
+        <div className="flex items-center gap-2">
             {isAutoRefreshEnabled && (
                 <span className="text-xs text-slate-500 font-mono">
                     {refreshCountdown}s
                 </span>
             )}
             <div className="ml-auto flex items-center gap-1.5">
+                <Button 
+                    onClick={handleSearch}
+                    disabled={isEmailsLoading}
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3"
+                >
+                    <Search className="mr-1.5 h-3.5 w-3.5" />
+                    <span className="text-xs md:text-sm">查询</span>
+                </Button>
                 <SendEmailDialog account={selectedAccount} />
+                {selectedAccount && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-3"
+                        onClick={() => {
+                            if (!selectedAccount) {
+                                toast.error("请先选择邮箱账户");
+                                return;
+                            }
+                            setIsCreateShareDialogOpen(true);
+                        }}
+                    >
+                        <Share2 className="mr-1.5 h-3.5 w-3.5" />
+                        <span className="text-xs md:text-sm">创建分享</span>
+                    </Button>
+                )}
                 {selectedAccount && (folder === "inbox" || folder === "junk" || folder === "all") && (
                     <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
+                        className="h-8 px-3 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-300"
                         onClick={() => setClearInboxOpen(true)}
-                        title={folder === "inbox" ? "清空收件箱" : folder === "junk" ? "清空垃圾箱" : "清空收件箱"}
+                        title={folder === "inbox" ? "清空收件箱" : folder === "junk" ? "清空垃圾箱" : folder === "all" ? "清空全部邮件" : "清空收件箱"}
                     >
-                        <Trash2 className="h-3.5 w-3.5 mr-1" />
-                        <span className="hidden sm:inline">清空</span>
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                        <span className="text-xs md:text-sm">清空</span>
                     </Button>
                 )}
                 <Button
                     variant="outline"
                     size="sm"
-                    className="h-8 px-2"
+                    className="h-8 px-3"
                     onClick={handleManualRefresh}
                     disabled={isEmailsLoading}
                     title="刷新邮件列表"
                 >
-                    <RefreshCw className={cn("h-4 w-4 mr-1", isEmailsLoading && "animate-spin")} />
-                    <span className="hidden sm:inline text-xs md:text-sm">刷新</span>
+                    <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isEmailsLoading && "animate-spin")} />
+                    <span className="text-xs md:text-sm">刷新</span>
                 </Button>
             </div>
         </div>
@@ -436,7 +538,7 @@ export default function EmailsPage() {
                                 <TableRow 
                                     key={email.message_id}
                                     className="cursor-pointer hover:bg-slate-50"
-                                    onClick={() => openEmailDetail(email.message_id)}
+                                    onClick={() => openEmailDetail(email.message_id, email)}
                                 >
                                     <TableCell className="font-medium">
                                         <div className="flex items-center gap-2">
@@ -482,12 +584,26 @@ export default function EmailsPage() {
                                                 className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    openEmailDetail(email.message_id);
+                                                    openEmailDetail(email.message_id, email);
                                                 }}
                                                 title="查看"
                                             >
                                                 <Eye className="h-4 w-4" />
                                             </Button>
+                                            {email.verification_code && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleCopyCode(email.verification_code!);
+                                                    }}
+                                                    title={`复制验证码: ${email.verification_code}`}
+                                                >
+                                                    <Copy className="h-4 w-4" />
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
@@ -524,7 +640,7 @@ export default function EmailsPage() {
                             <div 
                                 key={email.message_id}
                                 className="bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200"
-                                onClick={() => openEmailDetail(email.message_id)}
+                                onClick={() => openEmailDetail(email.message_id, email)}
                             >
                                 {/* 卡片内容 */}
                                 <div className="p-4 flex flex-col gap-3 w-full">
@@ -653,11 +769,11 @@ export default function EmailsPage() {
                 <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 w-7 md:h-8 md:w-8 p-0"
+                    className="h-8 w-8 p-0"
                     onClick={() => setPage(p => Math.max(1, p - 1))}
                     disabled={page === 1 || isEmailsLoading}
                 >
-                    <ChevronLeft className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    <ChevronLeft className="h-3.5 w-3.5" />
                 </Button>
                 
                 <div className="flex items-center justify-center min-w-[70px] md:min-w-[80px] text-xs md:text-sm">
@@ -667,11 +783,11 @@ export default function EmailsPage() {
                 <Button
                     variant="outline"
                     size="sm"
-                    className="h-7 w-7 md:h-8 md:w-8 p-0"
+                    className="h-8 w-8 p-0"
                     onClick={() => setPage(p => Math.min(emailsData.total_pages, p + 1))}
                     disabled={page >= emailsData.total_pages || isEmailsLoading}
                 >
-                    <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                    <ChevronRight className="h-3.5 w-3.5" />
                 </Button>
             </div>
 
@@ -692,13 +808,13 @@ export default function EmailsPage() {
                     }}
                 />
                 <Button 
-                    variant="ghost" 
+                    variant="outline" 
                     size="sm" 
-                    className="h-7 md:h-8 px-2 text-xs md:text-sm"
+                    className="h-8 px-3"
                     onClick={handleJumpPage}
                     disabled={!jumpPage}
                 >
-                    跳转
+                    <span className="text-xs md:text-sm">跳转</span>
                 </Button>
             </div>
         </div>
@@ -712,11 +828,13 @@ export default function EmailsPage() {
             <EmailDetailModalView 
               account={selectedAccount} 
               messageId={selectedEmailId}
+              emailData={selectedEmailData}
               onDelete={() => {
                 if (selectedEmailId) {
                   handleDeleteEmail(selectedEmailId);
                   setEmailDetailOpen(false);
                   setSelectedEmailId(null);
+                  setSelectedEmailData(null);
                 }
               }}
             />
@@ -753,13 +871,13 @@ export default function EmailsPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {folder === "inbox" ? "确认清空收件箱" : folder === "junk" ? "确认清空垃圾箱" : "确认清空收件箱"}
+              {folder === "inbox" ? "确认清空收件箱" : folder === "junk" ? "确认清空垃圾箱" : folder === "all" ? "确认清空全部邮件" : "确认清空收件箱"}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              确定要清空{folder === "inbox" ? "收件箱" : folder === "junk" ? "垃圾箱" : "收件箱"}吗？这将删除{folder === "inbox" ? "收件箱" : folder === "junk" ? "垃圾箱" : "收件箱"}中的所有邮件，此操作无法撤销。
+              确定要清空{folder === "inbox" ? "收件箱" : folder === "junk" ? "垃圾箱" : folder === "all" ? "全部邮件" : "收件箱"}吗？这将删除{folder === "inbox" ? "收件箱" : folder === "junk" ? "垃圾箱" : folder === "all" ? "全部邮件" : "收件箱"}中的所有邮件，此操作无法撤销。
               <br />
               <span className="text-xs text-muted-foreground mt-2 block">
-                注意：将删除所有{folder === "inbox" ? "收件箱" : folder === "junk" ? "垃圾箱" : "收件箱"}中的邮件，不仅仅是当前页显示的邮件。
+                注意：将删除所有{folder === "inbox" ? "收件箱" : folder === "junk" ? "垃圾箱" : folder === "all" ? "全部邮件" : "收件箱"}中的邮件，不仅仅是当前页显示的邮件。
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -777,6 +895,16 @@ export default function EmailsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 创建分享对话框 */}
+      <ShareTokenDialog
+        open={isCreateShareDialogOpen}
+        onOpenChange={setIsCreateShareDialogOpen}
+        emailAccount={selectedAccount || undefined}
+        onSuccess={() => {
+          setIsCreateShareDialogOpen(false);
+        }}
+      />
     </div>
   );
 }
@@ -816,8 +944,16 @@ const EmailContent = React.memo(({
 });
 EmailContent.displayName = "EmailContent";
 
-function EmailDetailModalView({ account, messageId, onDelete }: { account: string, messageId: string, onDelete?: () => void }) {
-    const { data: email, isLoading, error, refetch, isRefetching } = useEmailDetail(account, messageId);
+function EmailDetailModalView({ account, messageId, emailData, onDelete }: { account: string, messageId: string, emailData?: Email | null, onDelete?: () => void }) {
+    // 如果列表数据包含完整内容（body_plain 或 body_html），直接使用，不请求详情
+    const hasFullContent = emailData && (emailData.body_plain || emailData.body_html);
+    
+    const { data: emailDetail, isLoading, error, refetch, isRefetching } = useEmailDetail(account, messageId, {
+        enabled: !hasFullContent // 只有列表数据没有完整内容时才请求详情
+    });
+    
+    // 优先使用列表数据，如果没有完整内容则使用详情数据
+    const email = hasFullContent ? emailData : emailDetail;
     const [copied, setCopied] = useState(false);
     const [viewMode, setViewMode] = useState<"html" | "text" | "source">("html");
     const [refreshCountdown, setRefreshCountdown] = useState(30);
@@ -872,9 +1008,10 @@ function EmailDetailModalView({ account, messageId, onDelete }: { account: strin
     }, [messageId]);
 
     // 自动刷新倒计时 - 使用 ref 存储倒计时值，只在需要显示时更新状态
+    // 如果使用列表数据，不启用自动刷新（因为列表数据不会自动更新）
     useEffect(() => {
-        // 只有在邮件加载完成且不是加载状态时才启动倒计时
-        if (!isAutoRefreshEnabled || isLoading || !email) {
+        // 如果使用列表数据，不启用自动刷新
+        if (hasFullContent || !isAutoRefreshEnabled || isLoading || !email) {
             return;
         }
 
@@ -901,21 +1038,27 @@ function EmailDetailModalView({ account, messageId, onDelete }: { account: strin
 
         return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAutoRefreshEnabled, isLoading, messageId]); // 只依赖必要的值，email 通过 isLoading 间接控制
+    }, [isAutoRefreshEnabled, isLoading, messageId, hasFullContent]); // 只依赖必要的值，email 通过 isLoading 间接控制
 
     const handleManualRefresh = async () => {
+        // 如果使用列表数据，无法刷新（需要从列表刷新）
+        if (hasFullContent) {
+            toast.info("请刷新邮件列表以获取最新内容");
+            return;
+        }
         countdownRef.current = 30;
         setRefreshCountdown(30);
         await refetch();
         toast.success("邮件已刷新");
     };
 
-    if (isLoading && !email) return (
+    // 如果使用列表数据，不需要等待加载
+    if (!hasFullContent && isLoading && !email) return (
       <DialogHeader>
         <DialogTitle>加载中...</DialogTitle>
       </DialogHeader>
     );
-    if (error) return (
+    if (!hasFullContent && error) return (
       <DialogHeader>
         <DialogTitle>加载失败</DialogTitle>
       </DialogHeader>
@@ -1006,7 +1149,7 @@ function EmailDetailModalView({ account, messageId, onDelete }: { account: strin
                         源码
                     </Button>
                     <div className="ml-auto flex items-center gap-2">
-                        {isAutoRefreshEnabled && (
+                        {isAutoRefreshEnabled && !hasFullContent && (
                             <CountdownDisplay countdown={refreshCountdown} />
                         )}
                         {onDelete && (

@@ -93,12 +93,21 @@ class AccountDAO(BaseDAO):
         
         where_clause = self._build_where_clause(conditions, params)
         
+        # 使用稳定的排序：按创建时间倒序，如果创建时间相同或为NULL，则按ID倒序
+        # 这样可以确保排序结果稳定
+        if DB_TYPE == "postgresql":
+            # PostgreSQL: 使用 COALESCE 处理 NULL 值，并使用 id 作为次要排序
+            order_by = "created_at DESC, id DESC"
+        else:
+            # SQLite: 使用 COALESCE 处理 NULL 值，并使用 id 作为次要排序
+            order_by = "created_at DESC, id DESC"
+        
         records, total = self.find_paginated(
             page=page,
             page_size=page_size,
             where_clause=where_clause,
             params=params,
-            order_by="created_at DESC"
+            order_by=order_by
         )
         
         # 解析 tags JSON
@@ -222,12 +231,21 @@ class AccountDAO(BaseDAO):
         logger.info(f"[筛选] SQL WHERE子句: {where_clause}")
         logger.info(f"[筛选] SQL参数: {params}")
         
+        # 使用稳定的排序：按创建时间倒序，如果创建时间相同或为NULL，则按ID倒序
+        # 这样可以确保排序结果稳定
+        if DB_TYPE == "postgresql":
+            # PostgreSQL: 使用 COALESCE 处理 NULL 值，并使用 id 作为次要排序
+            order_by = "COALESCE(created_at, '1970-01-01'::timestamp) DESC, id DESC"
+        else:
+            # SQLite: 使用 COALESCE 处理 NULL 值，并使用 id 作为次要排序
+            order_by = "COALESCE(created_at, '1970-01-01') DESC, id DESC"
+        
         records, total = self.find_paginated(
             page=page,
             page_size=page_size,
             where_clause=where_clause,
             params=params,
-            order_by="created_at DESC"
+            order_by=order_by
         )
         
         # 解析 tags JSON

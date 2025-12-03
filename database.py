@@ -928,8 +928,14 @@ def update_share_token(token_id: int, **kwargs) -> bool:
 def delete_share_token(token_id: int) -> bool:
     return _get_share_token_dao().delete_token(token_id)
 
-def list_share_tokens(email_account_id: Optional[str] = None, page: int = 1, page_size: int = 50) -> Tuple[List[Dict[str, Any]], int]:
-    return _get_share_token_dao().list_tokens(email_account_id, page, page_size)
+def list_share_tokens(
+    email_account_id: Optional[str] = None,
+    account_search: Optional[str] = None,
+    token_search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50
+) -> Tuple[List[Dict[str, Any]], int]:
+    return _get_share_token_dao().list_tokens(email_account_id, account_search, token_search, page, page_size)
 
 
 # 邮件缓存操作 - 委托给 EmailCacheDAO 和 EmailDetailCacheDAO

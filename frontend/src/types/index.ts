@@ -32,6 +32,10 @@ export interface Email {
   sender_initial: string;
   verification_code?: string;
   body_preview?: string;
+  // 以下字段为可选，如果列表接口返回了完整内容，可直接使用，无需再次请求详情
+  to_email?: string;
+  body_plain?: string;
+  body_html?: string;
 }
 
 export interface EmailDetail {

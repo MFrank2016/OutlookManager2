@@ -25,6 +25,8 @@ from models import (
     BatchShareResultItem,
     BatchDeactivateRequest,
     BatchDeactivateResponse,
+    BatchDeleteShareTokenRequest,
+    BatchDeleteShareTokenResponse,
     ExtendShareTokenRequest,
     EmailListResponse,
     EmailDetailsResponse,
@@ -237,7 +239,9 @@ async def create_tokens_batch(
 
 @router.get("/tokens", response_model=List[ShareTokenResponse])
 async def list_tokens(
-    email_account_id: Optional[str] = None,
+    email_account_id: Optional[str] = Query(None, description="邮箱账户ID（精确匹配）"),
+    account_search: Optional[str] = Query(None, description="账户模糊搜索"),
+    token_search: Optional[str] = Query(None, description="Token模糊搜索"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     current_user: dict = Depends(auth.get_current_user)
@@ -251,17 +255,17 @@ async def list_tokens(
         
     # 如果未指定账户且不是管理员，只返回绑定的账户的分享码
     # 这里为了简化，如果未指定账户，需要遍历所有有权限的账户。
-    # 或者，简单处理：非管理员必须指定email_account_id
-    if not email_account_id and current_user['role'] != 'admin':
+    # 或者，简单处理：非管理员必须指定email_account_id或account_search
+    if not email_account_id and not account_search and current_user['role'] != 'admin':
         # 获取用户绑定的所有账户
         bound_accounts = current_user.get('bound_accounts', [])
         if not bound_accounts:
             return []
         # 这里目前db层只支持单个account查询或者全部查询。
         # 暂时只支持管理员查所有，普通用户必须指定account
-        raise HTTPException(status_code=400, detail="普通用户必须指定 email_account_id")
+        raise HTTPException(status_code=400, detail="普通用户必须指定 email_account_id 或 account_search")
 
-    tokens, _ = db.list_share_tokens(email_account_id, page, page_size)
+    tokens, _ = db.list_share_tokens(email_account_id, account_search, token_search, page, page_size)
     tokens_with_link = [_add_share_link_to_token_data(t) for t in tokens]
     return [ShareTokenResponse(**t) for t in tokens_with_link]
 
@@ -346,7 +350,7 @@ async def delete_token(
     # 由于没有get_share_token_by_id，我们需要遍历查找或使用token字符串
     # 为了安全，建议使用 /tokens/by-token/{token} 端点
     # 这里保留此端点以保持向后兼容，但建议前端使用 by-token 端点
-    tokens, _ = db.list_share_tokens(page=1, page_size=1000)
+    tokens, _ = db.list_share_tokens(page=1, page_size=1000, account_search=None, token_search=None)
     token_data = next((t for t in tokens if t['id'] == token_id), None)
     
     if not token_data:
@@ -388,7 +392,7 @@ async def batch_deactivate_tokens(
         raise HTTPException(status_code=400, detail="token_ids 不能为空")
     
     # 获取所有分享码以检查权限
-    all_tokens, _ = db.list_share_tokens(page=1, page_size=10000)
+    all_tokens, _ = db.list_share_tokens(page=1, page_size=10000, account_search=None, token_search=None)
     token_map = {t['id']: t for t in all_tokens}
     
     success_count = 0
@@ -416,6 +420,51 @@ async def batch_deactivate_tokens(
             failed_count += 1
     
     return BatchDeactivateResponse(
+        success_count=success_count,
+        failed_count=failed_count,
+        total_count=len(request.token_ids)
+    )
+
+@router.post("/tokens/batch-delete", response_model=BatchDeleteShareTokenResponse)
+async def batch_delete_tokens(
+    request: BatchDeleteShareTokenRequest,
+    current_user: dict = Depends(auth.get_current_user)
+):
+    """
+    批量删除分享码
+    """
+    if not request.token_ids:
+        raise HTTPException(status_code=400, detail="token_ids 不能为空")
+    
+    # 获取所有分享码以检查权限
+    all_tokens, _ = db.list_share_tokens(page=1, page_size=10000, account_search=None, token_search=None)
+    token_map = {t['id']: t for t in all_tokens}
+    
+    success_count = 0
+    failed_count = 0
+    
+    for token_id in request.token_ids:
+        try:
+            token_data = token_map.get(token_id)
+            if not token_data:
+                failed_count += 1
+                logger.warning(f"Token ID {token_id} not found")
+                continue
+            
+            # 检查权限
+            if not auth.check_account_access(current_user, token_data['email_account_id']):
+                failed_count += 1
+                logger.warning(f"User {current_user['username']} has no access to token {token_id}")
+                continue
+            
+            # 删除分享码
+            db.delete_share_token(token_id)
+            success_count += 1
+        except Exception as e:
+            logger.error(f"Failed to delete token {token_id}: {e}")
+            failed_count += 1
+    
+    return BatchDeleteShareTokenResponse(
         success_count=success_count,
         failed_count=failed_count,
         total_count=len(request.token_ids)
@@ -576,11 +625,12 @@ async def public_list_emails(
 ):
     """
     公共接口：获取邮件列表
-    优先查缓存（1分钟过期），没有则查微软接口（带body），先存数据库再存缓存
+    优先查内存缓存（10秒过期），过期后直接查询微软接口
     """
     import time
     import math
     from models import EmailItem
+    import cache_service
     
     start_time = time.time()
     email_account = token_data['email_account_id']
@@ -592,91 +642,15 @@ async def public_list_emails(
     subject_filter = token_data.get('subject_keyword')
     sender_filter = token_data.get('sender_keyword')
     
-    # 检查缓存是否有效（1分钟内）
-    cached_emails, total = db.get_cached_emails(
-        email_account=email_account,
-        page=1,
-        page_size=max_emails,
-        folder=None,
-        sender_search=sender_filter,
-        subject_search=subject_filter,
-        sort_by='date',
-        sort_order='desc',
-        start_time=filter_start,
-        end_time=filter_end
-    )
-    
-    # 检查缓存是否在1分钟内创建
-    cache_valid = False
-    if cached_emails:
-        # 检查第一条邮件的缓存时间（假设缓存是最近创建的）
-        from dao.email_cache_dao import EmailCacheDAO
-        from dao.base_dao import get_db_connection
-        from config import DB_TYPE
-        
-        cache_dao = EmailCacheDAO()
-        placeholder = cache_dao._get_param_placeholder()
-        
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            if cached_emails:
-                first_message_id = cached_emails[0].get('message_id')
-                if first_message_id:
-                    if DB_TYPE == "postgresql":
-                        cursor.execute(f"""
-                            SELECT created_at FROM emails_cache 
-                            WHERE email_account = {placeholder} AND message_id = {placeholder}
-                            ORDER BY created_at DESC LIMIT 1
-                        """, (email_account, first_message_id))
-                    else:
-                        cursor.execute(f"""
-                            SELECT created_at FROM emails_cache 
-                            WHERE email_account = {placeholder} AND message_id = {placeholder}
-                            ORDER BY created_at DESC LIMIT 1
-                        """, (email_account, first_message_id))
-                    
-                    row = cursor.fetchone()
-                    if row:
-                        cache_time_str = dict(row).get('created_at') if isinstance(row, dict) else row[0]
-                        if cache_time_str:
-                            try:
-                                if isinstance(cache_time_str, str):
-                                    cache_time = datetime.fromisoformat(cache_time_str.replace('Z', '+00:00'))
-                                else:
-                                    cache_time = cache_time_str
-                                
-                                # 检查是否在1分钟内
-                                time_diff = (datetime.now() - cache_time.replace(tzinfo=None)).total_seconds()
-                                cache_valid = time_diff < 60  # 1分钟
-                            except Exception:
-                                cache_valid = False
-    
-    # 如果缓存有效，直接返回
-    if cache_valid and cached_emails:
-        # 限制返回数量
-        limited_emails = cached_emails[:max_emails]
-        # 确保 date 字段是字符串格式
-        for email in limited_emails:
-            if 'date' in email and isinstance(email['date'], datetime):
-                email['date'] = email['date'].isoformat()
-        email_items = [EmailItem(**email) for email in limited_emails]
-        total_pages = math.ceil(len(limited_emails) / page_size) if page_size > 0 else 0
-        
+    # 先检查内存缓存（10秒TTL）
+    cached_data = cache_service.get_cached_share_email_list(token, page, page_size)
+    if cached_data:
         fetch_time_ms = int((time.time() - start_time) * 1000)
-        return EmailListResponse(
-            email_id=email_account,
-            folder_view="all",
-            page=page,
-            page_size=page_size,
-            total_pages=total_pages,
-            total_emails=len(limited_emails),
-            emails=email_items,
-            from_cache=True,
-            fetch_time_ms=fetch_time_ms
-        )
+        logger.info(f"[分享页缓存命中] Token: {token}, Page: {page}, 耗时: {fetch_time_ms}ms")
+        return EmailListResponse(**cached_data)
     
-    # 缓存无效或不存在，从微软接口获取（带body）
-    logger.info(f"Cache invalid or empty for {email_account}, fetching from Microsoft API...")
+    # 缓存未命中，直接查询微软接口
+    logger.info(f"[分享页缓存未命中] Token: {token}, 直接从微软接口获取...")
     emails_with_body = await _fetch_emails_with_body_for_share(
         email_account=email_account,
         max_emails=max_emails,
@@ -688,7 +662,7 @@ async def public_list_emails(
     
     if not emails_with_body:
         # 如果获取失败，返回空列表
-        return EmailListResponse(
+        empty_response = EmailListResponse(
             email_id=email_account,
             folder_view="all",
             page=page,
@@ -699,11 +673,12 @@ async def public_list_emails(
             from_cache=False,
             fetch_time_ms=int((time.time() - start_time) * 1000)
         )
+        # 将空结果也缓存，避免频繁查询
+        cache_service.set_cached_share_email_list(token, page, page_size, empty_response.dict())
+        return empty_response
     
-    # 先存到数据库（邮件列表和详情）
-    # 分离列表数据和详情数据
+    # 转换为EmailItem格式
     email_list_data = []
-    email_details_data = []
     
     for email in emails_with_body:
         # 列表数据
@@ -717,42 +692,29 @@ async def public_list_emails(
             'has_attachments': email.get('has_attachments', False),
             'sender_initial': email.get('sender_initial', '?'),
             'verification_code': email.get('verification_code'),
-            'body_preview': email.get('body_preview')
+            'body_preview': email.get('body_preview'),
+            'body_plain': email.get('body_plain'),
+            'body_html': email.get('body_html'),
+            'to_email': email.get('to_email')
         }
         email_list_data.append(list_item)
-        
-        # 详情数据
-        if email.get('body_plain') or email.get('body_html'):
-            detail_item = {
-                'message_id': email.get('message_id'),
-                'subject': email.get('subject'),
-                'from_email': email.get('from_email'),
-                'to_email': email.get('to_email'),
-                'date': email.get('date'),
-                'body_plain': email.get('body_plain'),
-                'body_html': email.get('body_html'),
-                'verification_code': email.get('verification_code')
-            }
-            email_details_data.append(detail_item)
     
-    # 存储到数据库
-    try:
-        db.cache_emails(email_account, email_list_data)
-        for detail in email_details_data:
-            db.cache_email_detail(email_account, detail)
-        logger.info(f"Cached {len(email_list_data)} emails and {len(email_details_data)} details for {email_account}")
-    except Exception as e:
-        logger.error(f"Error caching emails: {e}")
-    
-    # 转换为EmailItem格式并限制数量
+    # 限制返回数量
     limited_emails = email_list_data[:max_emails]
-    # 确保 date 字段是字符串格式
+    # 确保 date 字段是字符串格式，并确保 body_plain、body_html、to_email 字段被保留
     for email in limited_emails:
         if 'date' in email:
             if isinstance(email['date'], datetime):
                 email['date'] = email['date'].isoformat()
             elif email['date'] is None:
                 email['date'] = datetime.now().isoformat()
+        # 确保可选字段存在（即使为None）
+        if 'body_plain' not in email:
+            email['body_plain'] = None
+        if 'body_html' not in email:
+            email['body_html'] = None
+        if 'to_email' not in email:
+            email['to_email'] = None
     email_items = [EmailItem(**email) for email in limited_emails]
     
     # 分页
@@ -763,7 +725,7 @@ async def public_list_emails(
     total_pages = math.ceil(len(limited_emails) / page_size) if page_size > 0 else 0
     
     fetch_time_ms = int((time.time() - start_time) * 1000)
-    return EmailListResponse(
+    response = EmailListResponse(
         email_id=email_account,
         folder_view="all",
         page=page,
@@ -774,6 +736,15 @@ async def public_list_emails(
         from_cache=False,
         fetch_time_ms=fetch_time_ms
     )
+    
+    # 存入内存缓存（10秒TTL）
+    try:
+        cache_service.set_cached_share_email_list(token, page, page_size, response.dict())
+        logger.info(f"[分享页缓存已设置] Token: {token}, Page: {page}, 邮件数: {len(paginated_emails)}, 耗时: {fetch_time_ms}ms")
+    except Exception as e:
+        logger.warning(f"Failed to cache share email list: {e}")
+    
+    return response
 
 @router.get("/{token}/emails/{message_id}", response_model=EmailDetailsResponse)
 async def public_get_email_detail(
@@ -810,7 +781,15 @@ async def public_get_email_detail(
     
     # 安全检查：确保邮件符合分享码的过滤规则
     # 1. 检查时间
-    email_date = datetime.fromisoformat(cached_detail['date'])
+    # 处理 date 字段可能是 datetime 对象或字符串的情况
+    email_date_str = cached_detail.get('date')
+    if isinstance(email_date_str, datetime):
+        email_date = email_date_str
+    elif isinstance(email_date_str, str):
+        email_date = datetime.fromisoformat(email_date_str.replace('Z', '+00:00'))
+    else:
+        raise HTTPException(status_code=400, detail="邮件日期格式无效")
+    
     start_time = datetime.fromisoformat(token_data['start_time'])
     if email_date < start_time:
         raise HTTPException(status_code=403, detail="邮件不在分享的时间范围内")

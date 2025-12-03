@@ -157,14 +157,14 @@ export function useEmails(params: EmailsParams) {
     });
 }
 
-export function useEmailDetail(account: string, messageId: string) {
+export function useEmailDetail(account: string, messageId: string, options?: { enabled?: boolean }) {
     return useQuery({
         queryKey: ["email", account, messageId],
         queryFn: async () => {
             const { data } = await api.get(`/emails/${account}/${messageId}`);
             return data;
         },
-        enabled: !!account && !!messageId
+        enabled: options?.enabled !== undefined ? options.enabled : (!!account && !!messageId)
     });
 }
 
@@ -173,7 +173,19 @@ export function useSendEmail() {
     
     return useMutation({
         mutationFn: async (data: { account: string; to: string; subject: string; body: string }) => {
-            const response = await api.post("/emails/send", data);
+            // 将纯文本转换为 HTML，保留换行
+            const htmlBody = data.body
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, '<br>');
+            
+            const response = await api.post(`/emails/${data.account}/send`, {
+                to: data.to,
+                subject: data.subject,
+                body_text: data.body,
+                body_html: `<p>${htmlBody}</p>`
+            });
             return response.data;
         },
         onSuccess: () => {
