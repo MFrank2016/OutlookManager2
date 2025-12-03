@@ -48,6 +48,7 @@ const isoToLocalDateTime = (isoString: string): string => {
 const formSchema = z.object({
   valid_hours: z.string().optional(),
   valid_days: z.string().optional(),
+  expiry_time: z.string().optional(), // 编辑时直接设置过期时间
   filter_start_time: z.string().min(1, "收件开始时间必填"),
   filter_end_time: z.string().optional(),
   subject_keyword: z.string().optional(),
@@ -82,6 +83,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
     defaultValues: {
       valid_hours: "24",
       valid_days: "0",
+      expiry_time: "",
       filter_start_time: formatLocalDateTime(new Date()),
       filter_end_time: "",
       subject_keyword: "",
@@ -104,8 +106,9 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
         if (tokenToEdit) {
             // Reset form with token values
             form.reset({
-                valid_hours: "0", // We don't reverse calculate validity for now
+                valid_hours: "0", // 编辑时不再使用小时/天数，改用直接设置过期时间
                 valid_days: "0",
+                expiry_time: tokenToEdit.expiry_time ? isoToLocalDateTime(tokenToEdit.expiry_time) : "",
                 filter_start_time: isoToLocalDateTime(tokenToEdit.start_time),
                 filter_end_time: tokenToEdit.end_time ? isoToLocalDateTime(tokenToEdit.end_time) : "",
                 subject_keyword: tokenToEdit.subject_keyword || "",
@@ -118,6 +121,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
             form.reset({
                 valid_hours: "24",
                 valid_days: "0",
+                expiry_time: "",
                 filter_start_time: formatLocalDateTime(new Date()),
                 filter_end_time: "",
                 subject_keyword: "",
@@ -138,16 +142,34 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
     
     if (isEditing && tokenToEdit) {
         // Update logic
-        const payload = {
+        const payload: {
+            start_time?: string;
+            end_time?: string | null;
+            subject_keyword?: string | null;
+            sender_keyword?: string | null;
+            is_active?: boolean;
+            expiry_time?: string | null;
+            max_emails?: number;
+        } = {
             start_time: new Date(values.filter_start_time).toISOString(),
             end_time: values.filter_end_time ? new Date(values.filter_end_time).toISOString() : null,
             subject_keyword: values.subject_keyword || null,
             sender_keyword: values.sender_keyword || null,
             is_active: values.is_active,
-            // We don't update expiry_time based on hours/days here to avoid confusion, 
-            // unless we add specific fields for "extend validity". 
-            // For now, just update filters and active status.
         };
+        
+        // 如果设置了过期时间，则更新过期时间
+        if (values.expiry_time && values.expiry_time.trim()) {
+            payload.expiry_time = new Date(values.expiry_time).toISOString();
+        } else if (values.expiry_time === "") {
+            // 如果清空了过期时间，设置为 null（永久有效）
+            payload.expiry_time = null;
+        }
+        
+        // 如果设置了 max_emails，则更新
+        if (values.max_emails) {
+            payload.max_emails = Number(values.max_emails);
+        }
 
         api.put(`/share/tokens/by-token/${tokenToEdit.token}`, payload)
             .then(() => {
@@ -253,6 +275,22 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
                         )}
                         />
                     </div>
+                )}
+                
+                {isEditing && (
+                    <FormField
+                    control={form.control}
+                    name="expiry_time"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>过期时间 (可选，留空表示永久有效)</FormLabel>
+                        <FormControl>
+                            <Input type="datetime-local" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
                 )}
 
                 <div className="grid grid-cols-2 gap-4">

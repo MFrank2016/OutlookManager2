@@ -78,8 +78,7 @@ export default function EmailsPage() {
   const [localFolder, setLocalFolder] = useState<string>("all");
   
   // 实际查询条件状态（用于真正发起查询）
-  const [search, setSearch] = useState("");
-  const [searchType, setSearchType] = useState<"subject" | "sender">("subject");
+  // 注意：search 和 searchType 已改为客户端过滤，不再用于后端查询
   const [folder, setFolder] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -109,10 +108,9 @@ export default function EmailsPage() {
 //     page
 //   });
 
+  // 不再传递 search 和 searchType，改为客户端过滤
   const { data: emailsData, isLoading: isEmailsLoading, refetch: refetchEmails } = useEmails({
     account: selectedAccount || "",
-    search,
-    searchType,
     folder,
     sortBy: querySortBy, // 使用查询用的排序字段
     sortOrder: querySortOrder, // 使用查询用的排序字段
@@ -120,6 +118,21 @@ export default function EmailsPage() {
     page_size: pageSize,
     forceRefresh: true // 邮件列表页始终从微软服务器获取最新数据
   });
+  
+  // 客户端过滤邮件列表
+  const filteredEmails = React.useMemo(() => {
+    if (!emailsData?.emails) return [];
+    if (!localSearch || !localSearch.trim()) return emailsData.emails;
+    
+    const searchLower = localSearch.toLowerCase().trim();
+    return emailsData.emails.filter((email: Email) => {
+      if (localSearchType === "sender") {
+        return email.from_email.toLowerCase().includes(searchLower);
+      } else {
+        return email.subject.toLowerCase().includes(searchLower);
+      }
+    });
+  }, [emailsData?.emails, localSearch, localSearchType]);
 
   // 使用 ref 跟踪上一次更新的账户，避免循环更新
   const lastUpdatedAccountRef = useRef<string | null>(null);
@@ -138,19 +151,18 @@ export default function EmailsPage() {
       predicate: (query) => {
         const queryKey = query.queryKey;
         // 精确匹配当前的查询条件，包括当前的排序字段
-        return queryKey.length >= 9 &&
+        // 注意：search 和 searchType 已移除，不再用于查询键
+        return queryKey.length >= 7 &&
                queryKey[0] === "emails" &&
                queryKey[1] === selectedAccount &&
                queryKey[2] === page &&
                queryKey[3] === pageSize &&
                queryKey[4] === folder &&
-               queryKey[5] === search &&
-               queryKey[6] === searchType &&
-               queryKey[7] === sortBy && // 使用当前的排序字段
-               queryKey[8] === sortOrder; // 使用当前的排序字段
+               queryKey[5] === sortBy && // 使用当前的排序字段
+               queryKey[6] === sortOrder; // 使用当前的排序字段
       }
     });
-  }, [queryClient, selectedAccount, page, pageSize, folder, search, searchType, sortBy, sortOrder]);
+  }, [queryClient, selectedAccount, page, pageSize, folder, sortBy, sortOrder]);
 
   // 使用 useAutoRefresh Hook 进行自动刷新
   const { countdown: refreshCountdown } = useAutoRefresh({
@@ -254,15 +266,13 @@ export default function EmailsPage() {
   // Reset page when query filters change (not local filters, not sortBy/sortOrder)
   useEffect(() => {
       setPage(1);
-  }, [search, folder, selectedAccount]);
+  }, [folder, selectedAccount]);
   
   // 当账户变化时，重置本地搜索条件和排序字段
   useEffect(() => {
     setLocalSearch("");
     setLocalSearchType("subject");
     setLocalFolder("all");
-    setSearch("");
-    setSearchType("subject");
     setFolder("all");
     setSortBy("date");
     setSortOrder("desc");
@@ -272,8 +282,7 @@ export default function EmailsPage() {
   
   // 处理查询按钮点击
   const handleSearch = () => {
-    setSearch(localSearch);
-    setSearchType(localSearchType);
+    // 搜索改为客户端过滤，这里只需要同步文件夹、排序字段和重置页码
     setFolder(localFolder);
     setQuerySortBy(sortBy); // 更新查询用的排序字段
     setQuerySortOrder(sortOrder); // 更新查询用的排序字段
@@ -515,10 +524,10 @@ export default function EmailsPage() {
       <div className="flex-1 flex flex-col min-h-0 bg-white rounded-lg shadow-sm border overflow-hidden mb-2 md:mb-4">
         {isEmailsLoading && !emailsData ? (
             <div className="p-8 text-center text-muted-foreground">加载邮件中...</div>
-        ) : emailsData?.emails.length === 0 ? (
+        ) : filteredEmails.length === 0 ? (
             <div className="p-12 text-center flex flex-col items-center text-muted-foreground">
                 <Inbox className="h-12 w-12 mb-4 text-slate-200" />
-                <p>未找到邮件</p>
+                <p>{localSearch ? "未找到匹配的邮件" : "未找到邮件"}</p>
             </div>
         ) : (
             <>
@@ -534,7 +543,7 @@ export default function EmailsPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {emailsData?.emails.map((email: Email) => (
+                            {filteredEmails.map((email: Email) => (
                                 <TableRow 
                                     key={email.message_id}
                                     className="cursor-pointer hover:bg-slate-50"
@@ -626,7 +635,7 @@ export default function EmailsPage() {
 
                 {/* Mobile Card View */}
                 <div className="md:hidden flex flex-col p-3 gap-3 overflow-y-auto bg-gray-50">
-                    {emailsData?.emails.map((email: Email) => {
+                    {filteredEmails.map((email: Email) => {
                         // 解析发件人名称和邮箱
                         let senderName = email.from_email;
                         let senderEmail = "";

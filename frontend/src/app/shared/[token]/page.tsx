@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import {
   Table,
   TableBody,
@@ -104,7 +105,7 @@ export default function SharedEmailPage() {
   });
 
   // 获取邮件列表
-  const { data, isLoading, error, refetch: refetchEmails } = useQuery({
+  const { data, isLoading, error, refetch: refetchEmails, isRefetching } = useQuery({
     queryKey: ["shared-emails", token, page],
     queryFn: async () => {
       const response = await fetch(`/share/${token}/emails?page=${page}&page_size=${pageSize}`);
@@ -121,6 +122,19 @@ export default function SharedEmailPage() {
       }
       return failureCount < 2;
     },
+  });
+  
+  // 自动刷新回调
+  const handleAutoRefresh = useCallback(async () => {
+    await refetchEmails();
+  }, [refetchEmails]);
+  
+  // 自动刷新配置（30秒）
+  const { countdown: refreshCountdown } = useAutoRefresh({
+    enabled: !!token && !isLoading,
+    intervalSeconds: 30,
+    onRefresh: handleAutoRefresh,
+    isLoading: isLoading || isRefetching,
   });
 
   // 检查选中的邮件是否已有完整内容（body_plain 或 body_html）
@@ -211,7 +225,7 @@ export default function SharedEmailPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Token输入框和查询按钮 */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <div className="flex items-center gap-4">
+          <div className="flex items-end gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 分享码
@@ -226,19 +240,17 @@ export default function SharedEmailPage() {
                     handleSearchToken();
                   }
                 }}
-                className="w-full"
+                className="w-full h-10"
               />
             </div>
-            <div className="flex items-end">
-              <Button
-                onClick={handleSearchToken}
-                disabled={!inputToken || inputToken.trim() === ""}
-                className="min-h-[44px]"
-              >
-                <Search className="h-4 w-4 mr-2" />
-                查询
-              </Button>
-            </div>
+            <Button
+              onClick={handleSearchToken}
+              disabled={!inputToken || inputToken.trim() === ""}
+              className="h-10"
+            >
+              <Search className="h-4 w-4 mr-2" />
+              查询
+            </Button>
           </div>
         </div>
 

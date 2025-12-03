@@ -40,7 +40,7 @@ from rate_limiter import check_share_token_rate_limit
 logger = logging.getLogger(__name__)
 
 # 创建单独的线程池用于分享页查询（5个线程）
-share_query_executor = concurrent.futures.ThreadPoolExecutor(max_workers=5, thread_name_prefix="share-query")
+share_query_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="share-query")
 
 # 创建路由器
 router = APIRouter(prefix="/share", tags=["分享码"])
@@ -70,11 +70,14 @@ def _add_share_link_to_token_data(token_data: dict) -> dict:
         result['share_link'] = _generate_share_link(result['token'])
     return result
 
-def get_valid_share_token(token: str) -> dict:
+async def get_valid_share_token(token: str) -> dict:
     """
-    验证分享码有效性并执行限流检查
+    验证分享码有效性并执行限流检查（异步版本，避免阻塞事件循环）
     """
-    token_data = db.get_share_token(token)
+    # 使用线程池执行数据库查询，避免阻塞事件循环
+    loop = asyncio.get_event_loop()
+    import main
+    token_data = await loop.run_in_executor(main.api_requests_executor, db.get_share_token, token)
     
     if not token_data:
         raise HTTPException(status_code=404, detail="无效的分享码")

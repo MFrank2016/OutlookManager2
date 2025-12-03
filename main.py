@@ -62,8 +62,8 @@ def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
     return dt  # 如果已经是字符串或None，直接返回
 
 # API请求专用的线程池执行器（用于处理API请求中的同步数据库操作）
-# 限制并发数为5，确保API请求能及时响应
-api_requests_executor = ThreadPoolExecutor(max_workers=20, thread_name_prefix="api-request")
+# 限制并发数为40，确保API请求能及时响应
+api_requests_executor = ThreadPoolExecutor(max_workers=40, thread_name_prefix="api-request")
 
 # 批量任务专用的线程池执行器（用于处理批量导入等批量任务）
 # 限制并发数为5，与API请求线程池分离，防止批量任务阻塞正常请求
@@ -119,10 +119,10 @@ async def token_refresh_background_task():
 
                 logger.info(f"Total accounts loaded: {len(all_accounts)}")
 
-                # 过滤需要刷新的账户（检查7天最小刷新间隔）
+                # 过滤需要刷新的账户（检查1天最小刷新间隔）
                 accounts_to_refresh = []
                 current_time = datetime.now()
-                min_refresh_interval = timedelta(days=7)  # refresh token 过期时间改为 7 天
+                min_refresh_interval = timedelta(days=1)  # refresh token 过期时间改为 1 天
                 
                 for account_data in all_accounts:
                     email_id = account_data["email"]
