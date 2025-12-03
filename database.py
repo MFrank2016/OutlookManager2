@@ -654,6 +654,38 @@ def init_database() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_import_tasks_status ON batch_import_tasks(status)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_import_task_items_task_id ON batch_import_task_items(task_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_batch_import_task_items_status ON batch_import_task_items(status)")
+        
+        # 创建 SQL 查询历史记录表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sql_query_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sql_query TEXT NOT NULL,
+                result_count INTEGER,
+                execution_time_ms INTEGER,
+                status TEXT DEFAULT 'success',
+                error_message TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                created_by TEXT
+            )
+        """)
+        
+        # 创建 SQL 查询收藏表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sql_query_favorites (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                sql_query TEXT NOT NULL,
+                description TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                created_by TEXT,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # 创建索引
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sql_query_history_created_at ON sql_query_history(created_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sql_query_history_created_by ON sql_query_history(created_by)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sql_query_favorites_created_by ON sql_query_favorites(created_by)")
 
         conn.commit()
         logger.info("Database initialized successfully")
@@ -1022,15 +1054,26 @@ def get_table_schema(table_name: str) -> List[Dict[str, Any]]:
                 raise Exception(f"数据库表 {table_name} 可能已损坏，请运行修复脚本: {e}")
             raise
 
-def get_table_data(table_name: str, page: int = 1, page_size: int = 50, search: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
+def get_table_data(
+    table_name: str, 
+    page: int = 1, 
+    page_size: int = 50, 
+    search: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_order: str = "asc",
+    field_search: Optional[Dict[str, str]] = None
+) -> Tuple[List[Dict[str, Any]], int]:
     """
-    获取表数据（支持分页和搜索）
+    获取表数据（支持分页、搜索、排序和字段筛选）
     
     Args:
         table_name: 表名
         page: 页码
         page_size: 每页数量
-        search: 搜索关键词
+        search: 搜索关键词（全字段搜索）
+        sort_by: 排序字段（默认按主键）
+        sort_order: 排序方向（asc/desc，默认asc）
+        field_search: 字段搜索字典 {字段名: 搜索值}
         
     Returns:
         (数据列表, 总数)
@@ -1047,16 +1090,47 @@ def get_table_data(table_name: str, page: int = 1, page_size: int = 50, search: 
             schema = get_table_schema(table_name)
             columns = [col['name'] for col in schema]
             
+            # 获取主键列（用于默认排序）
+            primary_key = None
+            for col in schema:
+                if col.get('pk', 0) == 1:
+                    primary_key = col['name']
+                    break
+            if not primary_key and 'id' in columns:
+                primary_key = 'id'
+            
             # 构建搜索条件
             where_clause = "1=1"
             params = []
             param_placeholder = "%s" if DB_TYPE == "postgresql" else "?"
             
             if search:
-                # 在所有文本列中搜索
+                # 在全字段中搜索
                 search_conditions = " OR ".join([f"{col}::text LIKE {param_placeholder}" if DB_TYPE == "postgresql" else f"{col} LIKE {param_placeholder}" for col in columns])
                 where_clause = f"({search_conditions})"
                 params = [f"%{search}%"] * len(columns)
+            
+            # 字段搜索（指定字段筛选）
+            if field_search:
+                field_conditions = []
+                for field, value in field_search.items():
+                    if field in columns:  # 验证字段存在
+                        field_conditions.append(f"{field}::text LIKE {param_placeholder}" if DB_TYPE == "postgresql" else f"{field} LIKE {param_placeholder}")
+                        params.append(f"%{value}%")
+                if field_conditions:
+                    if where_clause != "1=1":
+                        where_clause = f"({where_clause}) AND ({' AND '.join(field_conditions)})"
+                    else:
+                        where_clause = f"({' AND '.join(field_conditions)})"
+            
+            # 构建排序
+            order_by_clause = ""
+            if sort_by and sort_by in columns:
+                # 验证排序字段存在
+                order_by_clause = f"ORDER BY {sort_by} {sort_order.upper()}"
+            elif primary_key:
+                # 默认按主键排序
+                order_by_clause = f"ORDER BY {primary_key} ASC"
             
             # 获取总数
             cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {where_clause}", params)
@@ -1066,18 +1140,14 @@ def get_table_data(table_name: str, page: int = 1, page_size: int = 50, search: 
             # 获取分页数据
             offset = (page - 1) * page_size
             if DB_TYPE == "postgresql":
-                cursor.execute(
-                    f"SELECT * FROM {table_name} WHERE {where_clause} LIMIT %s OFFSET %s",
-                    params + [page_size, offset]
-                )
+                query = f"SELECT * FROM {table_name} WHERE {where_clause} {order_by_clause} LIMIT %s OFFSET %s"
+                cursor.execute(query, params + [page_size, offset])
                 rows = cursor.fetchall()
                 # PostgreSQL使用RealDictCursor，直接返回字典
                 result = [dict(row) for row in rows]
             else:
-                cursor.execute(
-                    f"SELECT * FROM {table_name} WHERE {where_clause} LIMIT ? OFFSET ?",
-                    params + [page_size, offset]
-                )
+                query = f"SELECT * FROM {table_name} WHERE {where_clause} {order_by_clause} LIMIT ? OFFSET ?"
+                cursor.execute(query, params + [page_size, offset])
                 rows = cursor.fetchall()
                 result = [dict(row) for row in rows]
             
@@ -1136,9 +1206,48 @@ def update_table_record(table_name: str, record_id: int, data: Dict[str, Any]) -
     Returns:
         是否更新成功
     """
+    import json
+    
     param_placeholder = "%s" if DB_TYPE == "postgresql" else "?"
-    set_clause = ", ".join([f"{key} = {param_placeholder}" for key in data.keys()])
-    values = list(data.values()) + [record_id]
+    
+    # 如果是 PostgreSQL，需要处理 JSONB 类型字段
+    if DB_TYPE == "postgresql":
+        # 获取表结构信息
+        schema = get_table_schema(table_name)
+        column_types = {col['name']: col['type'] for col in schema}
+        
+        # 处理数据，将 JSONB 字段的值转换为 JSON 字符串
+        processed_data = {}
+        set_clauses = []
+        values = []
+        
+        for key, value in data.items():
+            col_type = column_types.get(key, '').lower()
+            
+            # 如果是 JSONB 类型，且值是列表或字典，需要转换为 JSON 字符串
+            if col_type == 'jsonb':
+                if isinstance(value, (list, dict)):
+                    # 转换为 JSON 字符串，并在 SQL 中使用 ::jsonb 进行类型转换
+                    json_str = json.dumps(value, ensure_ascii=False)
+                    set_clauses.append(f"{key} = {param_placeholder}::jsonb")
+                    values.append(json_str)
+                elif value is None:
+                    set_clauses.append(f"{key} = NULL")
+                else:
+                    # 如果已经是字符串，直接使用
+                    set_clauses.append(f"{key} = {param_placeholder}::jsonb")
+                    values.append(value)
+            else:
+                # 非 JSONB 字段，正常处理
+                set_clauses.append(f"{key} = {param_placeholder}")
+                values.append(value)
+        
+        set_clause = ", ".join(set_clauses)
+        values.append(record_id)
+    else:
+        # SQLite 处理（保持原逻辑）
+        set_clause = ", ".join([f"{key} = {param_placeholder}" for key in data.keys()])
+        values = list(data.values()) + [record_id]
     
     with get_db_connection() as conn:
         cursor = conn.cursor()

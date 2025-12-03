@@ -150,7 +150,7 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
                 key={route.href}
                 href={route.href}
                 className={cn(
-                  "flex items-center px-3 py-2 rounded-md transition-colors text-sm font-medium",
+                  "flex items-center px-3 py-2 rounded-md transition-colors text-base font-medium",
                   route.active
                     ? "bg-blue-600 text-white"
                     : "text-slate-300 hover:bg-slate-800 hover:text-white",
@@ -174,8 +174,8 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.username}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.role === 'admin' ? '管理员' : '普通用户'}</p>
+              <p className="text-base font-medium truncate">{user?.username}</p>
+              <p className="text-sm text-slate-400 truncate">{user?.role === 'admin' ? '管理员' : '普通用户'}</p>
             </div>
           )}
           <Button

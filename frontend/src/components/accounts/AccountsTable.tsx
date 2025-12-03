@@ -29,6 +29,7 @@ import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
 import { useDeleteAccount, useRefreshToken } from "@/hooks/useAccounts";
 import { useResponsiveActions } from "@/hooks/useResponsiveActions";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -41,6 +42,7 @@ interface AccountsTableProps {
 }
 
 export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAccounts = [], onSelectionChange }: AccountsTableProps) {
+  const router = useRouter();
   const [tagDialogState, setTagDialogState] = useState<{ open: boolean; email: string | null; tags: string[] }>({
     open: false,
     email: null,
@@ -276,7 +278,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                   "cursor-pointer hover:bg-blue-50/50 transition-colors"
                 )}
                 onClick={() => {
-                  window.location.href = `/dashboard/emails?account=${encodeURIComponent(account.email_id)}`;
+                  router.push(`/dashboard/emails?account=${encodeURIComponent(account.email_id)}`);
                 }}
               >
                 <TableCell onClick={(e) => e.stopPropagation()}>

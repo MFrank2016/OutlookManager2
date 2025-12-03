@@ -222,22 +222,42 @@ class EmailDetailCacheDAO(BaseDAO):
             # 获取邮件列表缓存统计
             cursor.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(cache_size), 0) AS total_size FROM emails_cache")
             row = cursor.fetchone()
-            if isinstance(row, dict):
-                emails_count = row.get('cnt', 0)
-                emails_size = row.get('total_size', 0)
-            else:
-                emails_count = row[0]
-                emails_size = row[1]
+            try:
+                if row is None:
+                    emails_count = 0
+                    emails_size = 0
+                elif hasattr(row, 'get'):
+                    # PostgreSQL RealDictRow 或 dict（支持字典访问）
+                    emails_count = row.get('cnt', 0) or 0
+                    emails_size = row.get('total_size', 0) or 0
+                else:
+                    # 元组或列表格式（SQLite）
+                    emails_count = row[0] if row and len(row) > 0 else 0
+                    emails_size = row[1] if row and len(row) > 1 else 0
+            except (IndexError, TypeError, KeyError, AttributeError) as e:
+                logger.error(f"Error extracting emails cache stats: {e}, row type: {type(row)}")
+                emails_count = 0
+                emails_size = 0
             
             # 获取邮件详情缓存统计
             cursor.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(body_size), 0) AS total_size FROM email_details_cache")
             row = cursor.fetchone()
-            if isinstance(row, dict):
-                details_count = row.get('cnt', 0)
-                details_size = row.get('total_size', 0)
-            else:
-                details_count = row[0]
-                details_size = row[1]
+            try:
+                if row is None:
+                    details_count = 0
+                    details_size = 0
+                elif hasattr(row, 'get'):
+                    # PostgreSQL RealDictRow 或 dict（支持字典访问）
+                    details_count = row.get('cnt', 0) or 0
+                    details_size = row.get('total_size', 0) or 0
+                else:
+                    # 元组或列表格式（SQLite）
+                    details_count = row[0] if row and len(row) > 0 else 0
+                    details_size = row[1] if row and len(row) > 1 else 0
+            except (IndexError, TypeError, KeyError, AttributeError) as e:
+                logger.error(f"Error extracting details cache stats: {e}, row type: {type(row)}")
+                details_count = 0
+                details_size = 0
             
             return {
                 'db_size_mb': round(db_size_mb, 2),

@@ -103,12 +103,12 @@ async def get_access_token(credentials: AccountCredentials) -> str:
         access_token = token_data.get("access_token")
         expires_in = token_data.get("expires_in", 3600)  # Microsoft 返回的过期时间（通常1小时）
         
-        # 设置 access token 的缓存时间为 10 小时
+        # 设置 access token 的缓存时间为 3 小时
         # 这样可以减少频繁刷新，同时保持合理的安全性
-        cache_hours = 10
-        cache_seconds = cache_hours * 3600  # 10小时 = 36000秒
+        cache_hours = 3
+        cache_seconds = cache_hours * 3600  # 3小时 = 10800秒
         
-        # 使用较小的值：Microsoft 返回的过期时间或 10 小时，取较小者
+        # 使用较小的值：Microsoft 返回的过期时间或 3 小时，取较小者
         actual_expires_in = min(expires_in, cache_seconds)
 
         if not access_token:
@@ -118,7 +118,7 @@ async def get_access_token(credentials: AccountCredentials) -> str:
                 detail="Failed to obtain access token from response",
             )
 
-        # 计算过期时间（使用实际过期时间，最多10小时）
+        # 计算过期时间（使用实际过期时间，最多3小时）
         expires_at = datetime.now() + timedelta(seconds=actual_expires_in)
         expires_at_str = expires_at.isoformat()
         
@@ -244,8 +244,8 @@ async def refresh_account_token(credentials: AccountCredentials) -> dict:
             )
             new_refresh_token = credentials.refresh_token
 
-        # 计算 access token 过期时间（设置为10小时）
-        access_token_expires_hours = 10
+        # 计算 access token 过期时间（设置为3小时）
+        access_token_expires_hours = 3
         expires_at = datetime.now() + timedelta(hours=access_token_expires_hours)
         expires_at_str = expires_at.isoformat()
 
@@ -286,11 +286,53 @@ async def get_cached_access_token(credentials: AccountCredentials) -> str:
     Raises:
         HTTPException: 令牌获取失败
     """
-    # 1. 优先从内存LRU缓存获取
-    cached_token = cache_service.get_cached_access_token(credentials.email)
-    if cached_token:
-        logger.debug(f"Using LRU cached access token for {credentials.email}")
-        return cached_token
+    # 1. 优先从内存LRU缓存获取（需要检查过期时间）
+    cache_key = cache_service.get_access_token_cache_key(credentials.email)
+    if cache_key in cache_service.access_token_cache:
+        token_data = cache_service.access_token_cache[cache_key]
+        
+        # token_data 可能是字符串或字典
+        if isinstance(token_data, dict):
+            cached_token = token_data.get('access_token')
+            expires_at_str = token_data.get('expires_at')
+            
+            if cached_token and expires_at_str:
+                try:
+                    # 解析过期时间
+                    if isinstance(expires_at_str, datetime):
+                        expires_at = expires_at_str
+                    else:
+                        expires_at = datetime.fromisoformat(expires_at_str)
+                    
+                    now = datetime.now()
+                    time_until_expiry = (expires_at - now).total_seconds()
+                    
+                    # 检查 token 是否还有效（距离过期时间 > 1 小时）
+                    if time_until_expiry > 3600:  # 1小时 = 3600秒
+                        logger.debug(
+                            f"Using LRU cached access token for {credentials.email}, "
+                            f"expires in {int(time_until_expiry/60)} minutes"
+                        )
+                        return cached_token
+                    else:
+                        # Token 已过期或即将过期，清除缓存
+                        logger.info(
+                            f"LRU cached token for {credentials.email} expires soon "
+                            f"(in {int(time_until_expiry/60)} minutes), clearing cache and refreshing..."
+                        )
+                        cache_service.clear_cached_access_token(credentials.email)
+                except Exception as e:
+                    logger.warning(f"Error parsing LRU cache token expiry time for {credentials.email}: {e}")
+                    # 解析失败，清除缓存
+                    cache_service.clear_cached_access_token(credentials.email)
+            elif cached_token:
+                # 有 token 但没有过期时间信息，直接使用（向后兼容）
+                logger.debug(f"Using LRU cached access token for {credentials.email} (no expiry info)")
+                return cached_token
+        elif isinstance(token_data, str):
+            # 旧格式：直接是字符串，没有过期时间信息
+            logger.debug(f"Using LRU cached access token for {credentials.email} (legacy format)")
+            return token_data
     
     # 2. 尝试从数据库获取缓存的 token
     token_info = db.get_account_access_token(credentials.email)
@@ -309,10 +351,10 @@ async def get_cached_access_token(credentials: AccountCredentials) -> str:
             
             now = datetime.now()
             
-            # 检查 token 是否还有效（距离过期时间 > 1 小时，因为 access token 缓存时间为 10 小时）
+            # 检查 token 是否还有效（距离过期时间 > 1 小时，因为 access token 缓存时间为 3 小时）
             time_until_expiry = (expires_at - now).total_seconds()
             
-            if time_until_expiry > 3600:  # 1小时 = 3600秒（access token 缓存时间为 10 小时，提前 1 小时刷新）
+            if time_until_expiry > 3600:  # 1小时 = 3600秒（access token 缓存时间为 3 小时，提前 1 小时刷新）
                 # 将数据库中的token缓存到内存
                 cache_service.set_cached_access_token(credentials.email, access_token, expires_at_str)
                 logger.info(
