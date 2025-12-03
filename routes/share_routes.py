@@ -524,20 +524,24 @@ async def _fetch_emails_with_body_for_share(
     def _sync_fetch():
         """同步获取邮件（在线程池中执行）"""
         try:
-            # 获取账户凭证
-            credentials = get_account_credentials(email_account)
-            if not credentials:
-                logger.error(f"Account credentials not found for {email_account}")
-                return []
-            
             # 使用 Graph API 直接获取包含body的邮件列表
             from graph_api_service import list_emails_with_body_graph
+            from account_service import get_account_credentials
             import asyncio
             
             # 创建新的事件循环（因为在线程中）
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
+                # 在事件循环中获取账户凭证（异步函数）
+                credentials = loop.run_until_complete(
+                    get_account_credentials(email_account)
+                )
+                if not credentials:
+                    logger.error(f"Account credentials not found for {email_account}")
+                    return []
+                
+                # 获取邮件列表
                 emails_with_body = loop.run_until_complete(
                     list_emails_with_body_graph(
                         credentials=credentials,
