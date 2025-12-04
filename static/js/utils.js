@@ -300,3 +300,84 @@ function generateEmailCSV(emails) {
 
   return [headers, ...rows].map((row) => row.join(",")).join("\n");
 }
+
+// ============================================================================
+// 防抖和节流工具函数
+// ============================================================================
+
+/**
+ * 防抖函数
+ * @param {Function} func - 需要防抖的函数
+ * @param {number} wait - 延迟时间（毫秒），默认 500ms
+ * @returns {Function} 防抖后的函数
+ * 
+ * @example
+ * const debouncedSearch = debounce((value) => {
+ *   console.log('搜索:', value);
+ * }, 500);
+ * 
+ * input.addEventListener('input', (e) => {
+ *   debouncedSearch(e.target.value);
+ * });
+ */
+function debounce(func, wait = 500) {
+  let timeoutId = null;
+
+  return function debounced(...args) {
+    const context = this;
+
+    // 清除之前的定时器
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+
+    // 设置新的定时器
+    timeoutId = setTimeout(() => {
+      func.apply(context, args);
+      timeoutId = null;
+    }, wait);
+  };
+}
+
+/**
+ * 节流函数
+ * @param {Function} func - 需要节流的函数
+ * @param {number} wait - 延迟时间（毫秒），默认 300ms
+ * @returns {Function} 节流后的函数
+ * 
+ * @example
+ * const throttledClick = throttle(() => {
+ *   console.log('按钮被点击');
+ * }, 300);
+ * 
+ * button.addEventListener('click', throttledClick);
+ */
+function throttle(func, wait = 300) {
+  let lastRun = 0;
+  let timeoutId = null;
+
+  return function throttled(...args) {
+    const context = this;
+    const now = Date.now();
+    const timeSinceLastRun = now - lastRun;
+
+    if (timeSinceLastRun >= wait) {
+      // 可以立即执行
+      lastRun = now;
+      func.apply(context, args);
+    } else {
+      // 需要等待，清除之前的定时器
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+
+      // 设置新的定时器，在剩余时间后执行
+      const remainingTime = wait - timeSinceLastRun;
+      timeoutId = setTimeout(() => {
+        lastRun = Date.now();
+        func.apply(context, args);
+        timeoutId = null;
+      }, remainingTime);
+    }
+  };
+}

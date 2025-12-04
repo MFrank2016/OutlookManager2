@@ -4,8 +4,7 @@ OAuth服务模块
 提供OAuth2令牌获取、刷新等服务
 """
 
-import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import HTTPException
@@ -14,9 +13,12 @@ from config import TOKEN_URL, OAUTH_SCOPE, GRAPH_API_SCOPE
 from models import AccountCredentials
 import database as db
 import cache_service
+from logger_config import logger
 
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+# 统一的UTC时间获取函数，避免时区问题
+def get_utc_now() -> datetime:
+    """获取当前UTC时间（时区感知）"""
+    return datetime.now(timezone.utc)
 
 
 async def get_access_token(credentials: AccountCredentials) -> str:
@@ -119,7 +121,8 @@ async def get_access_token(credentials: AccountCredentials) -> str:
             )
 
         # 计算过期时间（使用实际过期时间，最多3小时）
-        expires_at = datetime.now() + timedelta(seconds=actual_expires_in)
+        # 使用UTC时间，避免时区问题
+        expires_at = get_utc_now() + timedelta(seconds=actual_expires_in)
         expires_at_str = expires_at.isoformat()
         
         logger.debug(
@@ -245,8 +248,9 @@ async def refresh_account_token(credentials: AccountCredentials) -> dict:
             new_refresh_token = credentials.refresh_token
 
         # 计算 access token 过期时间（设置为3小时）
+        # 使用UTC时间，避免时区问题
         access_token_expires_hours = 3
-        expires_at = datetime.now() + timedelta(hours=access_token_expires_hours)
+        expires_at = get_utc_now() + timedelta(hours=access_token_expires_hours)
         expires_at_str = expires_at.isoformat()
 
         logger.info(f"Successfully refreshed token for {credentials.email}, access token expires in {access_token_expires_hours} hours")
@@ -301,10 +305,16 @@ async def get_cached_access_token(credentials: AccountCredentials) -> str:
                     # 解析过期时间
                     if isinstance(expires_at_str, datetime):
                         expires_at = expires_at_str
+                        # 如果没有时区信息，假设为UTC
+                        if expires_at.tzinfo is None:
+                            expires_at = expires_at.replace(tzinfo=timezone.utc)
                     else:
                         expires_at = datetime.fromisoformat(expires_at_str)
+                        # 如果没有时区信息，假设为UTC
+                        if expires_at.tzinfo is None:
+                            expires_at = expires_at.replace(tzinfo=timezone.utc)
                     
-                    now = datetime.now()
+                    now = get_utc_now()
                     time_until_expiry = (expires_at - now).total_seconds()
                     
                     # 检查 token 是否还有效（距离过期时间 > 10 minutes）
@@ -345,11 +355,17 @@ async def get_cached_access_token(credentials: AccountCredentials) -> str:
             # 解析过期时间（处理 datetime 对象或字符串）
             if isinstance(expires_at_str, datetime):
                 expires_at = expires_at_str
+                # 如果没有时区信息，假设为UTC
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
                 expires_at_str = expires_at.isoformat()  # 转换为字符串用于缓存
             else:
                 expires_at = datetime.fromisoformat(expires_at_str)
+                # 如果没有时区信息，假设为UTC（向后兼容旧数据）
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
             
-            now = datetime.now()
+            now = get_utc_now()
             
             # 检查 token 是否还有效（距离过期时间 > 1 小时，因为 access token 缓存时间为 3 小时）
             time_until_expiry = (expires_at - now).total_seconds()
@@ -391,8 +407,8 @@ async def clear_cached_access_token(email: str) -> bool:
         # 清除内存LRU缓存
         cache_service.clear_cached_access_token(email)
         
-        # 清除数据库缓存
-        success = db.update_account_access_token(email, "", "")
+        # 清除数据库缓存（使用 None 而不是空字符串，以便在 PostgreSQL 中设置为 NULL）
+        success = db.update_account_access_token(email, None, None)
         if success:
             logger.info(f"Cleared cached access token for {email} (both memory and database)")
         return success

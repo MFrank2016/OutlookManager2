@@ -1,17 +1,23 @@
-fastapi[all]==0.115.0
-httpx==0.27.0
+fastapi[all]==0.123.5
+httpx==0.28.1
 aioimaplib==2.0.1
 pydantic[email]==2.9.0
 requests==2.32.3
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-bcrypt==4.1.3
-python-multipart==0.0.9
-cachetools==5.3.3 
-jinja2==3.1.2
+python-jose[cryptography]==3.5.0
+# 直接使用 bcrypt 库，不再需要 passlib
+# passlib[bcrypt]==1.7.4  # 已移除，改用直接使用 bcrypt 库
+bcrypt>=5.0.0  # 支持 bcrypt 5.0.0
+python-multipart==0.0.20
+cachetools==6.2.2
+jinja2>=3.1.5
 # 环境变量管理
 python-dotenv>=1.0.0
 # PostgreSQL驱动（用于异步操作）
-asyncpg==0.29.0
+# 注意：asyncpg 需要 Microsoft Visual C++ 14.0+ 编译器才能安装
+# 如果将来需要使用 asyncpg，请先安装 Microsoft C++ Build Tools：
+# https://visualstudio.microsoft.com/visual-cpp-build-tools/
+# asyncpg==0.29.0
 # 备用：同步PostgreSQL驱动（如果需要）
 psycopg2-binary>=2.9.9
+# 日志系统
+loguru>=0.7.2

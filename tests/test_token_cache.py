@@ -61,8 +61,8 @@ def test_database_token_fields():
     assert token_info['token_expires_at'] == expires_at, "过期时间不匹配"
     print(f"✅ 成功读取 access token")
     
-    # 测试清除 token
-    success = db.update_account_access_token(test_email, "", "")
+    # 测试清除 token（使用 None 而不是空字符串）
+    success = db.update_account_access_token(test_email, None, None)
     assert success, "清除 token 失败"
     
     token_info = db.get_account_access_token(test_email)

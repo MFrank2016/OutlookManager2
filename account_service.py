@@ -4,7 +4,6 @@
 提供账户凭证管理、账户列表查询等服务
 """
 
-import logging
 from typing import Optional, Any
 from datetime import datetime
 
@@ -12,9 +11,7 @@ from fastapi import HTTPException
 
 import database as db
 from models import AccountCredentials, AccountInfo, AccountListResponse
-
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:

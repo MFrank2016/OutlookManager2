@@ -3,11 +3,9 @@ EmailCacheDAO - 邮件列表缓存表数据访问对象
 """
 
 from typing import Any, Dict, List, Optional, Tuple
-import logging
 
 from .base_dao import BaseDAO, get_db_connection
-
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 class EmailCacheDAO(BaseDAO):

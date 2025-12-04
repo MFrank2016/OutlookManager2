@@ -12,7 +12,6 @@ import base64
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
-import logging
 
 from config import (
     COMPRESS_BODY_THRESHOLD,
@@ -28,7 +27,7 @@ from config import (
     DB_POOL_TIMEOUT
 )
 
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 # PostgreSQL连接池（延迟初始化）
 _postgresql_pool = None
@@ -829,7 +828,7 @@ def delete_account(email: str) -> bool:
 def get_account_access_token(email: str) -> Optional[Dict[str, str]]:
     return _get_account_dao().get_access_token(email)
 
-def update_account_access_token(email: str, access_token: str, expires_at: str) -> bool:
+def update_account_access_token(email: str, access_token: Optional[str], expires_at: Optional[str]) -> bool:
     return _get_account_dao().update_access_token(email, access_token, expires_at)
 
 def get_random_accounts(include_tags: Optional[List[str]] = None, exclude_tags: Optional[List[str]] = None, page: int = 1, page_size: int = 10) -> Tuple[List[Dict[str, Any]], int]:

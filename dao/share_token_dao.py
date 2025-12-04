@@ -3,13 +3,11 @@ ShareTokenDAO - 分享码表数据访问对象
 """
 
 from typing import Any, Dict, List, Optional, Tuple
-import logging
 from datetime import datetime
 
 from .base_dao import BaseDAO, get_db_connection
 from config import DB_TYPE
-
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 class ShareTokenDAO(BaseDAO):

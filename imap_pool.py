@@ -6,16 +6,13 @@ IMAP连接池管理模块
 """
 
 import imaplib
-import logging
 import socket
 import ssl
 import threading
 from queue import Empty, Queue
 
 from config import IMAP_SERVER, IMAP_PORT, MAX_CONNECTIONS, CONNECTION_TIMEOUT, SOCKET_TIMEOUT
-
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 class IMAPConnectionPool:

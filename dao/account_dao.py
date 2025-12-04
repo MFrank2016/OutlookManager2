@@ -5,12 +5,10 @@ AccountDAO - 账户表数据访问对象
 import json
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
-import logging
 
 from .base_dao import BaseDAO, get_db_connection
 from config import DB_TYPE
-
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 class AccountDAO(BaseDAO):
@@ -395,18 +393,22 @@ class AccountDAO(BaseDAO):
                 }
             return None
     
-    def update_access_token(self, email: str, access_token: str, expires_at: str) -> bool:
+    def update_access_token(self, email: str, access_token: Optional[str], expires_at: Optional[str]) -> bool:
         """
         更新账户的 access token 和过期时间
         
         Args:
             email: 邮箱地址
-            access_token: OAuth2 访问令牌
-            expires_at: 令牌过期时间（ISO格式字符串）
+            access_token: OAuth2 访问令牌（None 或空字符串表示清除）
+            expires_at: 令牌过期时间（ISO格式字符串，None 或空字符串表示清除）
             
         Returns:
             是否更新成功
         """
+        # 将空字符串转换为 None，以便在数据库中设置为 NULL
+        access_token = access_token if access_token else None
+        expires_at = expires_at if expires_at else None
+        
         placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -422,7 +424,10 @@ class AccountDAO(BaseDAO):
             
             success = cursor.rowcount > 0
             if success:
-                logger.info(f"Updated access token for account: {email}, expires at: {expires_at}")
+                if access_token and expires_at:
+                    logger.info(f"Updated access token for account: {email}, expires at: {expires_at}")
+                else:
+                    logger.info(f"Cleared access token for account: {email}")
             return success
     
     def get_random(

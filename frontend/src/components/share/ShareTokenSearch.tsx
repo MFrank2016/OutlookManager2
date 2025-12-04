@@ -32,6 +32,8 @@ export const ShareTokenSearch = memo(function ShareTokenSearch({
             className="pl-9 h-9 text-sm" 
             value={accountSearch}
             onChange={(e) => onAccountSearchChange(e.target.value)}
+            debounce={true}
+            debounceMs={500}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 onSearch();
@@ -46,6 +48,8 @@ export const ShareTokenSearch = memo(function ShareTokenSearch({
             className="pl-9 h-9 text-sm" 
             value={tokenSearch}
             onChange={(e) => onTokenSearchChange(e.target.value)}
+            debounce={true}
+            debounceMs={500}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 onSearch();
@@ -56,6 +60,8 @@ export const ShareTokenSearch = memo(function ShareTokenSearch({
         <Button 
           onClick={onSearch}
           disabled={isLoading}
+          throttle={true}
+          throttleMs={300}
           className="h-9 px-4 w-full md:w-auto"
         >
           <Search className="mr-2 h-4 w-4" />

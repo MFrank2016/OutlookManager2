@@ -398,6 +398,8 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                         size="sm"
                         className="h-10 px-3 min-h-[44px]"
                         onClick={() => refreshToken.mutate(account.email_id)}
+                        throttle={true}
+                        throttleMs={300}
                       >
                         <span className="mr-1.5">🔄</span>
                         <span className="hidden sm:inline">刷新Token</span>
@@ -407,6 +409,8 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                         size="sm"
                         className="h-10 px-3 min-h-[44px]"
                         onClick={() => handleShare(account)}
+                        throttle={true}
+                        throttleMs={300}
                       >
                         <span className="mr-1.5">🔗</span>
                         <span className="hidden sm:inline">分享</span>
@@ -416,6 +420,8 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                         size="sm"
                         className="h-10 px-3 min-h-[44px]"
                         onClick={() => handleEditTags(account)}
+                        throttle={true}
+                        throttleMs={300}
                       >
                         <span className="mr-1.5">🏷️</span>
                         <span className="hidden sm:inline">管理标签</span>
@@ -429,6 +435,8 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                             deleteAccount.mutate(account.email_id);
                           }
                         }}
+                        throttle={true}
+                        throttleMs={300}
                       >
                         <span className="mr-1.5">🗑️</span>
                         <span className="hidden sm:inline">删除</span>

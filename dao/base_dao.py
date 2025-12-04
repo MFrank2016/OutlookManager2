@@ -7,13 +7,11 @@ BaseDAO - 所有 DAO 的基类
 
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple
-import logging
 
 # 导入database模块的get_db_connection和配置
 from database import get_db_connection
 from config import DB_TYPE
-
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 # 默认分页配置
 DEFAULT_PAGE_SIZE = 10

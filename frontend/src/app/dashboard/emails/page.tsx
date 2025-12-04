@@ -407,6 +407,8 @@ export default function EmailsPage() {
                     className="pl-9 h-9" 
                     value={localSearch}
                     onChange={(e) => setLocalSearch(e.target.value)}
+                    debounce={true}
+                    debounceMs={500}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                             handleSearch();

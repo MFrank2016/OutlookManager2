@@ -893,3 +893,67 @@ async function detectAndEnableGraphApi(emailId) {
     showError(`检测失败: ${error.message}`);
   }
 }
+
+// ============================================================================
+// 防抖和节流初始化
+// ============================================================================
+
+// 为搜索输入框应用防抖
+function initAccountsDebounceThrottle() {
+  // 为邮箱搜索输入框添加防抖
+  const emailSearchInput = document.getElementById("emailSearch");
+  if (emailSearchInput) {
+    const debouncedEmailSearch = debounce(() => {
+      currentEmailSearch = emailSearchInput.value.trim();
+      // 自动触发搜索
+      if (currentEmailSearch || currentTagSearch) {
+        searchAccounts();
+      }
+    }, 500);
+    
+    emailSearchInput.addEventListener('input', debouncedEmailSearch);
+    console.log('[账户管理] 已为邮箱搜索输入框应用防抖');
+  }
+
+  // 为标签搜索输入框添加防抖
+  const tagSearchInput = document.getElementById("tagSearch");
+  if (tagSearchInput) {
+    const debouncedTagSearch = debounce(() => {
+      currentTagSearch = tagSearchInput.value.trim();
+      // 自动触发搜索
+      if (currentEmailSearch || currentTagSearch) {
+        searchAccounts();
+      }
+    }, 500);
+    
+    tagSearchInput.addEventListener('input', debouncedTagSearch);
+    console.log('[账户管理] 已为标签搜索输入框应用防抖');
+  }
+
+  // 为搜索按钮添加节流
+  const searchButtons = document.querySelectorAll('button[onclick*="searchAccounts"]');
+  searchButtons.forEach((button) => {
+    if (!button.dataset.throttleApplied) {
+      const originalOnclick = button.onclick;
+      const throttledSearch = throttle(() => {
+        if (originalOnclick) {
+          originalOnclick();
+        }
+      }, 300);
+      
+      button.addEventListener('click', throttledSearch);
+      button.onclick = null; // 移除内联 onclick，使用 addEventListener
+      button.dataset.throttleApplied = 'true';
+      console.log('[账户管理] 已为搜索按钮应用节流');
+    }
+  });
+}
+
+// DOM 加载完成后初始化
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(initAccountsDebounceThrottle, 500);
+  });
+} else {
+  setTimeout(initAccountsDebounceThrottle, 500);
+}

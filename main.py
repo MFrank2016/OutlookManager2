@@ -9,7 +9,6 @@ Version: 2.0.0
 """
 
 import asyncio
-import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -35,7 +34,7 @@ from config import (
     PORT,
     REFRESH_TOKEN_INTERVAL,
 )
-from logger_config import setup_logger
+from logger_config import logger, format_request_log, format_response_log, truncate_text
 
 # 导入自定义模块
 import admin_api
@@ -48,8 +47,7 @@ from models import AccountCredentials
 from oauth_service import refresh_account_token
 from routes import main_router
 
-# 初始化日志系统
-logger = setup_logger()
+# 日志系统已在logger_config中初始化并导出
 
 # 初始化Jinja2模板
 templates = Jinja2Templates(directory="static/templates")
@@ -646,35 +644,127 @@ app = FastAPI(
 # 添加请求日志中间件
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """记录所有HTTP请求（使用高精度时间测量）"""
-    # 使用 time.perf_counter() 获得更高精度的时间测量
-    request_start_time = time.perf_counter()
-    request_received_time = time.time()
+    """记录所有HTTP请求和响应，包括入参和出参"""
+    import json as json_lib
     
-    # 立即记录请求到达日志（不等待任何处理）
+    request_start_time = time.perf_counter()
     client_host = request.client.host if request.client else 'unknown'
-    logger.info(f"→ {request.method} {request.url.path} - Client: {client_host} [Request received at {datetime.now().strftime('%H:%M:%S.%f')[:-3]}]")
+    
+    # 读取请求体（如果存在）
+    request_body = None
+    if request.method in ("POST", "PUT", "PATCH"):
+        content_type = request.headers.get("content-type", "").lower()
+        if "application/json" in content_type:
+            try:
+                body_bytes = await request.body()
+                if body_bytes:
+                    request_body = body_bytes.decode("utf-8")
+                    # 将body重新放回request，以便后续处理
+                    async def receive():
+                        return {"type": "http.request", "body": body_bytes}
+                    request._receive = receive
+            except Exception as e:
+                logger.warning(f"Failed to read request body: {e}")
+    
+    # 记录请求信息
+    try:
+        request_body_str = None
+        if request_body:
+            try:
+                # 尝试格式化为JSON（美化）
+                body_json = json_lib.loads(request_body)
+                request_body_str = json_lib.dumps(body_json, ensure_ascii=False, indent=2)
+            except:
+                request_body_str = request_body
+    except Exception:
+        pass
+    
+    # 构建请求日志
+    log_parts = [
+        f"→ {request.method} {request.url.path}",
+        f"Client: {client_host}",
+    ]
+    
+    # 添加查询参数
+    if request.query_params:
+        log_parts.append(f"Query: {dict(request.query_params)}")
+    
+    # 添加路径参数
+    if request.path_params:
+        log_parts.append(f"Path: {request.path_params}")
+    
+    # 添加请求体
+    if request_body_str:
+        truncated_body = truncate_text(request_body_str, 1000)
+        log_parts.append(f"Body: {truncated_body}")
+    
+    logger.info(" | ".join(log_parts))
     
     try:
-        # 记录依赖项执行前的时间
-        deps_start_time = time.perf_counter()
-        
-        # 执行请求处理（包括依赖项）
+        # 执行请求处理
         response = await call_next(request)
         
-        # 计算总处理时间
-        total_time = time.perf_counter() - request_start_time
-        deps_time = time.perf_counter() - deps_start_time
+        # 计算处理时间
+        elapsed_time = time.perf_counter() - request_start_time
         
-        logger.info(
-            f"← {request.method} {request.url.path} - Status: {response.status_code} - "
-            f"Total: {total_time:.3f}s, Processing: {deps_time:.3f}s"
-        )
+        # 尝试读取响应体（仅对JSON响应）
+        response_body_str = None
+        try:
+            # 检查响应类型
+            content_type = response.headers.get("content-type", "").lower()
+            if "application/json" in content_type and hasattr(response, 'body_iterator'):
+                # 收集响应体chunks
+                body_chunks = []
+                async for chunk in response.body_iterator:
+                    if chunk:
+                        body_chunks.append(chunk)
+                
+                if body_chunks:
+                    response_body = b''.join(body_chunks)
+                    try:
+                        response_body_decoded = response_body.decode("utf-8")
+                        if response_body_decoded:
+                            try:
+                                # 尝试格式化为JSON
+                                body_json = json_lib.loads(response_body_decoded)
+                                response_body_str = json_lib.dumps(body_json, ensure_ascii=False, indent=2)
+                            except:
+                                response_body_str = response_body_decoded
+                    except Exception:
+                        pass
+                    
+                    # 创建新的响应以返回
+                    from fastapi.responses import Response
+                    response = Response(
+                        content=response_body,
+                        status_code=response.status_code,
+                        headers=dict(response.headers),
+                        media_type=response.media_type
+                    )
+        except Exception as e:
+            logger.debug(f"Could not read response body for logging: {e}")
+        
+        # 记录响应日志
+        response_log_parts = [
+            f"← {request.method} {request.url.path}",
+            f"Status: {response.status_code}",
+            f"Time: {elapsed_time:.3f}s",
+        ]
+        
+        if response_body_str:
+            truncated_response = truncate_text(response_body_str, 1000)
+            response_log_parts.append(f"Response: {truncated_response}")
+        
+        logger.info(" | ".join(response_log_parts))
+        
         return response
+            
     except Exception as e:
-        total_time = time.perf_counter() - request_start_time
+        elapsed_time = time.perf_counter() - request_start_time
         logger.error(
-            f"✗ {request.method} {request.url.path} - Error: {e} - Time: {total_time:.3f}s",
+            f"✗ {request.method} {request.url.path} | "
+            f"Error: {str(e)} | "
+            f"Time: {elapsed_time:.3f}s",
             exc_info=True
         )
         raise

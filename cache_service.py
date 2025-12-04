@@ -5,7 +5,6 @@
 提供邮件列表、邮件详情、access_token 的统一缓存管理
 """
 
-import logging
 import time
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
@@ -14,9 +13,7 @@ from cachetools import LRUCache, TTLCache
 from cachetools.keys import hashkey
 
 from config import CACHE_EXPIRE_TIME
-
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 # ============================================================================
 # LRU 缓存配置

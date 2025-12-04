@@ -5,11 +5,9 @@ BatchImportTaskDAO - 批量导入任务表数据访问对象
 import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-import logging
 
 from .base_dao import BaseDAO, get_db_connection
-
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 class BatchImportTaskDAO(BaseDAO):

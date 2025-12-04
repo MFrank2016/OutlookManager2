@@ -6,9 +6,8 @@
 
 import asyncio
 import email
-import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from itertools import groupby
 from typing import Optional
 import time
@@ -23,9 +22,7 @@ from imap_pool import imap_pool
 from models import AccountCredentials, EmailDetailsResponse, EmailItem, EmailListResponse
 from oauth_service import get_cached_access_token, clear_cached_access_token
 from verification_code_detector import detect_verification_code
-
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 def _format_token_info(token: str, expires_at: Optional[str] = None) -> str:
@@ -50,9 +47,11 @@ def _format_token_info(token: str, expires_at: Optional[str] = None) -> str:
     info = f"Token: {masked_token}"
     if expires_at:
         try:
-            from datetime import datetime
             expires_dt = datetime.fromisoformat(expires_at)
-            now = datetime.now()
+            # 如果没有时区信息，假设为UTC（向后兼容）
+            if expires_dt.tzinfo is None:
+                expires_dt = expires_dt.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
             time_until_expiry = (expires_dt - now).total_seconds()
             if time_until_expiry > 0:
                 info += f", Expires in: {int(time_until_expiry/60)} minutes"

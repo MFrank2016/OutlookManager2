@@ -72,7 +72,8 @@ COMPRESS_BODY_THRESHOLD = 1024  # 超过1KB的正文才压缩（字节）
 
 LOG_DIR = "logs"
 LOG_FILE = "outlook_manager.log"
-LOG_RETENTION_DAYS = 30
+LOG_RETENTION_DAYS = 7  # 保留7天日志
+LOG_MAX_SIZE = "50 MB"  # 单个日志文件最大大小
 
 # 确保日志目录存在
 Path(LOG_DIR).mkdir(exist_ok=True)

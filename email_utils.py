@@ -5,11 +5,9 @@
 """
 
 import email
-import logging
 from email.header import decode_header
 
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 def decode_header_value(header_value: str) -> str:

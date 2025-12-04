@@ -4,17 +4,13 @@
 处理缓存管理相关的API端点
 """
 
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException
 
 import auth
 import database as db
 import cache_service
 from permissions import Permission
-
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 # 创建路由器
 router = APIRouter(prefix="/cache", tags=["缓存管理"])

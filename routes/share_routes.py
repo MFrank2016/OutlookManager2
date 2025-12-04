@@ -5,7 +5,6 @@
 """
 
 import uuid
-import logging
 import asyncio
 import concurrent.futures
 from datetime import datetime, timedelta
@@ -35,9 +34,7 @@ from models import (
 import email_service
 from account_service import get_account_credentials
 from rate_limiter import check_share_token_rate_limit
-
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 # 创建单独的线程池用于分享页查询（5个线程）
 share_query_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="share-query")

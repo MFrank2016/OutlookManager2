@@ -5,12 +5,10 @@ UserDAO - 用户表数据访问对象
 import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
-import logging
 
 from .base_dao import BaseDAO, get_db_connection
 from config import DB_TYPE
-
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 class UserDAO(BaseDAO):

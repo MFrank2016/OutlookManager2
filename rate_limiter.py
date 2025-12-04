@@ -7,9 +7,8 @@
 import time
 import threading
 from typing import Dict
-import logging
 
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 class TokenBucket:

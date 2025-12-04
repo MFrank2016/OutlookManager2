@@ -4,7 +4,6 @@
 提供数据表管理和系统配置管理的API接口
 """
 
-import logging
 from typing import Any, Dict, List, Optional
 import sqlite3
 
@@ -14,9 +13,7 @@ from pydantic import BaseModel
 import auth
 import database as db
 import cache_service
-
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 from datetime import datetime
 from models import (
     UserCreateRequest,
@@ -1064,8 +1061,6 @@ async def update_user_password(
     
     try:
         # 哈希新密码
-        import logging
-        logger = logging.getLogger(__name__)
         logger.info(f"Updating password for user: {username}")
         new_password_hash = auth.hash_password(request.new_password)
         logger.debug(f"Password hashed successfully for {username}, hash length: {len(new_password_hash)}")

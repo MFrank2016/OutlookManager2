@@ -3,7 +3,6 @@ EmailDetailCacheDAO - 邮件详情缓存表数据访问对象
 """
 
 from typing import Any, Dict, List, Optional
-import logging
 
 from .base_dao import BaseDAO, get_db_connection
 
@@ -37,7 +36,7 @@ except ImportError:
         except Exception:
             return text
 
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 class EmailDetailCacheDAO(BaseDAO):

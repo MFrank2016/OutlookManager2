@@ -164,6 +164,8 @@ export default function DashboardPage() {
                 onChange={(e) => {
                     setSearch(e.target.value);
                 }}
+                debounce={true}
+                debounceMs={500}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleSearch();
@@ -183,6 +185,8 @@ export default function DashboardPage() {
                     onChange={(e) => {
                         setIncludeTags(e.target.value);
                     }}
+                    debounce={true}
+                    debounceMs={500}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         handleSearch();
@@ -199,6 +203,8 @@ export default function DashboardPage() {
                     onChange={(e) => {
                         setExcludeTags(e.target.value);
                     }}
+                    debounce={true}
+                    debounceMs={500}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         handleSearch();
@@ -224,6 +230,8 @@ export default function DashboardPage() {
             <Button 
               onClick={handleSearch}
               disabled={isLoading}
+              throttle={true}
+              throttleMs={300}
               className="h-9 px-4"
             >
               <Search className="mr-2 h-4 w-4" />
@@ -251,6 +259,8 @@ export default function DashboardPage() {
               size="sm"
               onClick={handleBatchRefresh}
               disabled={isBatchRefreshing}
+              throttle={true}
+              throttleMs={300}
               className="h-8 px-2 text-xs md:text-sm"
             >
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isBatchRefreshing && "animate-spin")} />

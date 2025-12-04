@@ -5,7 +5,6 @@ JWT认证模块
 """
 
 import asyncio
-import logging
 import secrets
 import time
 from datetime import datetime, timedelta
@@ -14,20 +13,16 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel, Field
 
 import database as db
-
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 # JWT配置
 SECRET_KEY = secrets.token_urlsafe(32)  # 生产环境应从环境变量读取
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
-
-# 密码加密上下文
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # HTTP Bearer认证（可选，支持API Key）
 security = HTTPBearer(auto_error=False)
@@ -95,9 +90,14 @@ def hash_password(password: str) -> str:
         password: 明文密码
         
     Returns:
-        密码哈希值
+        密码哈希值（bcrypt 格式字符串）
     """
-    return pwd_context.hash(password)
+    # 将密码编码为字节
+    password_bytes = password.encode('utf-8')
+    # 生成 bcrypt 哈希（使用默认的 12 轮）
+    hashed = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+    # 返回解码后的字符串
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -111,7 +111,15 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     Returns:
         密码是否匹配
     """
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        # 将密码和哈希值编码为字节
+        password_bytes = plain_password.encode('utf-8')
+        hashed_bytes = hashed_password.encode('utf-8')
+        # 验证密码
+        return bcrypt.checkpw(password_bytes, hashed_bytes)
+    except Exception as e:
+        logger.error(f"Error verifying password: {e}")
+        return False
 
 
 # ============================================================================
@@ -206,37 +214,36 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
     Returns:
         用户信息字典或None
     """
-    import logging
-    auth_logger = logging.getLogger(__name__)
+    # 使用全局logger
     
     try:
         user = db.get_user_by_username(username)
         
         if not user:
-            auth_logger.debug(f"User not found: {username}")
+            logger.debug(f"User not found: {username}")
             return None
         
         # 检查账户是否激活（SQLite返回0/1，需要转换为布尔值）
         is_active = bool(user.get('is_active')) if user.get('is_active') is not None else False
         if not is_active:
-            auth_logger.debug(f"User account is inactive: {username}")
+            logger.debug(f"User account is inactive: {username}")
             return None
         
         # 验证密码
         try:
             password_valid = verify_password(password, user['password_hash'])
             if not password_valid:
-                auth_logger.debug(f"Password verification failed for user: {username}")
+                logger.debug(f"Password verification failed for user: {username}")
                 return None
         except Exception as e:
-            auth_logger.error(f"Error verifying password for {username}: {e}", exc_info=True)
+            logger.error(f"Error verifying password for {username}: {e}", exc_info=True)
             return None
         
-        auth_logger.debug(f"Authentication successful for user: {username}")
+        logger.debug(f"Authentication successful for user: {username}")
         return user
         
     except Exception as e:
-        auth_logger.error(f"Unexpected error in authenticate_user for {username}: {e}", exc_info=True)
+        logger.error(f"Unexpected error in authenticate_user for {username}: {e}", exc_info=True)
         return None
 
 

@@ -4,7 +4,6 @@
 处理邮箱账户管理相关的API端点
 """
 
-import logging
 import uuid
 import json
 import asyncio
@@ -32,9 +31,7 @@ from models import (
     BatchImportTaskProgress,
 )
 from oauth_service import get_access_token, refresh_account_token
-
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 # 创建路由器
 router = APIRouter(prefix="/accounts", tags=["账户管理"])

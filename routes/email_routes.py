@@ -4,7 +4,6 @@
 处理邮件查询相关的API端点
 """
 
-import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -23,9 +22,7 @@ from models import (
 )
 from permissions import Permission
 from fastapi import HTTPException
-
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 # 创建路由器
 router = APIRouter(prefix="/emails", tags=["邮件管理"])

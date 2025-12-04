@@ -293,6 +293,8 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
             <Button 
               onClick={handleBatchAdd} 
               disabled={isProcessing || !input.trim()}
+              throttle={true}
+              throttleMs={300}
               className="w-full sm:w-auto min-h-[44px]"
             >
               {isProcessing ? (
@@ -309,6 +311,8 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
               variant="secondary" 
               onClick={handleClear} 
               disabled={isProcessing}
+              throttle={true}
+              throttleMs={300}
               className="w-full sm:w-auto min-h-[44px]"
             >
               <Trash2 className="mr-2 h-4 w-4" /> 清空
@@ -317,6 +321,8 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
               variant="secondary" 
               onClick={handleValidate} 
               disabled={isProcessing}
+              throttle={true}
+              throttleMs={300}
               className="w-full sm:w-auto min-h-[44px]"
             >
               <CheckCircle className="mr-2 h-4 w-4" /> 验证格式
@@ -325,6 +331,8 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
               variant="secondary" 
               onClick={handleLoadSample} 
               disabled={isProcessing}
+              throttle={true}
+              throttleMs={300}
               className="w-full sm:w-auto min-h-[44px]"
             >
               <FileText className="mr-2 h-4 w-4" /> 加载示例

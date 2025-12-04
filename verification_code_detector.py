@@ -10,11 +10,9 @@
 """
 
 import re
-import logging
 from typing import Optional, List, Dict
 
-# 获取logger
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 class VerificationCodeDetector:

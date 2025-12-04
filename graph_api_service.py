@@ -5,9 +5,8 @@ Microsoft Graph API 服务模块
 """
 
 import asyncio
-import logging
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 import httpx
@@ -18,9 +17,7 @@ from models import AccountCredentials, EmailItem, EmailDetailsResponse
 from verification_code_detector import detect_verification_code
 import database as db
 import cache_service
-
-# 获取日志记录器
-logger = logging.getLogger(__name__)
+from logger_config import logger
 
 
 async def get_graph_access_token(credentials: AccountCredentials) -> str:
@@ -54,12 +51,17 @@ async def get_graph_access_token(credentials: AccountCredentials) -> str:
         if token_info:
             expires_at_str = token_info.get('token_expires_at')
             if expires_at_str:
-                from datetime import datetime
                 if isinstance(expires_at_str, datetime):
                     expires_at = expires_at_str
+                    # 如果没有时区信息，假设为UTC
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=timezone.utc)
                 else:
                     expires_at = datetime.fromisoformat(expires_at_str)
-                now = datetime.now()
+                    # 如果没有时区信息，假设为UTC（向后兼容）
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=timezone.utc)
+                now = datetime.now(timezone.utc)
                 expires_in = int((expires_at - now).total_seconds())
                 logger.info(f"[Token信息] 账户: {credentials.email}, Graph API Token: {masked_token}, Expires in: {expires_in} seconds ({int(expires_in/60)} minutes)")
             else:
