@@ -71,10 +71,18 @@ async def get_valid_share_token(token: str) -> dict:
     """
     验证分享码有效性并执行限流检查（异步版本，避免阻塞事件循环）
     """
+    logger.info(f"[分享页] 验证分享码开始 token={token}")
     # 使用线程池执行数据库查询，避免阻塞事件循环
     loop = asyncio.get_event_loop()
     import main
-    token_data = await loop.run_in_executor(main.api_requests_executor, db.get_share_token, token)
+    try:
+        token_data = await asyncio.wait_for(
+            loop.run_in_executor(main.api_requests_executor, db.get_share_token, token),
+            timeout=15
+        )
+    except asyncio.TimeoutError:
+        logger.error(f"[分享页] 验证分享码超时 token={token}")
+        raise HTTPException(status_code=503, detail="分享服务暂时不可用，请稍后重试")
     
     if not token_data:
         raise HTTPException(status_code=404, detail="无效的分享码")
@@ -94,6 +102,7 @@ async def get_valid_share_token(token: str) -> dict:
             detail="请求过于频繁，单个分享码每分钟最多30次请求，请稍后再试"
         )
     
+    logger.info(f"[分享页] 验证分享码完成 token={token}, email_account={token_data['email_account_id']}")
     return token_data
 
 # ============================================================================

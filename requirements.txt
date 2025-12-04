@@ -16,7 +16,7 @@ python-dotenv>=1.0.0
 # 注意：asyncpg 需要 Microsoft Visual C++ 14.0+ 编译器才能安装
 # 如果将来需要使用 asyncpg，请先安装 Microsoft C++ Build Tools：
 # https://visualstudio.microsoft.com/visual-cpp-build-tools/
-# asyncpg==0.29.0
+asyncpg==0.31.0
 # 备用：同步PostgreSQL驱动（如果需要）
 psycopg2-binary>=2.9.9
 # 日志系统
