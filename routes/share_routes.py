@@ -570,6 +570,7 @@ async def _fetch_emails_with_body_for_share(
     Returns:
         邮件列表（包含body）
     """
+    logger.info(f"[分享页] 开始获取邮件列表: email_account={email_account}, max_emails={max_emails}, filter_start={filter_start}, filter_end={filter_end}, subject_filter={subject_filter}, sender_filter={sender_filter}")
     def _sync_fetch():
         """同步获取邮件（在线程池中执行）"""
         try:
@@ -627,6 +628,8 @@ async def public_list_emails(
     公共接口：获取邮件列表
     优先查内存缓存（10秒过期），过期后直接查询微软接口
     """
+    logger.info(f"[分享页] 收到邮件列表请求: token={token}, page={page}, page_size={page_size}")
+
     import time
     import math
     from models import EmailItem
@@ -659,6 +662,8 @@ async def public_list_emails(
         subject_filter=subject_filter,
         sender_filter=sender_filter
     )
+
+    logger.info(f"[分享页] 获取邮件列表完成: email_account={email_account}, max_emails={max_emails}, filter_start={filter_start}, filter_end={filter_end}, subject_filter={subject_filter}, sender_filter={sender_filter}, emails_with_body={len(emails_with_body)}")
     
     if not emails_with_body:
         # 如果获取失败，返回空列表
