@@ -553,7 +553,8 @@ async def _fetch_emails_with_body_for_share(
     filter_start: str,
     filter_end: Optional[str],
     subject_filter: Optional[str],
-    sender_filter: Optional[str]
+    sender_filter: Optional[str],
+    timeout_seconds: int = 30
 ) -> List[Dict[str, Any]]:
     """
     为分享页获取带body的邮件列表（使用线程池）
@@ -570,7 +571,11 @@ async def _fetch_emails_with_body_for_share(
     Returns:
         邮件列表（包含body）
     """
-    logger.info(f"[分享页] 开始获取邮件列表: email_account={email_account}, max_emails={max_emails}, filter_start={filter_start}, filter_end={filter_end}, subject_filter={subject_filter}, sender_filter={sender_filter}")
+    logger.info(
+        f"[分享页] 开始获取邮件列表: email_account={email_account}, "
+        f"max_emails={max_emails}, filter_start={filter_start}, filter_end={filter_end}, "
+        f"subject_filter={subject_filter}, sender_filter={sender_filter}"
+    )
     def _sync_fetch():
         """同步获取邮件（在线程池中执行）"""
         try:
@@ -615,7 +620,18 @@ async def _fetch_emails_with_body_for_share(
     
     # 在线程池中执行
     loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(share_query_executor, _sync_fetch)
+    try:
+        result = await asyncio.wait_for(
+            loop.run_in_executor(share_query_executor, _sync_fetch),
+            timeout=timeout_seconds
+        )
+        return result
+    except asyncio.TimeoutError:
+        logger.error(
+            f"[分享页] 获取邮件列表超时: email_account={email_account}, "
+            f"timeout={timeout_seconds}s"
+        )
+        return []
 
 @router.get("/{token}/emails", response_model=EmailListResponse)
 async def public_list_emails(
