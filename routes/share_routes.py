@@ -538,13 +538,13 @@ async def get_share_token_info(
     公共接口：获取分享码信息（包括有效期）
     """
     return {
-        "email_account_id": token_data['email_account_id'],
+        # "email_account_id": token_data['email_account_id'],
         "expiry_time": token_data.get('expiry_time'),
         "is_active": token_data['is_active'],
-        "start_time": token_data['start_time'],
-        "end_time": token_data.get('end_time'),
-        "subject_keyword": token_data.get('subject_keyword'),
-        "sender_keyword": token_data.get('sender_keyword'),
+        # "start_time": token_data['start_time'],
+        # "end_time": token_data.get('end_time'),
+        # "subject_keyword": token_data.get('subject_keyword'),
+        # "sender_keyword": token_data.get('sender_keyword'),
     }
 
 async def _fetch_emails_with_body_for_share(

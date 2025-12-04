@@ -49,29 +49,23 @@ interface EmailDetail {
 }
 
 interface ShareTokenInfo {
-  email_account_id: string;
   expiry_time?: string;
   is_active: boolean;
-  start_time: string;
-  end_time?: string;
-  subject_keyword?: string;
-  sender_keyword?: string;
 }
 
 export default function SharedEmailPage() {
   const params = useParams();
   const router = useRouter();
-  const urlToken = params.token as string;
+  const urlToken = params.token as string | undefined;
   const [inputToken, setInputToken] = useState<string>(urlToken || "");
+  // 实际用于查询的 token，只在点击“查询”按钮或通过 URL 直接访问时更新
+  const [activeToken, setActiveToken] = useState<string>(urlToken || "");
   const [page, setPage] = useState(1);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [selectedEmailData, setSelectedEmailData] = useState<EmailItem | null>(null);
   const [emailDetailOpen, setEmailDetailOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"html" | "text">("html");
   const pageSize = 20;
-  
-  // 使用输入框的token或URL中的token
-  const token = inputToken || urlToken;
 
   // 处理API错误的辅助函数
   const handleApiError = async (response: Response): Promise<never> => {
@@ -86,15 +80,15 @@ export default function SharedEmailPage() {
 
   // 获取分享码信息
   const { data: tokenInfo, refetch: refetchTokenInfo } = useQuery<ShareTokenInfo>({
-    queryKey: ["share-token-info", token],
+    queryKey: ["share-token-info", activeToken],
     queryFn: async () => {
-      const response = await fetch(`/share/${token}/info`);
+      const response = await fetch(`/share/${activeToken}/info`);
       if (!response.ok) {
         await handleApiError(response);
       }
       return response.json();
     },
-    enabled: !!token,
+    enabled: !!activeToken,
     retry: (failureCount, error) => {
       // 429错误不重试
       if (error instanceof Error && error.message.includes("请求过于频繁")) {
@@ -106,15 +100,15 @@ export default function SharedEmailPage() {
 
   // 获取邮件列表
   const { data, isLoading, error, refetch: refetchEmails, isRefetching } = useQuery({
-    queryKey: ["shared-emails", token, page],
+    queryKey: ["shared-emails", activeToken, page],
     queryFn: async () => {
-      const response = await fetch(`/share/${token}/emails?page=${page}&page_size=${pageSize}`);
+      const response = await fetch(`/share/${activeToken}/emails?page=${page}&page_size=${pageSize}`);
       if (!response.ok) {
         await handleApiError(response);
       }
       return response.json();
     },
-    enabled: !!token,
+    enabled: !!activeToken,
     retry: (failureCount, error) => {
       // 429错误不重试
       if (error instanceof Error && error.message.includes("请求过于频繁")) {
@@ -131,7 +125,7 @@ export default function SharedEmailPage() {
   
   // 自动刷新配置（30秒）
   const { countdown: refreshCountdown } = useAutoRefresh({
-    enabled: !!token && !isLoading,
+    enabled: !!activeToken && !isLoading,
     intervalSeconds: 30,
     onRefresh: handleAutoRefresh,
     isLoading: isLoading || isRefetching,
@@ -142,10 +136,10 @@ export default function SharedEmailPage() {
   
   // 获取邮件详情（只有在列表数据没有完整内容时才请求）
   const { data: emailDetail, isLoading: isDetailLoading, refetch: refetchEmailDetail } = useQuery<EmailDetail>({
-    queryKey: ["shared-email-detail", token, selectedEmailId],
+    queryKey: ["shared-email-detail", activeToken, selectedEmailId],
     queryFn: async () => {
       if (!selectedEmailId) return null;
-      const response = await fetch(`/share/${token}/emails/${selectedEmailId}`);
+      const response = await fetch(`/share/${activeToken}/emails/${selectedEmailId}`);
       if (!response.ok) {
         await handleApiError(response);
       }
@@ -183,8 +177,14 @@ export default function SharedEmailPage() {
       toast.error("请输入分享码");
       return;
     }
-    // 导航到新的token页面
-    router.push(`/shared/${inputToken.trim()}`);
+    const nextToken = inputToken.trim();
+    // 仅更新用于查询的 token，不跳转路由，避免整页重渲染
+    setActiveToken(nextToken);
+    // 重置分页与选中状态
+    setPage(1);
+    setSelectedEmailId(null);
+    setSelectedEmailData(null);
+    setEmailDetailOpen(false);
   };
 
   if (isLoading) {
