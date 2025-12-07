@@ -98,7 +98,13 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
       if (parts.length !== 4) {
         continue;
       }
-      const [email, , refreshToken, clientId] = parts;
+      const [email, , third, fourth] = parts;
+      
+      // 根据长度自动识别 client_id 和 refresh_token
+      // client_id 通常较短（如 UUID），refresh_token 通常较长
+      const clientId = third.length < fourth.length ? third : fourth;
+      const refreshToken = third.length < fourth.length ? fourth : third;
+      
       items.push({
         email,
         refresh_token: refreshToken,
@@ -192,7 +198,9 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
         <CardHeader>
           <CardTitle>批量输入</CardTitle>
           <CardDescription>
-            每行格式: <code className="bg-slate-100 px-1 rounded">email----password----refresh_token----client_id</code>
+            每行格式: <code className="bg-slate-100 px-1 rounded">email----password----refresh_token----client_id</code> 或 <code className="bg-slate-100 px-1 rounded">email----password----client_id----refresh_token</code>
+            <br />
+            <span className="text-xs text-muted-foreground">系统会根据长度自动识别 client_id 和 refresh_token</span>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
