@@ -955,12 +955,69 @@ async def delete_emails_batch(
         from graph_api_service import delete_emails_batch_graph
         return await delete_emails_batch_graph(credentials, folder)
     else:
-        # IMAP 暂不支持批量删除，返回错误
-        logger.warning(f"Batch delete not supported for IMAP, account: {credentials.email}")
-        raise HTTPException(
-            status_code=501, 
-            detail="Batch delete is not supported for IMAP accounts. Please use Graph API."
+        # 使用 IMAP 实现批量删除
+        logger.info(f"Batch deleting emails via IMAP for folder: {folder}, account: {credentials.email}")
+        return await delete_emails_batch_via_imap(credentials, folder)
+
+
+async def delete_emails_batch_via_imap(
+    credentials: AccountCredentials,
+    folder: str = "inbox"
+) -> dict:
+    """
+    使用 IMAP 批量删除邮件
+    
+    参考 tests/test_clear_inbox.py 的实现：
+    - 使用 search ALL 获取所有邮件 ID
+    - 分批使用 store +FLAGS \\Deleted 标记删除
+    - 最后执行 expunge 彻底删除
+    
+    Args:
+        credentials: 账户凭证
+        folder: 文件夹名称 ('inbox', 'junk', 'all')
+        
+    Returns:
+        dict: {
+            'success_count': int,  # 成功删除的邮件数
+            'fail_count': int,     # 失败的邮件数
+            'total_count': int     # 总邮件数
+        }
+    """
+    # 校验 folder 参数
+    if folder not in ("inbox", "junk", "all"):
+        raise HTTPException(status_code=400, detail="Invalid folder, must be inbox/junk/all")
+
+    access_token = await get_cached_access_token(credentials)
+
+    # 在线程池中执行同步 IMAP 操作
+    def _sync_delete_emails_batch():
+        # 与 list_emails 中的逻辑保持一致的文件夹映射
+        if folder == "inbox":
+            folders_to_clear = ["INBOX"]
+        elif folder == "junk":
+            folders_to_clear = ["Junk"]
+        else:  # folder == "all"
+            folders_to_clear = ["INBOX", "Junk"]
+
+        # 使用公共删除函数执行批量删除
+        return _imap_delete_messages(
+            email=credentials.email,
+            access_token=access_token,
+            folders=folders_to_clear,
+            message_ids_by_folder=None,  # None 表示整箱删除
         )
+
+    result = await asyncio.to_thread(_sync_delete_emails_batch)
+
+    # 删除成功后清理缓存（数据库 + 内存），避免前端仍看到旧数据
+    try:
+        db.clear_email_cache_db(credentials.email)
+        cache_service.clear_email_cache(credentials.email)
+        logger.info(f"Cleared email cache (DB + LRU) for {credentials.email} after IMAP batch delete")
+    except Exception as e:
+        logger.warning(f"Failed to clear email cache after IMAP batch delete for {credentials.email}: {e}")
+
+    return result
 
 
 async def delete_email_via_imap(
@@ -977,46 +1034,143 @@ async def delete_email_via_imap(
     access_token = await get_cached_access_token(credentials)
     
     def _sync_delete_email():
-        imap_client = None
-        try:
-            # 从连接池获取连接
-            imap_client = imap_pool.get_connection(credentials.email, access_token)
-            
-            # 选择文件夹（可写模式）
-            imap_client.select(folder_name, readonly=False)
-            
-            # 标记为删除
-            imap_client.store(msg_id, '+FLAGS', '\\Deleted')
-            
-            # 永久删除
-            imap_client.expunge()
-            
-            # 归还连接
-            imap_pool.return_connection(credentials.email, imap_client)
-            
-            logger.info(f"Successfully deleted email {message_id} via IMAP for {credentials.email}")
-            
-            # 删除缓存
-            try:
-                db.delete_email_from_cache(credentials.email, message_id)
-                
-                # 清除内存缓存，因为页面内容变了
-                cache_service.clear_email_cache(credentials.email)
-            except Exception as e:
-                logger.warning(f"Failed to delete email from cache: {e}")
-                
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error deleting email via IMAP: {e}")
-            if imap_client:
-                try:
-                    imap_pool.return_connection(credentials.email, imap_client)
-                except Exception:
-                    pass
+        # 使用公共删除函数删除单封邮件
+        result = _imap_delete_messages(
+            email=credentials.email,
+            access_token=access_token,
+            folders=[folder_name],
+            message_ids_by_folder={folder_name: [msg_id.encode()]},
+        )
+
+        # 如果没有删除到任何邮件，视为失败
+        if result["success_count"] == 0:
             raise HTTPException(status_code=500, detail="Failed to delete email via IMAP")
+
+        logger.info(f"Successfully deleted email {message_id} via IMAP for {credentials.email}")
+
+        # 删除缓存（保持原有行为）
+        try:
+            db.delete_email_from_cache(credentials.email, message_id)
+            # 清除内存缓存，因为页面内容变了
+            cache_service.clear_email_cache(credentials.email)
+        except Exception as e:
+            logger.warning(f"Failed to delete email from cache: {e}")
+
+        return True
     
     return await asyncio.to_thread(_sync_delete_email)
+
+
+def _imap_delete_messages(
+    email: str,
+    access_token: str,
+    folders: list[str],
+    message_ids_by_folder: Optional[dict[str, list[bytes]]] = None,
+) -> dict:
+    """
+    通用 IMAP 删除实现（支持批量和单封），供 delete_emails_batch_via_imap / delete_email_via_imap 复用。
+
+    Args:
+        email: 邮箱账号
+        access_token: 访问token
+        folders: 需要操作的 IMAP 文件夹列表（如 ['INBOX']、['INBOX', 'Junk']）
+        message_ids_by_folder: 
+            - 如果为 None：对每个文件夹执行 search ALL，整箱删除。
+            - 如果为 dict：key 为 folder_name，value 为该文件夹要删除的 message id 列表（bytes）。
+
+    Returns:
+        dict: { 'success_count': int, 'fail_count': int, 'total_count': int }
+    """
+    imap_client = None
+    success_count = 0
+    fail_count = 0
+    total_count = 0
+
+    try:
+        imap_client = imap_pool.get_connection(email, access_token)
+        batch_size = 100  # 批量大小：批量 & 单封共用
+
+        for folder_name in folders:
+            try:
+                # 选择文件夹（可写模式）
+                status, messages = imap_client.select(folder_name, readonly=False)
+                if status != "OK":
+                    logger.warning(f"Failed to select folder {folder_name} for delete: {status}")
+                    continue
+
+                # 决定要删除的 message id 列表
+                if message_ids_by_folder is None:
+                    # 整箱删除：search ALL
+                    status, data = imap_client.search(None, "ALL")
+                    if status != "OK" or not data or not data[0]:
+                        logger.info(f"No emails found in folder {folder_name} for account {email}")
+                        continue
+                    email_ids = data[0].split()
+                else:
+                    email_ids = message_ids_by_folder.get(folder_name, [])
+                    if not email_ids:
+                        continue
+
+                folder_total = len(email_ids)
+                total_count += folder_total
+
+                logger.info(
+                    f"Preparing to delete {folder_total} emails in folder {folder_name} for {email}"
+                )
+
+                # 分批标记删除
+                for i in range(0, len(email_ids), batch_size):
+                    batch = email_ids[i:i + batch_size]
+                    batch_ids = b",".join(batch)
+                    try:
+                        typ, _ = imap_client.store(batch_ids, '+FLAGS', '\\Deleted')
+                        if typ == "OK":
+                            success_count += len(batch)
+                            logger.debug(
+                                f"Marked {len(batch)} emails as deleted in {folder_name} "
+                                f"(progress: {min(i + batch_size, len(email_ids))}/{len(email_ids)})"
+                            )
+                        else:
+                            fail_count += len(batch)
+                            logger.warning(
+                                f"Failed to mark batch as deleted in {folder_name}: typ={typ}"
+                            )
+                    except Exception as e:
+                        fail_count += len(batch)
+                        logger.warning(
+                            f"Error marking batch as deleted in {folder_name}: {e}"
+                        )
+
+                # 执行 expunge 将带 \\Deleted 标记的邮件真正删除
+                try:
+                    imap_client.expunge()
+                    logger.info(f"Expunge completed for folder {folder_name} (account: {email})")
+                except Exception as e:
+                    logger.warning(f"Error expunging folder {folder_name} for {email}: {e}")
+
+            except Exception as e:
+                logger.warning(f"Error clearing folder {folder_name} via IMAP for {email}: {e}")
+                # 当前文件夹的失败数量已在上面累加，这里继续处理下一个文件夹
+                continue
+
+    except Exception as e:
+        logger.error(f"Error deleting emails via IMAP for {email}: {e}")
+        # 如果完全没有统计信息，则抛出错误给上层处理
+        if total_count == 0 and success_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to delete emails via IMAP")
+
+    finally:
+        if imap_client:
+            try:
+                imap_pool.return_connection(email, imap_client)
+            except Exception:
+                pass
+
+    return {
+        "success_count": success_count,
+        "fail_count": fail_count,
+        "total_count": total_count,
+    }
 
 
 async def send_email(
