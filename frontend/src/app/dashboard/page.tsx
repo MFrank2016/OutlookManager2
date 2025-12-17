@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAccounts } from "@/hooks/useAccounts";
 import { AccountsTable } from "@/components/accounts/AccountsTable";
 import { AddAccountDialog } from "@/components/accounts/AddAccountDialog";
@@ -13,22 +13,33 @@ import api from "@/lib/api";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { useAccountsFilterStore } from "@/store/useAccountsFilterStore";
 
 export default function DashboardPage() {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
-  const [includeTags, setIncludeTags] = useState("");
-  const [excludeTags, setExcludeTags] = useState("");
-  const [refreshStatus, setRefreshStatus] = useState<string | undefined>(undefined);
+  const {
+    page: storedPage,
+    pageSize: storedPageSize,
+    search: storedSearch,
+    includeTags: storedIncludeTags,
+    excludeTags: storedExcludeTags,
+    refreshStatus: storedRefreshStatus,
+    setFilters,
+  } = useAccountsFilterStore();
+
+  const [page, setPage] = useState(storedPage || 1);
+  const [search, setSearch] = useState(storedSearch || "");
+  const [includeTags, setIncludeTags] = useState(storedIncludeTags || "");
+  const [excludeTags, setExcludeTags] = useState(storedExcludeTags || "");
+  const [refreshStatus, setRefreshStatus] = useState<string | undefined>(storedRefreshStatus);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [isBatchRefreshing, setIsBatchRefreshing] = useState(false);
   const [queryParams, setQueryParams] = useState({
-    page: 1,
-    page_size: 10,
-    email_search: "",
-    include_tags: "",
-    exclude_tags: "",
-    refresh_status: undefined as string | undefined,
+    page: storedPage || 1,
+    page_size: storedPageSize || 10,
+    email_search: storedSearch || "",
+    include_tags: storedIncludeTags || "",
+    exclude_tags: storedExcludeTags || "",
+    refresh_status: storedRefreshStatus as string | undefined,
   });
   const [shouldQuery, setShouldQuery] = useState(true); // 初始为 true，页面加载时自动请求
   const [jumpPage, setJumpPage] = useState("");
@@ -70,6 +81,15 @@ export default function DashboardPage() {
     
     setQueryParams(newParams);
     setPage(1);
+    // 将当前查询条件保存到全局 store，便于返回时恢复
+    setFilters({
+      page: 1,
+      pageSize: newParams.page_size,
+      search,
+      includeTags,
+      excludeTags,
+      refreshStatus,
+    });
     setShouldQuery(true);
     
     // 使用 setTimeout 确保状态更新后再触发 refetch
@@ -84,6 +104,7 @@ export default function DashboardPage() {
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
     setQueryParams(prev => ({ ...prev, page: newPage }));
+    setFilters({ page: newPage });
     // 如果已经查询过，直接更新页码并重新请求
     if (shouldQuery) {
       // refetch(); // param change will trigger query
@@ -94,6 +115,7 @@ export default function DashboardPage() {
     const size = parseInt(newPageSize);
     setQueryParams(prev => ({ ...prev, page_size: size, page: 1 }));
     setPage(1);
+    setFilters({ pageSize: size, page: 1 });
   };
 
   const handleJumpPage = () => {
