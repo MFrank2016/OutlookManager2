@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useAccounts } from "@/hooks/useAccounts";
+import { useAccounts, useBatchDeleteAccounts } from "@/hooks/useAccounts";
 import { AccountsTable } from "@/components/accounts/AccountsTable";
 import { AddAccountDialog } from "@/components/accounts/AddAccountDialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Search, PackagePlus, Filter, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, PackagePlus, Filter, RefreshCw, Trash2 } from "lucide-react";
 import Link from "next/link";
 import api from "@/lib/api";
 import { toast } from "sonner";
@@ -16,6 +16,11 @@ import { cn } from "@/lib/utils";
 import { useAccountsFilterStore } from "@/store/useAccountsFilterStore";
 
 export default function DashboardPage() {
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    const detail = (error as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+    return typeof detail === "string" ? detail : fallback;
+  };
+
   const {
     page: storedPage,
     pageSize: storedPageSize,
@@ -44,6 +49,7 @@ export default function DashboardPage() {
   const [shouldQuery, setShouldQuery] = useState(true); // 初始为 true，页面加载时自动请求
   const [jumpPage, setJumpPage] = useState("");
   const queryClient = useQueryClient();
+  const batchDeleteAccounts = useBatchDeleteAccounts();
   
   const { data, isLoading, refetch } = useAccounts({ 
       page: queryParams.page, 
@@ -154,10 +160,28 @@ export default function DashboardPage() {
       
       // 清空选择
       setSelectedAccounts([]);
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || "批量刷新失败");
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "批量刷新失败"));
     } finally {
       setIsBatchRefreshing(false);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedAccounts.length === 0) {
+      toast.warning("请先选择要删除的账户");
+      return;
+    }
+
+    if (!confirm(`确定要批量删除 ${selectedAccounts.length} 个账户吗？此操作不可恢复！`)) {
+      return;
+    }
+
+    try {
+      await batchDeleteAccounts.mutateAsync(selectedAccounts);
+      setSelectedAccounts([]);
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, "批量删除失败"));
     }
   };
 
@@ -280,13 +304,25 @@ export default function DashboardPage() {
               variant="default"
               size="sm"
               onClick={handleBatchRefresh}
-              disabled={isBatchRefreshing}
+              disabled={isBatchRefreshing || batchDeleteAccounts.isPending}
               throttle={true}
               throttleMs={300}
               className="h-8 px-2 text-xs md:text-sm"
             >
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isBatchRefreshing && "animate-spin")} />
               批量刷新Token
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleBatchDelete}
+              disabled={batchDeleteAccounts.isPending || isBatchRefreshing}
+              throttle={true}
+              throttleMs={300}
+              className="h-8 px-2 text-xs md:text-sm"
+            >
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              {batchDeleteAccounts.isPending ? "删除中..." : "批量删除"}
             </Button>
           </div>
         </div>
