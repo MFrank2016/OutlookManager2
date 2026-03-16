@@ -581,6 +581,8 @@ def init_database() -> None:
         
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_created_at_id ON accounts(created_at DESC, id DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_refresh_status_created_at_id ON accounts(refresh_status, created_at DESC, id DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_config_key ON system_config(key)")
@@ -628,6 +630,8 @@ def init_database() -> None:
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_token ON share_tokens(token)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_account ON share_tokens(email_account_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_created_at_id ON share_tokens(created_at DESC, id DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_account_created_at_id ON share_tokens(email_account_id, created_at DESC, id DESC)")
         
         # 创建批量导入任务表
         cursor.execute("""
@@ -1296,4 +1300,3 @@ def delete_table_record(table_name: str, record_id: int) -> bool:
         cursor.execute(f"DELETE FROM {table_name} WHERE id = {param_placeholder}", (record_id,))
         conn.commit()
         return cursor.rowcount > 0
-

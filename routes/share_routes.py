@@ -42,13 +42,14 @@ share_query_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10, thr
 # 创建路由器
 router = APIRouter(prefix="/share", tags=["分享码"])
 
-def _generate_share_link(token: str) -> str:
+def _generate_share_link(token: str, share_domain: Optional[str] = None) -> str:
     """
     生成分享链接
     如果系统配置中设置了 share_domain，则使用该域名
     否则返回相对路径（由前端处理）
     """
-    share_domain = db.get_config("share_domain")
+    if share_domain is None:
+        share_domain = db.get_config("share_domain")
     if share_domain and share_domain.strip():
         domain = share_domain.strip()
         # 确保域名以 http:// 或 https:// 开头
@@ -58,13 +59,13 @@ def _generate_share_link(token: str) -> str:
     # 如果没有配置，返回相对路径（前端会使用 window.location.origin）
     return f"/shared/{token}"
 
-def _add_share_link_to_token_data(token_data: dict) -> dict:
+def _add_share_link_to_token_data(token_data: dict, share_domain: Optional[str] = None) -> dict:
     """
     为token数据添加share_link字段
     """
     result = dict(token_data)
     if 'token' in result:
-        result['share_link'] = _generate_share_link(result['token'])
+        result['share_link'] = _generate_share_link(result['token'], share_domain)
     return result
 
 async def get_valid_share_token(token: str) -> dict:
@@ -274,8 +275,30 @@ async def list_tokens(
         # 暂时只支持管理员查所有，普通用户必须指定account
         raise HTTPException(status_code=400, detail="普通用户必须指定 email_account_id 或 account_search")
 
-    tokens, _ = db.list_share_tokens(email_account_id, account_search, token_search, page, page_size)
-    tokens_with_link = [_add_share_link_to_token_data(t) for t in tokens]
+    loop = asyncio.get_running_loop()
+    try:
+        tokens, _ = await asyncio.wait_for(
+            loop.run_in_executor(
+                share_query_executor,
+                db.list_share_tokens,
+                email_account_id,
+                account_search,
+                token_search,
+                page,
+                page_size,
+            ),
+            timeout=20,
+        )
+    except asyncio.TimeoutError:
+        logger.error(
+            f"[分享管理] list_tokens 超时: email_account_id={email_account_id}, "
+            f"account_search={account_search}, token_search={token_search}, "
+            f"page={page}, page_size={page_size}"
+        )
+        raise HTTPException(status_code=503, detail="分享列表查询超时，请稍后重试")
+
+    share_domain = await loop.run_in_executor(share_query_executor, db.get_config, "share_domain")
+    tokens_with_link = [_add_share_link_to_token_data(t, share_domain) for t in tokens]
     return [ShareTokenResponse(**t) for t in tokens_with_link]
 
 @router.put("/tokens/{token_id}", response_model=ShareTokenResponse)
@@ -840,4 +863,3 @@ async def public_get_email_detail(
     
     # 返回邮件详情
     return EmailDetailsResponse(**cached_detail)
-

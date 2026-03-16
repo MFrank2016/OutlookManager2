@@ -184,11 +184,10 @@ class ShareTokenDAO(BaseDAO):
             page_size=page_size,
             where_clause=where_clause,
             params=params,
-            order_by="created_at DESC"
+            order_by="created_at DESC, id DESC"
         )
         
         # 转换 datetime 字段为字符串（PostgreSQL 需要）
         serialized_records = [self._serialize_datetime_fields(record) for record in records]
         
         return serialized_records, total
-

@@ -9,6 +9,8 @@
 CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email);
 CREATE INDEX IF NOT EXISTS idx_accounts_refresh_status ON accounts(refresh_status);
 CREATE INDEX IF NOT EXISTS idx_accounts_api_method ON accounts(api_method);
+CREATE INDEX IF NOT EXISTS idx_accounts_created_at_id ON accounts(created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_accounts_refresh_status_created_at_id ON accounts(refresh_status, created_at DESC, id DESC);
 
 -- users 表索引
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
@@ -33,6 +35,8 @@ CREATE INDEX IF NOT EXISTS idx_email_details_cache_message ON email_details_cach
 CREATE INDEX IF NOT EXISTS idx_share_tokens_token ON share_tokens(token);
 CREATE INDEX IF NOT EXISTS idx_share_tokens_account ON share_tokens(email_account_id);
 CREATE INDEX IF NOT EXISTS idx_share_tokens_is_active ON share_tokens(is_active);
+CREATE INDEX IF NOT EXISTS idx_share_tokens_created_at_id ON share_tokens(created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_share_tokens_account_created_at_id ON share_tokens(email_account_id, created_at DESC, id DESC);
 
 -- batch_import_tasks 表索引
 CREATE INDEX IF NOT EXISTS idx_batch_import_tasks_task_id ON batch_import_tasks(task_id);
@@ -124,4 +128,3 @@ CREATE INDEX IF NOT EXISTS idx_email_details_cache_last_accessed ON email_detail
 -- 5. 表达式索引可以优化函数查询
 -- 6. 覆盖索引可以减少回表查询，提高查询性能
 -- 7. 定期执行 VACUUM ANALYZE 以保持索引统计信息最新
-

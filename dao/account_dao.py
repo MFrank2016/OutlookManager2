@@ -170,21 +170,26 @@ class AccountDAO(BaseDAO):
         if tag_search and not include_tags:
             include_tags = [tag.strip() for tag in tag_search.split(",") if tag.strip()]
         
-        # 对于PostgreSQL，tags是jsonb类型，需要转换为文本才能使用LIKE
-        # 对于SQLite，tags是TEXT类型，可以直接使用LIKE
-        tags_column = "tags::text" if DB_TYPE == "postgresql" else "tags"
-        
         # 包含标签筛选（必须同时包含所有指定标签）
         if include_tags:
             for tag in include_tags:
-                conditions.append(f"{tags_column} LIKE {placeholder}")
-                params.append(f'%"{tag}"%')  # JSON格式的标签匹配
+                if DB_TYPE == "postgresql":
+                    # PostgreSQL 使用 JSONB 包含运算符，可命中 GIN 索引
+                    conditions.append(f"tags @> {placeholder}::jsonb")
+                    params.append(json.dumps([tag], ensure_ascii=False))
+                else:
+                    conditions.append(f"tags LIKE {placeholder}")
+                    params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         # 排除标签筛选（必须不包含任何指定标签）
         if exclude_tags:
             for tag in exclude_tags:
-                conditions.append(f"{tags_column} NOT LIKE {placeholder}")
-                params.append(f'%"{tag}"%')  # JSON格式的标签匹配
+                if DB_TYPE == "postgresql":
+                    conditions.append(f"NOT (tags @> {placeholder}::jsonb)")
+                    params.append(json.dumps([tag], ensure_ascii=False))
+                else:
+                    conditions.append(f"tags NOT LIKE {placeholder}")
+                    params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         # 刷新状态筛选
         if refresh_status and refresh_status != 'all':
@@ -229,14 +234,8 @@ class AccountDAO(BaseDAO):
         logger.info(f"[筛选] SQL WHERE子句: {where_clause}")
         logger.info(f"[筛选] SQL参数: {params}")
         
-        # 使用稳定的排序：按创建时间倒序，如果创建时间相同或为NULL，则按ID倒序
-        # 这样可以确保排序结果稳定
-        if DB_TYPE == "postgresql":
-            # PostgreSQL: 使用 COALESCE 处理 NULL 值，并使用 id 作为次要排序
-            order_by = "COALESCE(created_at, '1970-01-01'::timestamp) DESC, id DESC"
-        else:
-            # SQLite: 使用 COALESCE 处理 NULL 值，并使用 id 作为次要排序
-            order_by = "COALESCE(created_at, '1970-01-01') DESC, id DESC"
+        # 使用稳定排序，避免函数表达式破坏索引可用性
+        order_by = "created_at DESC, id DESC"
         
         records, total = self.find_paginated(
             page=page,
@@ -453,21 +452,25 @@ class AccountDAO(BaseDAO):
         conditions = []
         params = []
         
-        # 对于PostgreSQL，tags是jsonb类型，需要转换为文本才能使用LIKE
-        # 对于SQLite，tags是TEXT类型，可以直接使用LIKE
-        tags_column = "tags::text" if DB_TYPE == "postgresql" else "tags"
-        
         # 包含标签筛选
         if include_tags:
             for tag in include_tags:
-                conditions.append(f"{tags_column} LIKE {placeholder}")
-                params.append(f'%"{tag}"%')  # JSON格式的标签匹配
+                if DB_TYPE == "postgresql":
+                    conditions.append(f"tags @> {placeholder}::jsonb")
+                    params.append(json.dumps([tag], ensure_ascii=False))
+                else:
+                    conditions.append(f"tags LIKE {placeholder}")
+                    params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         # 排除标签筛选
         if exclude_tags:
             for tag in exclude_tags:
-                conditions.append(f"{tags_column} NOT LIKE {placeholder}")
-                params.append(f'%"{tag}"%')  # JSON格式的标签匹配
+                if DB_TYPE == "postgresql":
+                    conditions.append(f"NOT (tags @> {placeholder}::jsonb)")
+                    params.append(json.dumps([tag], ensure_ascii=False))
+                else:
+                    conditions.append(f"tags NOT LIKE {placeholder}")
+                    params.append(f'%"{tag}"%')  # JSON格式的标签匹配
         
         where_clause = self._build_where_clause(conditions, params)
         
@@ -535,4 +538,3 @@ class AccountDAO(BaseDAO):
             logger.info(f"Added tag '{tag}' to account {email}")
         
         return success
-
