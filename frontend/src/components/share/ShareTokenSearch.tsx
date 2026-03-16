@@ -23,10 +23,10 @@ export const ShareTokenSearch = memo(function ShareTokenSearch({
   isLoading = false,
 }: ShareTokenSearchProps) {
   return (
-    <div className="flex flex-col gap-2 bg-white p-2 md:p-4 rounded-lg shadow-sm border">
+    <div className="panel-surface flex flex-col gap-2 p-2 md:p-4">
       <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="搜索账户..."
             className="pl-9 h-9 text-sm" 
@@ -42,7 +42,7 @@ export const ShareTokenSearch = memo(function ShareTokenSearch({
           />
         </div>
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="搜索Token..."
             className="pl-9 h-9 text-sm" 
@@ -71,4 +71,3 @@ export const ShareTokenSearch = memo(function ShareTokenSearch({
     </div>
   );
 });
-

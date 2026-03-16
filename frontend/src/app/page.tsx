@@ -17,8 +17,8 @@ export default function Home() {
   }, [isAuthenticated, token, router]);
 
   return (
-    <div className="flex items-center justify-center h-screen">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+    <div className="flex h-screen items-center justify-center page-enter">
+      <div className="h-9 w-9 animate-spin rounded-full border-2 border-muted border-t-primary"></div>
     </div>
   );
 }

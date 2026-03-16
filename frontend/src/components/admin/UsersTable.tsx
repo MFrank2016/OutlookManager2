@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Trash, Edit, Search, User as UserIcon, ShieldAlert, ShieldCheck, Clock } from "lucide-react";
+import { Trash, Edit, Search, ShieldAlert, ShieldCheck, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { UserDialog } from "./UserDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -50,7 +50,7 @@ export function UsersTable() {
         <UserDialog />
       </div>
 
-      <div className="rounded-md border bg-white shadow-sm overflow-hidden">
+      <div className="panel-surface overflow-hidden rounded-md">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-50 hover:bg-slate-50">
@@ -76,7 +76,9 @@ export function UsersTable() {
                     <Avatar className="h-8 w-8">
                         <AvatarFallback className={cn(
                             "text-xs text-white",
-                            user.role === 'admin' ? "bg-purple-500" : "bg-slate-500"
+                            user.role === "admin"
+                              ? "bg-gradient-to-br from-[color:var(--brand)] to-[color:var(--accent)] text-[color:var(--primary-foreground)]"
+                              : "bg-slate-500"
                         )}>
                             {user.username.charAt(0).toUpperCase()}
                         </AvatarFallback>
@@ -92,7 +94,7 @@ export function UsersTable() {
                   <Badge variant="outline" className={cn(
                       "font-normal capitalize",
                       user.role === 'admin' 
-                        ? "bg-purple-50 text-purple-700 border-purple-200" 
+                        ? "bg-blue-50 text-blue-700 border-blue-200" 
                         : "bg-slate-50 text-slate-700 border-slate-200"
                   )}>
                     {user.role === 'admin' && <ShieldAlert className="w-3 h-3 mr-1" />}
@@ -123,7 +125,7 @@ export function UsersTable() {
                     <UserDialog 
                         user={user} 
                         trigger={
-                            <Button variant="ghost" size="icon" className="hover:bg-slate-100">
+                            <Button variant="ghost" size="icon" className="hover:bg-blue-50/50 hover:text-blue-600">
                                 <Edit className="h-4 w-4 text-slate-600" />
                             </Button>
                         } 

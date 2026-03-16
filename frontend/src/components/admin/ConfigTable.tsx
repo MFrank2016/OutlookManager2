@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState, useMemo } from "react";
-import { Edit, Trash2, Search, Plus, Check } from "lucide-react";
+import { useState } from "react";
+import { Edit, Trash2, Search, Check } from "lucide-react";
 import { ConfigDialog } from "./ConfigDialog";
 import { ConfigItem } from "@/types";
 import {
@@ -35,7 +35,7 @@ export function ConfigTable() {
   const deleteConfig = useDeleteConfig();
 
   // 过滤配置列表
-  const filteredConfigs = useMemo(() => {
+  const filteredConfigs = (() => {
     if (!data?.configs) return [];
     if (!searchQuery.trim()) return data.configs;
 
@@ -46,7 +46,7 @@ export function ConfigTable() {
         config.value.toLowerCase().includes(query) ||
         (config.description?.toLowerCase().includes(query) ?? false)
     );
-  }, [data?.configs, searchQuery]);
+  })();
 
   const handleDelete = () => {
     if (deleteKey) {
@@ -72,7 +72,7 @@ export function ConfigTable() {
       {/* 搜索框和新增按钮 */}
       <div className="flex items-center gap-4">
         <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="搜索配置键、值或描述..."
             value={searchQuery}
@@ -84,7 +84,7 @@ export function ConfigTable() {
       </div>
 
       {/* 配置表格 */}
-      <div className="rounded-md border bg-white">
+      <div className="panel-surface rounded-md">
         <Table>
           <TableHeader>
             <TableRow>
@@ -185,13 +185,13 @@ function ConfigRow({
           <ConfigDialog
             config={config}
             trigger={
-              <Button size="sm" variant="outline">
+              <Button size="sm" variant="outline" className="hover:bg-blue-50/50 hover:text-blue-600">
                 <Edit className="h-4 w-4 mr-1" />
                 编辑
               </Button>
             }
           />
-          <Button size="sm" variant="outline" onClick={onDelete}>
+          <Button size="sm" variant="outline" onClick={onDelete} className="hover:bg-red-50 hover:text-red-600">
             <Trash2 className="h-4 w-4 mr-1" />
             删除
           </Button>

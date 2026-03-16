@@ -51,7 +51,7 @@ export const ShareTokenTable = memo(function ShareTokenTable({
   };
 
   return (
-    <div className="rounded-md border bg-white shadow-sm overflow-hidden">
+    <div className="panel-surface overflow-hidden rounded-md">
       <Table>
         <TableHeader>
           <TableRow className="bg-slate-50">
@@ -162,6 +162,7 @@ export const ShareTokenTable = memo(function ShareTokenTable({
                         variant="ghost"
                         size="icon"
                         onClick={() => onExtend(token)}
+                        className="hover:bg-blue-50/50 hover:text-blue-600"
                         title="延期"
                       >
                         <Clock className="h-4 w-4" />
@@ -170,6 +171,7 @@ export const ShareTokenTable = memo(function ShareTokenTable({
                         variant="ghost"
                         size="icon"
                         onClick={() => onEdit(token)}
+                        className="hover:bg-blue-50/50 hover:text-blue-600"
                         title="编辑"
                       >
                         <Edit className="h-4 w-4" />
@@ -178,6 +180,7 @@ export const ShareTokenTable = memo(function ShareTokenTable({
                         variant="ghost"
                         size="icon"
                         onClick={() => handleCopyLink(token.token)}
+                        className="hover:bg-blue-50/50 hover:text-blue-600"
                         title="复制链接"
                       >
                         <Copy className="h-4 w-4" />
@@ -206,4 +209,3 @@ export const ShareTokenTable = memo(function ShareTokenTable({
     </div>
   );
 });
-

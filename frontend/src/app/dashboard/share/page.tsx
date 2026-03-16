@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Copy, Loader2, Plus, CopyCheck, Users, XCircle, Trash } from "lucide-react";
+import { Loader2, Plus, CopyCheck, Users, XCircle, Trash } from "lucide-react";
 import { toast } from "sonner";
 import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
 import { BatchShareDialog } from "@/components/share/BatchShareDialog";
@@ -133,8 +133,8 @@ export default function ShareManagementPage() {
   };
 
   return (
-    <div className="space-y-3 md:space-y-6 px-0 md:px-4">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 md:gap-0">
+    <div className="page-enter space-y-3 px-0 md:space-y-6 md:px-4">
+      <div className="panel-surface flex flex-col gap-2 p-3 md:flex-row md:items-center md:justify-between md:gap-0 md:p-4">
         <h1 className="hidden md:block text-2xl font-bold tracking-tight">分享管理</h1>
         <div className="flex gap-1.5 md:gap-2 flex-wrap md:flex-nowrap w-full md:w-auto">
           {accountsData && accountsData.length > 0 && (
@@ -239,7 +239,7 @@ export default function ShareManagementPage() {
 
       {isLoading ? (
         <div className="flex justify-center p-8">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
         <ShareTokenTable
@@ -319,4 +319,3 @@ export default function ShareManagementPage() {
     </div>
   );
 }
-

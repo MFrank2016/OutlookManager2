@@ -88,7 +88,14 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
 
   // Function to generate a deterministic color for tags
   const getTagColor = (tag: string) => {
-    const colors = ["bg-blue-100 text-blue-800", "bg-green-100 text-green-800", "bg-purple-100 text-purple-800", "bg-pink-100 text-purple-800", "bg-yellow-100 text-yellow-800", "bg-indigo-100 text-indigo-800"];
+    const colors = [
+      "bg-blue-100 text-blue-700 border border-blue-200",
+      "bg-green-100 text-green-700 border border-green-200",
+      "bg-amber-50 text-amber-700 border border-amber-200",
+      "bg-slate-100 text-slate-700 border border-slate-200",
+      "bg-indigo-100 text-indigo-700 border border-indigo-200",
+      "bg-cyan-100 text-cyan-700 border border-cyan-200",
+    ];
     let hash = 0;
     for (let i = 0; i < tag.length; i++) {
         hash = tag.charCodeAt(i) + ((hash << 5) - hash);
@@ -118,7 +125,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
           const hiddenCount = tags.length - visibleTags.length;
 
           return (
-          <Card key={account.email_id} className="p-4 hover:shadow-md transition-shadow">
+          <Card key={account.email_id} className="interactive-lift border p-4">
             <div className="flex items-start gap-3">
               <Checkbox
                 checked={selectedAccounts.includes(account.email_id)}
@@ -127,7 +134,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                 className="mt-1"
               />
               <Avatar className="h-10 w-10 shrink-0">
-                <AvatarFallback className="bg-blue-500 text-white">
+                <AvatarFallback className="bg-gradient-to-br from-[color:var(--brand)] to-[color:var(--accent)] text-[color:var(--primary-foreground)]">
                   {account.email_id.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -311,7 +318,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                 key={account.email_id} 
                 className={cn(
                   index % 2 === 0 ? "bg-white" : "bg-slate-50/50",
-                  "cursor-pointer hover:bg-blue-50/50 transition-colors"
+                  "cursor-pointer transition-colors hover:bg-blue-50/50"
                 )}
                 onClick={() => {
                   router.push(`/dashboard/emails?account=${encodeURIComponent(account.email_id)}`);
@@ -325,7 +332,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
                     <Avatar className="h-8 w-8">
-                        <AvatarFallback className="bg-blue-500 text-white text-xs">
+                        <AvatarFallback className="bg-gradient-to-br from-[color:var(--brand)] to-[color:var(--accent)] text-[color:var(--primary-foreground)] text-xs">
                             {account.email_id.charAt(0).toUpperCase()}
                         </AvatarFallback>
                     </Avatar>
@@ -334,7 +341,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center gap-2">
                       <Avatar className="h-6 w-6 sm:hidden">
-                        <AvatarFallback className="bg-blue-500 text-white text-xs">
+                        <AvatarFallback className="bg-gradient-to-br from-[color:var(--brand)] to-[color:var(--accent)] text-[color:var(--primary-foreground)] text-xs">
                           {account.email_id.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>

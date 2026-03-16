@@ -165,7 +165,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="space-y-2 md:space-y-4 px-0 md:px-4">
+    <div className="page-enter space-y-2 px-0 md:space-y-4 md:px-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 md:gap-4">
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight">账户管理</h1>
         <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -178,7 +178,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 bg-white p-3 md:p-4 rounded-lg shadow-sm border">
+      <div className="panel-surface flex flex-col gap-2 p-3 md:p-4">
         {/* 第一行：搜索邮箱 */}
         <div className="relative flex-1 w-full">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
@@ -266,7 +266,7 @@ export default function DashboardPage() {
       </div>
 
       {selectedAccounts.length > 0 && (
-        <div className="flex items-center justify-between bg-blue-50 p-2 md:p-4 rounded-lg border border-blue-200">
+        <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-2 md:p-4">
           <div className="text-xs md:text-sm text-blue-900">
             已选择 <span className="font-bold">{selectedAccounts.length}</span> 个账户
           </div>
@@ -317,7 +317,7 @@ export default function DashboardPage() {
       </div>
 
       {data && data.total_accounts > 0 && (
-        <div className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg shadow-sm border shrink-0 text-xs md:text-sm">
+        <div className="panel-surface flex shrink-0 items-center justify-between gap-2 p-2 text-xs md:text-sm">
             {/* 左侧：总计 + 每页 */}
             <div className="flex items-center gap-2">
                 <span className="text-muted-foreground whitespace-nowrap">

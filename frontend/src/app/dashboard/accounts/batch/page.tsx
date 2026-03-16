@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
 import api from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,22 +20,14 @@ import { AlertTriangle, CheckCircle, Loader2, ArrowLeft, Trash2, FileText, Play 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-interface BatchResult {
-  email: string;
-  status: "success" | "error";
-  message: string;
-}
-
 export default function BatchAddPage() {
-  const router = useRouter();
   const [input, setInput] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [importMethod, setImportMethod] = useState<"imap" | "graph">("imap");
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [results, setResults] = useState<BatchResult[]>([]);
-  const [currentCount, setCurrentCount] = useState({ current: 0, total: 0 });
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [initialTotal, setInitialTotal] = useState(0);
   const [taskId, setTaskId] = useState<string | null>(null);
+  const notifiedStatusRef = useRef<string | null>(null);
 
   const handleLoadSample = () => {
     const sample = `example1@outlook.com----password1----refresh_token_here_1----client_id_here_1
@@ -49,9 +40,10 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
   const handleClear = () => {
     setInput("");
     setTagsInput("");
-    setResults([]);
-    setProgress(0);
-    setCurrentCount({ current: 0, total: 0 });
+    setInitialTotal(0);
+    setTaskId(null);
+    setIsCreatingTask(false);
+    notifiedStatusRef.current = null;
   };
 
   const handleValidate = () => {
@@ -86,10 +78,9 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
       return;
     }
 
-    setIsProcessing(true);
-    setResults([]);
-    setProgress(0);
-    setCurrentCount({ current: 0, total: lines.length });
+    setIsCreatingTask(true);
+    setInitialTotal(lines.length);
+    notifiedStatusRef.current = null;
 
     // 解析所有账户数据
     const items = [];
@@ -114,7 +105,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
 
     if (items.length === 0) {
       toast.error("没有有效的账户数据");
-      setIsProcessing(false);
+      setIsCreatingTask(false);
       return;
     }
 
@@ -134,11 +125,16 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
 
       const taskId = response.data.task_id;
       setTaskId(taskId);
+      setIsCreatingTask(false);
       toast.success(`批量导入任务已创建，任务ID: ${taskId}`);
-    } catch (error: any) {
-      const msg = error.response?.data?.detail || error.message || "创建任务失败";
+    } catch (error: unknown) {
+      const msg =
+        error && typeof error === "object" && "response" in error
+          ? ((error as { response?: { data?: { detail?: string } } }).response?.data?.detail ??
+            "创建任务失败")
+          : "创建任务失败";
       toast.error(msg);
-      setIsProcessing(false);
+      setIsCreatingTask(false);
     }
   };
 
@@ -150,7 +146,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
       const { data } = await api.get(`/accounts/batch-import/${taskId}`);
       return data;
     },
-    enabled: !!taskId && isProcessing,
+    enabled: !!taskId,
     refetchInterval: (query) => {
       // 如果任务已完成或失败，停止轮询
       const data = query.state.data;
@@ -161,16 +157,23 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
     },
   });
 
-  // 更新进度显示
+  const isTaskFinished =
+    taskProgress?.status === "completed" || taskProgress?.status === "failed";
+  const isProcessing = isCreatingTask || (!!taskId && !isTaskFinished);
+  const displayCurrent = taskProgress?.processed_count ?? 0;
+  const displayTotal = taskProgress?.total_count ?? initialTotal;
+  const displayProgress = taskProgress?.progress_percent ?? 0;
+
+  // 任务结束提示（仅提示一次）
   useEffect(() => {
     if (taskProgress) {
-      const { processed_count, total_count, success_count, failed_count, status, progress_percent } = taskProgress;
-      setCurrentCount({ current: processed_count, total: total_count });
-      setProgress(progress_percent);
+      const { success_count, failed_count, status } = taskProgress;
+      if (notifiedStatusRef.current === status) {
+        return;
+      }
+      notifiedStatusRef.current = status;
 
-      // 如果任务完成，更新状态
       if (status === "completed" || status === "failed") {
-        setIsProcessing(false);
         if (status === "completed") {
           toast.success(`批量导入完成！成功: ${success_count}, 失败: ${failed_count}`);
         } else {
@@ -181,7 +184,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
   }, [taskProgress]);
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto px-4 sm:px-0">
+    <div className="page-enter mx-auto max-w-4xl space-y-6 px-4 sm:px-0">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">批量添加账户</h1>
@@ -194,7 +197,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
         </Button>
       </div>
 
-      <Card>
+      <Card className="panel-surface border-0 shadow-none">
         <CardHeader>
           <CardTitle>批量输入</CardTitle>
           <CardDescription>
@@ -204,7 +207,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 p-4 bg-slate-50 rounded-lg border">
+          <div className="flex flex-col items-stretch gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:gap-4">
             <span className="text-sm font-medium shrink-0">导入方式:</span>
             <Select
               value={importMethod}
@@ -357,7 +360,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
               <div className="flex justify-between text-sm font-medium">
                 <span>进度</span>
                 <span>
-                  {currentCount.current} / {currentCount.total}
+                  {displayCurrent} / {displayTotal}
                   {taskProgress && (
                     <span className="ml-2 text-muted-foreground">
                       (成功: {taskProgress.success_count}, 失败: {taskProgress.failed_count})
@@ -365,7 +368,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                   )}
                 </span>
               </div>
-              <Progress value={progress} className="h-2" />
+              <Progress value={displayProgress} className="h-2" />
               {taskProgress && (
                 <div className="text-sm text-muted-foreground">
                   状态: <span className="font-medium">{taskProgress.status === "processing" ? "处理中" : taskProgress.status === "completed" ? "已完成" : taskProgress.status === "failed" ? "失败" : "等待中"}</span>
@@ -378,4 +381,3 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
     </div>
   );
 }
-

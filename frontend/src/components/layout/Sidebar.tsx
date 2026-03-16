@@ -26,7 +26,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNavigate }: SidebarProps) {
   const pathname = usePathname();
   const { user, logout } = useAuthStore();
-  
+
   const routes = [
     {
       label: "账户管理",
@@ -67,43 +67,48 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
     }
   };
 
+  const activeLinkClass =
+    "border border-primary/50 bg-primary/20 text-foreground shadow-[0_8px_24px_rgba(70,130,255,0.2)]";
+  const idleLinkClass =
+    "border border-transparent text-[color:var(--text-soft)] hover:border-border/80 hover:bg-[color:var(--surface-2)] hover:text-foreground";
+
   if (isMobile) {
     return (
       <nav className="space-y-1 px-2 py-4">
         {routes.map((route) => {
           if (route.adminOnly && user?.role !== "admin") return null;
-          
+
           return (
             <Link
               key={route.href}
               href={route.href}
               onClick={handleLinkClick}
               className={cn(
-                "flex items-center px-3 py-2 rounded-md transition-colors text-sm font-medium",
-                route.active
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                "interactive-lift flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                route.active ? activeLinkClass : idleLinkClass
               )}
             >
-              <route.icon className="h-5 w-5 mr-3" />
+              <route.icon className="mr-3 h-5 w-5" />
               <span>{route.label}</span>
             </Link>
           );
         })}
-        <div className="pt-4 mt-4 border-t border-slate-800">
+        <div className="mt-4 border-t border-border/70 pt-4">
           <div className="flex items-center gap-3 px-3 py-2">
-            <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold shrink-0">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[color:var(--brand)] to-[color:var(--accent)] text-sm font-bold text-[color:var(--primary-foreground)]">
               {user?.username?.[0]?.toUpperCase() || "U"}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.username}</p>
-              <p className="text-xs text-slate-400 truncate">{user?.role === 'admin' ? '管理员' : '普通用户'}</p>
+              <p className="truncate text-xs text-[color:var(--text-faint)]">
+                {user?.role === "admin" ? "管理员" : "普通用户"}
+              </p>
             </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={logout}
-              className="text-slate-400 hover:text-red-400 hover:bg-slate-800"
+              className="text-[color:var(--text-faint)] hover:bg-red-50 hover:text-red-600"
               title="退出登录"
             >
               <LogOut className="h-5 w-5" />
@@ -117,21 +122,28 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
   return (
     <div
       className={cn(
-        "relative flex flex-col h-screen bg-slate-900 text-white transition-all duration-300 ease-in-out border-r border-slate-800",
+        "relative flex h-screen flex-col border-r border-border/70 bg-[color:var(--surface-0)] text-foreground transition-all duration-300 ease-in-out backdrop-blur-xl",
         collapsed ? "w-16" : "w-64"
       )}
     >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,color-mix(in_oklch,var(--brand)_18%,transparent),transparent_42%)] opacity-90" />
+
       {/* Header */}
-      <div className="flex items-center justify-between p-4 h-16 border-b border-slate-800">
+      <div className="relative flex h-16 items-center justify-between border-b border-border/70 p-4">
         {!collapsed && (
-          <h1 className="text-xl font-bold truncate text-blue-400">Outlook Mgr</h1>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-primary shadow-[0_0_16px_rgba(70,130,255,0.55)]" />
+            <h1 className="truncate bg-gradient-to-r from-[color:var(--foreground)] to-[color:var(--brand)] bg-clip-text text-lg font-semibold tracking-wide text-transparent">
+              Outlook Mgr
+            </h1>
+          </div>
         )}
         <Button
           variant="ghost"
           size="icon"
           onClick={toggleCollapsed}
           className={cn(
-            "text-slate-400 hover:text-white hover:bg-slate-800",
+            "text-[color:var(--text-faint)] hover:bg-[color:var(--surface-2)] hover:text-foreground",
             collapsed ? "mx-auto" : "ml-auto"
           )}
         >
@@ -140,20 +152,18 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
       </div>
 
       {/* Nav */}
-      <ScrollArea className="flex-1 py-4">
+      <ScrollArea className="relative flex-1 py-4">
         <nav className="space-y-1 px-2">
           {routes.map((route) => {
             if (route.adminOnly && user?.role !== "admin") return null;
-            
+
             return (
               <Link
                 key={route.href}
                 href={route.href}
                 className={cn(
-                  "flex items-center px-3 py-2 rounded-md transition-colors text-base font-medium",
-                  route.active
-                    ? "bg-blue-600 text-white"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white",
+                  "interactive-lift flex items-center rounded-lg px-3 py-2 text-base font-medium transition-all duration-200",
+                  route.active ? activeLinkClass : idleLinkClass,
                   collapsed && "justify-center px-0"
                 )}
                 title={collapsed ? route.label : undefined}
@@ -167,15 +177,17 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
       </ScrollArea>
 
       {/* User / Logout */}
-      <div className="p-4 border-t border-slate-800">
+      <div className="relative border-t border-border/70 p-4">
         <div className={cn("flex items-center", collapsed ? "justify-center flex-col gap-2" : "gap-3")}>
-          <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold shrink-0">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[color:var(--brand)] to-[color:var(--accent)] text-sm font-bold text-[color:var(--primary-foreground)]">
             {user?.username?.[0]?.toUpperCase() || "U"}
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-base font-medium truncate">{user?.username}</p>
-              <p className="text-sm text-slate-400 truncate">{user?.role === 'admin' ? '管理员' : '普通用户'}</p>
+              <p className="truncate text-sm text-[color:var(--text-faint)]">
+                {user?.role === "admin" ? "管理员" : "普通用户"}
+              </p>
             </div>
           )}
           <Button
@@ -183,7 +195,7 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
             size="icon"
             onClick={logout}
             className={cn(
-              "text-slate-400 hover:text-red-400 hover:bg-slate-800",
+              "text-[color:var(--text-faint)] hover:bg-red-50 hover:text-red-600",
               !collapsed && "ml-auto"
             )}
             title="退出登录"
@@ -195,4 +207,3 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -55,6 +55,20 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export default function EmailsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-[calc(100vh-100px)] items-center justify-center text-sm text-muted-foreground">
+          正在加载邮件页面...
+        </div>
+      }
+    >
+      <EmailsPageContent />
+    </Suspense>
+  );
+}
+
+function EmailsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const initialAccount = searchParams.get("account");
@@ -372,9 +386,9 @@ export default function EmailsPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-100px)] md:h-[calc(100vh-100px)] flex flex-col space-y-2 md:space-y-4 px-0 md:px-4">
+    <div className="page-enter flex h-[calc(100vh-100px)] flex-col space-y-2 px-0 md:h-[calc(100vh-100px)] md:space-y-4 md:px-4">
       {/* Top Bar: Account Selection & Filters */}
-      <div className="flex flex-col gap-2 bg-white p-3 md:p-4 rounded-lg shadow-sm border">
+      <div className="panel-surface flex flex-col gap-2 p-3 md:p-4">
         {/* 第一行：账户显示（点击复制） */}
         <div className="flex items-center gap-2">
             {selectedAccount ? (
@@ -525,7 +539,7 @@ export default function EmailsPage() {
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col min-h-0 bg-white rounded-lg shadow-sm border overflow-hidden mb-2 md:mb-4">
+      <div className="panel-surface mb-2 flex min-h-0 flex-1 flex-col overflow-hidden md:mb-4">
         {isEmailsLoading && !emailsData ? (
             <div className="p-8 text-center text-muted-foreground">加载邮件中...</div>
         ) : filteredEmails.length === 0 ? (
@@ -661,7 +675,7 @@ export default function EmailsPage() {
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-center gap-2.5 flex-1 min-w-0">
                                             <Avatar className="h-10 w-10 shrink-0">
-                                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-semibold">
+                                                <AvatarFallback className="bg-gradient-to-br from-blue-500 to-cyan-500 text-white text-sm font-semibold">
                                                     {email.sender_initial}
                                                 </AvatarFallback>
                                             </Avatar>
@@ -749,7 +763,7 @@ export default function EmailsPage() {
       </div>
 
       {emailsData && emailsData.total_emails > 0 && (
-        <div className="flex items-center justify-between gap-2 bg-white p-2 rounded-lg shadow-sm border shrink-0 text-xs md:text-sm">
+        <div className="panel-surface flex shrink-0 items-center justify-between gap-2 p-2 text-xs md:text-sm">
             {/* 左侧：总计 + 每页 */}
             <div className="flex items-center gap-2">
                 <span className="text-muted-foreground whitespace-nowrap">

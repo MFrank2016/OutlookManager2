@@ -66,9 +66,13 @@ export default function LoginPage() {
       
       toast.success("登录成功");
       router.push("/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      const msg = error.response?.data?.detail || "登录失败，请检查您的凭据。";
+      const msg =
+        error && typeof error === "object" && "response" in error
+          ? ((error as { response?: { data?: { detail?: string } } }).response?.data?.detail ??
+            "登录失败，请检查您的凭据。")
+          : "登录失败，请检查您的凭据。";
       toast.error(msg);
     } finally {
       setIsLoading(false);
@@ -76,10 +80,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
-      <Card className="w-[350px] shadow-lg">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 page-enter">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-20 top-[-120px] h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--brand)_40%,transparent),transparent_68%)] blur-2xl" />
+        <div className="absolute -right-16 bottom-[-160px] h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--accent)_35%,transparent),transparent_70%)] blur-2xl" />
+      </div>
+
+      <Card className="interactive-lift w-full max-w-[380px] border-border/80 bg-[color:var(--surface-1)] py-0 shadow-[0_20px_48px_rgba(5,8,20,0.55)] backdrop-blur-xl">
         <CardHeader>
-          <CardTitle className="text-2xl text-center">Outlook Manager</CardTitle>
+          <div className="mx-auto mb-1 flex h-10 w-10 items-center justify-center rounded-full border border-border/80 bg-[color:var(--surface-2)]">
+            <span className="h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_12px_color-mix(in_oklch,var(--brand)_70%,transparent)]" />
+          </div>
+          <CardTitle className="text-center text-2xl tracking-wide">Outlook Manager</CardTitle>
+          <p className="text-center text-sm text-muted-foreground">控制台登录</p>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -110,7 +123,11 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full bg-primary text-[color:var(--primary-foreground)] transition-transform duration-200 hover:translate-y-[-1px] hover:bg-primary/90"
+                disabled={isLoading}
+              >
                 {isLoading ? "登录中..." : "登录"}
               </Button>
             </form>
@@ -120,4 +137,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

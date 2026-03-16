@@ -15,7 +15,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <body className="font-sans">
+      <body className="theme-console font-sans min-h-screen selection:bg-primary/35 selection:text-foreground">
         <QueryProvider>
           {children}
           <Toaster position="top-right" />
