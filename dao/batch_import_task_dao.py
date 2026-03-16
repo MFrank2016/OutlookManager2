@@ -162,14 +162,21 @@ class BatchImportTaskItemDAO(BaseDAO):
         """
         placeholder = self._get_param_placeholder()
         try:
+            if not items:
+                return True
+
             with get_db_connection() as conn:
                 cursor = conn.cursor()
-                for item in items:
-                    cursor.execute(f"""
-                        INSERT INTO batch_import_task_items 
-                        (task_id, email, refresh_token, client_id)
-                        VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
-                    """, (task_id, item['email'], item['refresh_token'], item['client_id']))
+                insert_sql = f"""
+                    INSERT INTO batch_import_task_items 
+                    (task_id, email, refresh_token, client_id)
+                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder})
+                """
+                insert_values = [
+                    (task_id, item['email'], item['refresh_token'], item['client_id'])
+                    for item in items
+                ]
+                cursor.executemany(insert_sql, insert_values)
                 conn.commit()
                 logger.info(f"Added {len(items)} items to batch import task: {task_id}")
                 return True
@@ -241,4 +248,3 @@ class BatchImportTaskItemDAO(BaseDAO):
         except Exception as e:
             logger.error(f"Error updating batch import task item: {e}")
             return False
-

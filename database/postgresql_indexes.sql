@@ -11,11 +11,13 @@ CREATE INDEX IF NOT EXISTS idx_accounts_refresh_status ON accounts(refresh_statu
 CREATE INDEX IF NOT EXISTS idx_accounts_api_method ON accounts(api_method);
 CREATE INDEX IF NOT EXISTS idx_accounts_created_at_id ON accounts(created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_accounts_refresh_status_created_at_id ON accounts(refresh_status, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_accounts_refresh_status_last_refresh_time ON accounts(refresh_status, last_refresh_time);
 
 -- users 表索引
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_created_at_id ON users(created_at DESC, id DESC);
 
 -- system_config 表索引
 CREATE INDEX IF NOT EXISTS idx_config_key ON system_config(key);
@@ -37,6 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_share_tokens_account ON share_tokens(email_accoun
 CREATE INDEX IF NOT EXISTS idx_share_tokens_is_active ON share_tokens(is_active);
 CREATE INDEX IF NOT EXISTS idx_share_tokens_created_at_id ON share_tokens(created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_share_tokens_account_created_at_id ON share_tokens(email_account_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_share_tokens_active_created_at_id ON share_tokens(is_active, created_at DESC, id DESC);
 
 -- batch_import_tasks 表索引
 CREATE INDEX IF NOT EXISTS idx_batch_import_tasks_task_id ON batch_import_tasks(task_id);

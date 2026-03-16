@@ -6,9 +6,12 @@
 """
 
 import json
+import os
 import sqlite3
 import zlib
 import base64
+import threading
+import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
@@ -31,6 +34,12 @@ from logger_config import logger
 
 # PostgreSQL连接池（延迟初始化）
 _postgresql_pool = None
+_postgresql_pool_lock = threading.Lock()
+
+# SQLite 完整性检查节流：避免每次连接都执行 quick_check
+_sqlite_integrity_lock = threading.Lock()
+_sqlite_last_integrity_check_ts = 0.0
+SQLITE_INTEGRITY_CHECK_INTERVAL_SECONDS = int(os.getenv("SQLITE_INTEGRITY_CHECK_INTERVAL_SECONDS", "300"))
 
 
 def _extract_scalar_value(row: Any) -> Any:
@@ -139,6 +148,73 @@ def _get_postgresql_connection():
         raise
 
 
+def _get_postgresql_pool():
+    """
+    获取 PostgreSQL 连接池（延迟初始化）
+
+    Returns:
+        ThreadedConnectionPool
+    """
+    global _postgresql_pool
+    if _postgresql_pool is not None:
+        return _postgresql_pool
+
+    with _postgresql_pool_lock:
+        if _postgresql_pool is not None:
+            return _postgresql_pool
+
+        try:
+            from psycopg2.pool import ThreadedConnectionPool
+            from psycopg2.extras import RealDictCursor
+
+            min_conn = max(1, DB_POOL_SIZE)
+            max_conn = max(min_conn, DB_POOL_SIZE + DB_MAX_OVERFLOW)
+            _postgresql_pool = ThreadedConnectionPool(
+                minconn=min_conn,
+                maxconn=max_conn,
+                host=DB_HOST,
+                port=DB_PORT,
+                database=DB_NAME,
+                user=DB_USER,
+                password=DB_PASSWORD,
+                connect_timeout=DB_POOL_TIMEOUT,
+                cursor_factory=RealDictCursor,
+            )
+            logger.info(f"Initialized PostgreSQL pool: min={min_conn}, max={max_conn}")
+            return _postgresql_pool
+        except Exception as e:
+            logger.error(f"Failed to initialize PostgreSQL pool: {e}")
+            raise
+
+
+def close_database_resources() -> None:
+    """关闭数据库全局资源（当前为 PostgreSQL 连接池）"""
+    global _postgresql_pool
+    with _postgresql_pool_lock:
+        if _postgresql_pool is not None:
+            try:
+                _postgresql_pool.closeall()
+                logger.info("PostgreSQL pool closed")
+            except Exception as e:
+                logger.error(f"Failed to close PostgreSQL pool: {e}")
+            finally:
+                _postgresql_pool = None
+
+
+def _should_run_sqlite_integrity_check() -> bool:
+    """
+    判断当前连接是否需要执行 SQLite 完整性检查。
+    通过时间窗口节流，避免每次连接都执行 quick_check。
+    """
+    global _sqlite_last_integrity_check_ts
+    now = time.monotonic()
+    with _sqlite_integrity_lock:
+        if now - _sqlite_last_integrity_check_ts >= SQLITE_INTEGRITY_CHECK_INTERVAL_SECONDS:
+            _sqlite_last_integrity_check_ts = now
+            return True
+    return False
+
+
 @contextmanager
 def get_db_connection():
     """
@@ -149,10 +225,14 @@ def get_db_connection():
     包含数据库完整性检查和错误处理
     """
     if DB_TYPE == "postgresql":
-        # PostgreSQL连接
+        # PostgreSQL连接（连接池）
         conn = None
+        pool = None
         try:
-            conn = _get_postgresql_connection()
+            pool = _get_postgresql_pool()
+            conn = pool.getconn()
+            # 保持与旧行为一致：调用方按事务模式使用连接
+            conn.autocommit = False
             yield conn
             conn.commit()
         except Exception as e:
@@ -166,8 +246,8 @@ def get_db_connection():
                 logger.error(f"PG Error: {e.pgerror}")
             raise
         finally:
-            if conn:
-                conn.close()
+            if pool and conn:
+                pool.putconn(conn)
     else:
         # SQLite连接（默认）
         conn = None
@@ -176,40 +256,42 @@ def get_db_connection():
             conn = sqlite3.connect(DB_FILE, timeout=10.0)
             conn.row_factory = sqlite3.Row  # 返回字典式结果
             
-            # 启用外键约束
+            # SQLite 连接级性能与一致性参数
             conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("PRAGMA journal_mode = WAL")
+            conn.execute("PRAGMA synchronous = NORMAL")
+            conn.execute("PRAGMA temp_store = MEMORY")
+            conn.execute("PRAGMA cache_size = -64000")
             
-            # 快速完整性检查（仅在连接时检查一次，避免每次查询都检查）
-            # 注意：完整检查可能很慢，所以只在连接时做快速检查
-            try:
-                cursor = conn.cursor()
-                cursor.execute("PRAGMA quick_check")
-                result = cursor.fetchone()
-                if result and result[0] != "ok":
-                    logger.error(f"Database quick check failed: {result[0]}")
-                    raise sqlite3.DatabaseError(f"Database integrity check failed: {result[0]}")
-            except sqlite3.DatabaseError as e:
-                logger.error(f"Database integrity error: {e}")
-                if conn:
-                    try:
-                        conn.close()
-                    except (sqlite3.ProgrammingError, sqlite3.OperationalError):
-                        # 连接已关闭，忽略
-                        pass
-                raise
-            except Exception as e:
-                # 如果 quick_check 不可用，尝试 integrity_check（可能较慢）
-                logger.warning(f"Quick check failed, trying integrity_check: {e}")
+            # 完整性检查节流：避免每次连接都执行
+            if _should_run_sqlite_integrity_check():
                 try:
                     cursor = conn.cursor()
-                    cursor.execute("PRAGMA integrity_check(1)")
+                    cursor.execute("PRAGMA quick_check")
                     result = cursor.fetchone()
                     if result and result[0] != "ok":
                         logger.error(f"Database integrity check failed: {result[0]}")
                         raise sqlite3.DatabaseError(f"Database integrity check failed: {result[0]}")
-                except Exception:
-                    # 如果检查也失败，记录警告但继续（可能是旧版本SQLite）
-                    logger.warning("Could not perform database integrity check")
+                except sqlite3.DatabaseError as e:
+                    logger.error(f"Database integrity error: {e}")
+                    if conn:
+                        try:
+                            conn.close()
+                        except (sqlite3.ProgrammingError, sqlite3.OperationalError):
+                            pass
+                    raise
+                except Exception as e:
+                    # quick_check 不可用时降级到轻量 integrity_check
+                    logger.warning(f"Quick check failed, trying integrity_check: {e}")
+                    try:
+                        cursor = conn.cursor()
+                        cursor.execute("PRAGMA integrity_check(1)")
+                        result = cursor.fetchone()
+                        if result and result[0] != "ok":
+                            logger.error(f"Database integrity check failed: {result[0]}")
+                            raise sqlite3.DatabaseError(f"Database integrity check failed: {result[0]}")
+                    except Exception:
+                        logger.warning("Could not perform database integrity check")
             
             yield conn
             conn.commit()
@@ -583,8 +665,10 @@ def init_database() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_created_at_id ON accounts(created_at DESC, id DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_refresh_status_created_at_id ON accounts(refresh_status, created_at DESC, id DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_accounts_refresh_status_last_refresh_time ON accounts(refresh_status, last_refresh_time)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_created_at_id ON users(created_at DESC, id DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_config_key ON system_config(key)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_account ON emails_cache(email_account)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_date ON emails_cache(date)")
@@ -595,6 +679,8 @@ def init_database() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_from_email ON emails_cache(from_email)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_subject ON emails_cache(subject)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_account_folder ON emails_cache(email_account, folder)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_account_date ON emails_cache(email_account, date DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_emails_cache_account_folder_date ON emails_cache(email_account, folder, date DESC)")
         
         # 性能优化索引 - email_details_cache
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_email_details_cache_message ON email_details_cache(message_id)")
@@ -632,6 +718,7 @@ def init_database() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_account ON share_tokens(email_account_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_created_at_id ON share_tokens(created_at DESC, id DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_account_created_at_id ON share_tokens(email_account_id, created_at DESC, id DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_active_created_at_id ON share_tokens(is_active, created_at DESC, id DESC)")
         
         # 创建批量导入任务表
         cursor.execute("""
@@ -809,6 +896,7 @@ def get_accounts_by_filters(
     tag_search: Optional[str] = None,
     include_tags: Optional[List[str]] = None,
     exclude_tags: Optional[List[str]] = None,
+    allowed_emails: Optional[List[str]] = None,
     refresh_status: Optional[str] = None,
     time_filter: Optional[str] = None,
     after_date: Optional[str] = None,
@@ -816,7 +904,7 @@ def get_accounts_by_filters(
     refresh_end_date: Optional[str] = None
 ) -> Tuple[List[Dict[str, Any]], int]:
     return _get_account_dao().get_by_filters(
-        page, page_size, email_search, tag_search, include_tags, exclude_tags,
+        page, page_size, email_search, tag_search, include_tags, exclude_tags, allowed_emails,
         refresh_status, time_filter, after_date, refresh_start_date, refresh_end_date
     )
 

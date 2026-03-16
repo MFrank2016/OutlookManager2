@@ -5,6 +5,7 @@ EmailCacheDAO - 邮件列表缓存表数据访问对象
 from typing import Any, Dict, List, Optional, Tuple
 
 from .base_dao import BaseDAO, get_db_connection
+from config import DB_TYPE
 from logger_config import logger
 
 
@@ -30,7 +31,31 @@ class EmailCacheDAO(BaseDAO):
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
-                
+
+                if not emails:
+                    return True
+
+                placeholder = self._get_param_placeholder()
+                upsert_sql = f"""
+                    INSERT INTO emails_cache 
+                    (email_account, message_id, folder, subject, from_email, date, 
+                     is_read, has_attachments, sender_initial, verification_code, body_preview, cache_size, created_at)
+                    VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, CURRENT_TIMESTAMP)
+                    ON CONFLICT(email_account, message_id) DO UPDATE SET
+                        folder = excluded.folder,
+                        subject = excluded.subject,
+                        from_email = excluded.from_email,
+                        date = excluded.date,
+                        is_read = excluded.is_read,
+                        has_attachments = excluded.has_attachments,
+                        sender_initial = excluded.sender_initial,
+                        verification_code = excluded.verification_code,
+                        body_preview = excluded.body_preview,
+                        cache_size = excluded.cache_size,
+                        created_at = excluded.created_at
+                """
+
+                values = []
                 for email in emails:
                     # 计算缓存大小（估算）
                     cache_size = (
@@ -38,32 +63,12 @@ class EmailCacheDAO(BaseDAO):
                         len(email.get('from_email') or '') +
                         len(email.get('verification_code') or '')
                     )
-                    
-                    placeholder = self._get_param_placeholder()
-                    
+
                     # 根据数据库类型转换布尔值
-                    from database import DB_TYPE
                     is_read_value = bool(email.get('is_read')) if DB_TYPE == "postgresql" else (1 if email.get('is_read') else 0)
                     has_attachments_value = bool(email.get('has_attachments')) if DB_TYPE == "postgresql" else (1 if email.get('has_attachments') else 0)
-                    
-                    cursor.execute(f"""
-                        INSERT INTO emails_cache 
-                        (email_account, message_id, folder, subject, from_email, date, 
-                         is_read, has_attachments, sender_initial, verification_code, body_preview, cache_size, created_at)
-                        VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder}, CURRENT_TIMESTAMP)
-                        ON CONFLICT(email_account, message_id) DO UPDATE SET
-                            folder = excluded.folder,
-                            subject = excluded.subject,
-                            from_email = excluded.from_email,
-                            date = excluded.date,
-                            is_read = excluded.is_read,
-                            has_attachments = excluded.has_attachments,
-                            sender_initial = excluded.sender_initial,
-                            verification_code = excluded.verification_code,
-                            body_preview = excluded.body_preview,
-                            cache_size = excluded.cache_size,
-                            created_at = excluded.created_at
-                    """, (
+
+                    values.append((
                         email_account,
                         email.get('message_id'),
                         email.get('folder'),
@@ -77,6 +82,8 @@ class EmailCacheDAO(BaseDAO):
                         email.get('body_preview'),
                         cache_size
                     ))
+
+                cursor.executemany(upsert_sql, values)
                 
                 conn.commit()
                 logger.info(f"Cached {len(emails)} emails for account {email_account}")
@@ -91,8 +98,8 @@ class EmailCacheDAO(BaseDAO):
                     logger.info("Cache usage high, triggering LRU cleanup")
                     cleanup_result = detail_dao.cleanup_lru_cache()
                     logger.info(f"LRU cleanup completed: {cleanup_result}")
-            except ImportError:
-                pass  # 如果导入失败，跳过清理
+            except Exception as cleanup_error:
+                logger.warning(f"Skip LRU cleanup due to error: {cleanup_error}")
             
             return True
         except Exception as e:
@@ -271,4 +278,3 @@ class EmailCacheDAO(BaseDAO):
         
         where_clause = self._build_where_clause(conditions, params)
         return self.count(where_clause, params)
-

@@ -43,6 +43,7 @@ interface AccountsTableProps {
 
 export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAccounts = [], onSelectionChange }: AccountsTableProps) {
   const router = useRouter();
+  const [expandedMobileTags, setExpandedMobileTags] = useState<Record<string, boolean>>({});
   const [tagDialogState, setTagDialogState] = useState<{ open: boolean; email: string | null; tags: string[] }>({
     open: false,
     email: null,
@@ -95,6 +96,9 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
     return colors[Math.abs(hash) % colors.length];
   };
 
+  const desktopTagLimit = 6;
+  const mobileTagLimit = 4;
+
   if (isLoading) {
     return <div className="p-4 text-center">加载账户中...</div>;
   }
@@ -107,7 +111,13 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
     <>
       {/* 移动端：卡片式设计 */}
       <div className="md:hidden grid gap-4 px-4">
-        {accounts.map((account) => (
+        {accounts.map((account) => {
+          const tags = account.tags || [];
+          const isExpanded = !!expandedMobileTags[account.email_id];
+          const visibleTags = isExpanded ? tags : tags.slice(0, mobileTagLimit);
+          const hiddenCount = tags.length - visibleTags.length;
+
+          return (
           <Card key={account.email_id} className="p-4 hover:shadow-md transition-shadow">
             <div className="flex items-start gap-3">
               <Checkbox
@@ -132,16 +142,41 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                 </div>
                 
                 <div className="mb-2">
-                  {account.tags && account.tags.length > 0 ? (
+                  {tags.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
-                      {account.tags.map(tag => (
-                        <Badge key={tag} variant="secondary" className={cn("text-xs font-normal border-0", getTagColor(tag))}>
+                      {visibleTags.map(tag => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          title={tag}
+                          className={cn("max-w-[180px] text-xs font-normal border-0 truncate", getTagColor(tag))}
+                        >
                           {tag}
                         </Badge>
                       ))}
+                      {hiddenCount > 0 && (
+                        <Badge variant="secondary" className="text-xs font-normal border border-dashed bg-slate-100 text-slate-700">
+                          +{hiddenCount}
+                        </Badge>
+                      )}
                     </div>
                   ) : (
                     <span className="text-xs text-gray-400 italic">无标签</span>
+                  )}
+                  {tags.length > mobileTagLimit && (
+                    <button
+                      type="button"
+                      className="mt-2 text-xs text-blue-600 hover:text-blue-700"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExpandedMobileTags((prev) => ({
+                          ...prev,
+                          [account.email_id]: !isExpanded,
+                        }));
+                      }}
+                    >
+                      {isExpanded ? "收起标签" : `展开全部标签 (${tags.length})`}
+                    </button>
                   )}
                 </div>
 
@@ -246,7 +281,8 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
               </div>
             </div>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {/* 桌面端：表格设计 */}
@@ -263,7 +299,7 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
               </TableHead>
               <TableHead className="w-[50px] hidden sm:table-cell"></TableHead>
               <TableHead>账户</TableHead>
-              <TableHead className="hidden md:table-cell">标签</TableHead>
+              <TableHead className="hidden md:table-cell w-[320px] min-w-[280px]">标签</TableHead>
               <TableHead className="hidden lg:table-cell">状态</TableHead>
               <TableHead className="hidden lg:table-cell">刷新状态</TableHead>
               <TableHead className="text-right">操作</TableHead>
@@ -336,13 +372,29 @@ export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAcc
                   </div>
                 </TableCell>
                 <TableCell className="hidden md:table-cell">
-                  <div className="flex flex-wrap gap-1.5">
-                    {account.tags?.map(tag => (
-                      <Badge key={tag} variant="secondary" className={cn("text-xs font-normal border-0", getTagColor(tag))}>
-                        {tag}
-                      </Badge>
-                    ))}
-                    {(!account.tags || account.tags.length === 0) && <span className="text-xs text-gray-400 italic">无标签</span>}
+                  <div className="max-w-[320px]">
+                    <div className="flex flex-wrap gap-1.5">
+                      {(account.tags || []).slice(0, desktopTagLimit).map(tag => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          title={tag}
+                          className={cn("max-w-[130px] text-xs font-normal border-0 truncate", getTagColor(tag))}
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                      {(account.tags?.length || 0) > desktopTagLimit && (
+                        <Badge
+                          variant="secondary"
+                          title={(account.tags || []).slice(desktopTagLimit).join(", ")}
+                          className="text-xs font-normal border border-dashed bg-slate-100 text-slate-700"
+                        >
+                          +{(account.tags?.length || 0) - desktopTagLimit}
+                        </Badge>
+                      )}
+                      {(!account.tags || account.tags.length === 0) && <span className="text-xs text-gray-400 italic">无标签</span>}
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell className="hidden lg:table-cell">

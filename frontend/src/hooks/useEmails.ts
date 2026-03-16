@@ -46,36 +46,12 @@ export function useEmails(params: EmailsParams) {
         queryFn: async () => {
             const requestKey = queryKey.join('-');
             
-            console.log('[useEmails] queryFn 被调用', {
-                timestamp: new Date().toISOString(),
-                account: params.account,
-                queryKey,
-                requestKey,
-                isPending: pendingRequests.has(requestKey),
-                params: {
-                    page: params.page || 1,
-                    page_size: params.page_size || 20,
-                    folder: params.folder || "all",
-                    search: params.search,
-                    searchType: params.searchType,
-                    sortBy: params.sortBy,
-                    sortOrder: params.sortOrder,
-                    forceRefresh: params.forceRefresh
-                },
-                stackTrace: new Error().stack
-            });
-            
             // 如果已有相同的请求正在进行，等待它完成
             if (pendingRequests.has(requestKey)) {
-                console.log('[useEmails] 检测到重复请求，等待之前的请求完成', {
-                    timestamp: new Date().toISOString(),
-                    requestKey
-                });
                 return pendingRequests.get(requestKey)!;
             }
 
             if (!params.account) {
-                console.log('[useEmails] 账户为空，返回 null');
                 return null;
             }
             
@@ -107,29 +83,11 @@ export function useEmails(params: EmailsParams) {
             if (queryParams.folder && typeof queryParams.folder === 'string') {
                 queryParams.folder = queryParams.folder.toLowerCase();
             }
-
-            console.log('[useEmails] 发送 API 请求', {
-                timestamp: new Date().toISOString(),
-                account: params.account,
-                url: `/emails/${params.account}`,
-                queryParams
-            });
-
-            const startTime = Date.now();
             
             // 创建并存储请求 Promise
             const requestPromise = api.get<EmailListResponse>(`/emails/${params.account}`, {
                 params: queryParams
             }).then(response => {
-                const duration = Date.now() - startTime;
-                console.log('[useEmails] API 请求完成', {
-                    timestamp: new Date().toISOString(),
-                    account: params.account,
-                    requestKey,
-                    duration: `${duration}ms`,
-                    emailCount: response.data?.emails?.length || 0
-                });
-                
                 // 请求完成后移除
                 pendingRequests.delete(requestKey);
                 return response.data;
@@ -146,7 +104,7 @@ export function useEmails(params: EmailsParams) {
         },
         enabled: !!params.account,
         // 防止重复请求的配置
-        staleTime: 0, // 数据立即过期，允许手动刷新
+        staleTime: 15 * 1000,
         refetchOnMount: false, // 挂载时不自动重新请求
         refetchOnWindowFocus: false, // 窗口聚焦时不重新请求
         refetchOnReconnect: false, // 重新连接时不重新请求

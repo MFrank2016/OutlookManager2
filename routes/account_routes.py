@@ -156,6 +156,9 @@ async def get_accounts(
         logger.info(f"  refresh_start_date={refresh_start_date}")
         logger.info(f"  refresh_end_date={refresh_end_date}")
         
+        # 根据权限在 SQL 层收敛数据范围，避免先查全量再在 Python 过滤
+        accessible_accounts = auth.get_accessible_accounts(user)
+
         # 使用新的筛选函数（使用API请求专用线程池，避免被后台任务阻塞）
         import asyncio
         from main import api_requests_executor
@@ -169,23 +172,17 @@ async def get_accounts(
             tag_search,
             include_tag_list,
             exclude_tag_list,
+            accessible_accounts,
             refresh_status,
             time_filter,
             after_date,
             refresh_start_date,
             refresh_end_date,
         )
-        
-        # 根据用户权限过滤账户
-        accessible_accounts = auth.get_accessible_accounts(user)
-        if accessible_accounts is not None:  # 普通用户，只能看到绑定的账户
-            accounts_data = [
-                acc for acc in accounts_data 
-                if acc['email'] in accessible_accounts
-            ]
-            total_accounts = len(accounts_data)
-            logger.info(f"[API] 普通用户过滤后: 返回={len(accounts_data)}条")
-        else:  # 管理员，可以看到所有账户
+
+        if accessible_accounts is not None:
+            logger.info(f"[API] 普通用户查询: 总数={total_accounts}, 返回={len(accounts_data)}条")
+        else:
             logger.info(f"[API] 管理员查询: 总数={total_accounts}, 返回={len(accounts_data)}条")
         
         # 转换为AccountInfo对象
@@ -948,4 +945,3 @@ async def get_batch_import_task_progress(
     except Exception as e:
         logger.error(f"Error getting batch import task progress: {e}")
         raise HTTPException(status_code=500, detail="Failed to get task progress")
-

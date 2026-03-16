@@ -18,6 +18,7 @@ from functools import partial
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -51,6 +52,20 @@ from routes import main_router
 
 # 初始化Jinja2模板
 templates = Jinja2Templates(directory="static/templates")
+
+
+class CacheControlStaticFiles(StaticFiles):
+    """为静态资源增加缓存头，降低重复加载耗时。"""
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if response.status_code == 200:
+            immutable_exts = (".js", ".css", ".woff", ".woff2", ".png", ".jpg", ".jpeg", ".svg")
+            if path.endswith(immutable_exts):
+                response.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
+            else:
+                response.headers.setdefault("Cache-Control", "public, max-age=300")
+        return response
 
 
 def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
@@ -612,6 +627,12 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.error(f"Error shutting down thread pools: {e}")
 
+    # 关闭数据库全局资源（如 PostgreSQL 连接池）
+    try:
+        db.close_database_resources()
+    except Exception as e:
+        logger.error(f"Error closing database resources: {e}")
+
     # 关闭IMAP连接池（使用线程，防止阻塞）
     logger.info("Closing IMAP connection pool...")
     try:
@@ -644,41 +665,10 @@ app = FastAPI(
 # 添加请求日志中间件
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    """记录所有HTTP请求和响应，包括入参和出参"""
-    import json as json_lib
-    
+    """记录HTTP请求与耗时（轻量模式，避免读取完整请求/响应体）"""
     request_start_time = time.perf_counter()
     client_host = request.client.host if request.client else 'unknown'
-    
-    # 读取请求体（如果存在）
-    request_body = None
-    if request.method in ("POST", "PUT", "PATCH"):
-        content_type = request.headers.get("content-type", "").lower()
-        if "application/json" in content_type:
-            try:
-                body_bytes = await request.body()
-                if body_bytes:
-                    request_body = body_bytes.decode("utf-8")
-                    # 将body重新放回request，以便后续处理
-                    async def receive():
-                        return {"type": "http.request", "body": body_bytes}
-                    request._receive = receive
-            except Exception as e:
-                logger.warning(f"Failed to read request body: {e}")
-    
-    # 记录请求信息
-    try:
-        request_body_str = None
-        if request_body:
-            try:
-                # 尝试格式化为JSON（美化）
-                body_json = json_lib.loads(request_body)
-                request_body_str = json_lib.dumps(body_json, ensure_ascii=False, indent=2)
-            except:
-                request_body_str = request_body
-    except Exception:
-        pass
-    
+
     # 构建请求日志
     log_parts = [
         f"→ {request.method} {request.url.path}",
@@ -692,71 +682,31 @@ async def log_requests(request: Request, call_next):
     # 添加路径参数
     if request.path_params:
         log_parts.append(f"Path: {request.path_params}")
-    
-    # 添加请求体
-    if request_body_str:
-        truncated_body = truncate_text(request_body_str, 1000)
-        log_parts.append(f"Body: {truncated_body}")
-    
+
     logger.info(" | ".join(log_parts))
     
     try:
         # 执行请求处理
         response = await call_next(request)
-        
+
+        # 静态资源缓存头：降低前端重复加载耗时
+        if request.url.path.startswith("/static/") and "cache-control" not in response.headers:
+            response.headers["Cache-Control"] = "public, max-age=86400"
+        elif request.url.path == "/favicon.ico" and "cache-control" not in response.headers:
+            response.headers["Cache-Control"] = "public, max-age=86400"
+
         # 计算处理时间
         elapsed_time = time.perf_counter() - request_start_time
-        
-        # 尝试读取响应体（仅对JSON响应）
-        response_body_str = None
-        try:
-            # 检查响应类型
-            content_type = response.headers.get("content-type", "").lower()
-            if "application/json" in content_type and hasattr(response, 'body_iterator'):
-                # 收集响应体chunks
-                body_chunks = []
-                async for chunk in response.body_iterator:
-                    if chunk:
-                        body_chunks.append(chunk)
-                
-                if body_chunks:
-                    response_body = b''.join(body_chunks)
-                    try:
-                        response_body_decoded = response_body.decode("utf-8")
-                        if response_body_decoded:
-                            try:
-                                # 尝试格式化为JSON
-                                body_json = json_lib.loads(response_body_decoded)
-                                response_body_str = json_lib.dumps(body_json, ensure_ascii=False, indent=2)
-                            except:
-                                response_body_str = response_body_decoded
-                    except Exception:
-                        pass
-                    
-                    # 创建新的响应以返回
-                    from fastapi.responses import Response
-                    response = Response(
-                        content=response_body,
-                        status_code=response.status_code,
-                        headers=dict(response.headers),
-                        media_type=response.media_type
-                    )
-        except Exception as e:
-            logger.debug(f"Could not read response body for logging: {e}")
-        
+
         # 记录响应日志
         response_log_parts = [
             f"← {request.method} {request.url.path}",
             f"Status: {response.status_code}",
             f"Time: {elapsed_time:.3f}s",
         ]
-        
-        if response_body_str:
-            truncated_response = truncate_text(response_body_str, 1000)
-            response_log_parts.append(f"Response: {truncated_response}")
-        
+
         logger.info(" | ".join(response_log_parts))
-        
+
         return response
             
     except Exception as e:
@@ -778,8 +728,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 启用响应压缩，降低前端加载与接口传输耗时
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
 # 挂载静态文件服务
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", CacheControlStaticFiles(directory="static"), name="static")
 
 # 注册管理面板路由
 app.include_router(admin_api.router)

@@ -51,7 +51,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const batchDeleteAccounts = useBatchDeleteAccounts();
   
-  const { data, isLoading, refetch } = useAccounts({ 
+  const { data, isLoading } = useAccounts({ 
       page: queryParams.page, 
       page_size: queryParams.page_size, 
       email_search: queryParams.email_search,
@@ -63,14 +63,6 @@ export default function DashboardPage() {
   });
 
   const handleSearch = () => {
-    console.log('[账户管理] 查询按钮被点击', {
-      timestamp: new Date().toISOString(),
-      search,
-      includeTags,
-      excludeTags,
-      refreshStatus
-    });
-    
     const newParams = {
       page: 1,
       page_size: queryParams.page_size,
@@ -79,12 +71,7 @@ export default function DashboardPage() {
       exclude_tags: excludeTags,
       refresh_status: refreshStatus,
     };
-    
-    console.log('[账户管理] 更新查询参数', {
-      timestamp: new Date().toISOString(),
-      newParams
-    });
-    
+
     setQueryParams(newParams);
     setPage(1);
     // 将当前查询条件保存到全局 store，便于返回时恢复
@@ -97,14 +84,6 @@ export default function DashboardPage() {
       refreshStatus,
     });
     setShouldQuery(true);
-    
-    // 使用 setTimeout 确保状态更新后再触发 refetch
-    setTimeout(() => {
-      console.log('[账户管理] 触发 refetch', {
-        timestamp: new Date().toISOString()
-      });
-      refetch();
-    }, 0);
   };
 
   const handlePageChange = (newPage: number) => {

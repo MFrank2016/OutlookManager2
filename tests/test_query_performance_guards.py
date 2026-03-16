@@ -9,6 +9,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dao.account_dao import AccountDAO
+from dao.batch_import_task_dao import BatchImportTaskItemDAO
+from dao.email_cache_dao import EmailCacheDAO
 from dao.share_token_dao import ShareTokenDAO
 from routes import share_routes
 
@@ -55,6 +57,143 @@ def test_share_tokens_use_stable_index_friendly_order(monkeypatch: pytest.Monkey
     dao.list_tokens(page=3, page_size=50)
 
     assert captured["order_by"] == "created_at DESC, id DESC"
+
+
+def test_account_filters_can_limit_result_set_by_allowed_emails(monkeypatch: pytest.MonkeyPatch):
+    dao = AccountDAO()
+    captured = {}
+
+    def fake_find_paginated(**kwargs):
+        captured["where_clause"] = kwargs.get("where_clause")
+        captured["params"] = kwargs.get("params")
+        return [], 0
+
+    monkeypatch.setattr(dao, "find_paginated", fake_find_paginated)
+    dao.get_by_filters(
+        page=1,
+        page_size=10,
+        allowed_emails=["a@example.com", "b@example.com"],
+    )
+
+    assert "email IN" in captured["where_clause"]
+    assert "a@example.com" in captured["params"]
+    assert "b@example.com" in captured["params"]
+
+
+def test_email_cache_uses_batch_upsert_instead_of_row_by_row(monkeypatch: pytest.MonkeyPatch):
+    dao = EmailCacheDAO()
+    call_stats = {"execute_count": 0, "executemany_count": 0}
+
+    class FakeCursor:
+        rowcount = 0
+
+        def execute(self, *_args, **_kwargs):
+            call_stats["execute_count"] += 1
+
+        def executemany(self, *_args, **_kwargs):
+            call_stats["executemany_count"] += 1
+
+    class FakeConn:
+        def __init__(self):
+            self._cursor = FakeCursor()
+
+        def cursor(self):
+            return self._cursor
+
+        def commit(self):
+            return None
+
+    class FakeConnCtx:
+        def __enter__(self):
+            return FakeConn()
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr("dao.email_cache_dao.get_db_connection", lambda: FakeConnCtx())
+    monkeypatch.setattr("dao.email_cache_dao.DB_TYPE", "sqlite")
+    monkeypatch.setattr("dao.email_cache_dao.logger.info", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("dao.email_cache_dao.logger.error", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("dao.email_cache_dao.logger.warning", lambda *_args, **_kwargs: None)
+
+    ok = dao.cache_emails(
+        "perf@example.com",
+        [
+            {
+                "message_id": "m1",
+                "folder": "INBOX",
+                "subject": "s1",
+                "from_email": "a@example.com",
+                "date": "2026-01-01T00:00:00",
+                "is_read": False,
+                "has_attachments": False,
+                "sender_initial": "A",
+                "verification_code": None,
+                "body_preview": None,
+            },
+            {
+                "message_id": "m2",
+                "folder": "INBOX",
+                "subject": "s2",
+                "from_email": "b@example.com",
+                "date": "2026-01-01T00:00:00",
+                "is_read": True,
+                "has_attachments": False,
+                "sender_initial": "B",
+                "verification_code": None,
+                "body_preview": None,
+            },
+        ],
+    )
+
+    assert ok is True
+    assert call_stats["executemany_count"] >= 1
+
+
+def test_batch_import_items_use_batch_insert(monkeypatch: pytest.MonkeyPatch):
+    dao = BatchImportTaskItemDAO()
+    call_stats = {"execute_count": 0, "executemany_count": 0}
+
+    class FakeCursor:
+        rowcount = 0
+
+        def execute(self, *_args, **_kwargs):
+            call_stats["execute_count"] += 1
+
+        def executemany(self, *_args, **_kwargs):
+            call_stats["executemany_count"] += 1
+
+    class FakeConn:
+        def __init__(self):
+            self._cursor = FakeCursor()
+
+        def cursor(self):
+            return self._cursor
+
+        def commit(self):
+            return None
+
+    class FakeConnCtx:
+        def __enter__(self):
+            return FakeConn()
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr("dao.batch_import_task_dao.get_db_connection", lambda: FakeConnCtx())
+    monkeypatch.setattr("dao.batch_import_task_dao.logger.info", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("dao.batch_import_task_dao.logger.error", lambda *_args, **_kwargs: None)
+
+    ok = dao.add_items(
+        "task-1",
+        [
+            {"email": "a@example.com", "refresh_token": "r1", "client_id": "c1"},
+            {"email": "b@example.com", "refresh_token": "r2", "client_id": "c2"},
+        ],
+    )
+
+    assert ok is True
+    assert call_stats["executemany_count"] >= 1
 
 
 @pytest.mark.asyncio

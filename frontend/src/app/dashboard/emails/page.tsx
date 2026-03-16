@@ -59,11 +59,6 @@ export default function EmailsPage() {
   const router = useRouter();
   const initialAccount = searchParams.get("account");
 
-//   console.log('[EmailsPage] 组件渲染', {
-//     timestamp: new Date().toISOString(),
-//     initialAccount
-//   });
-
   const [selectedAccount, setSelectedAccount] = useState<string | null>(initialAccount);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [selectedEmailData, setSelectedEmailData] = useState<Email | null>(null);
@@ -88,6 +83,8 @@ export default function EmailsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [jumpPage, setJumpPage] = useState("");
+  const [forceRefreshOnce, setForceRefreshOnce] = useState(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   // 自动刷新配置
   const [isAutoRefreshEnabled] = useState(true);
@@ -100,14 +97,6 @@ export default function EmailsPage() {
     refetchOnReconnect: false,
     staleTime: 5 * 60 * 1000, // 5分钟内认为数据新鲜
   });
-//   console.log('[EmailsPage] 调用 useEmails', {
-//     timestamp: new Date().toISOString(),
-//     account: selectedAccount || "",
-//     search,
-//     folder,
-//     page
-//   });
-
   // 不再传递 search 和 searchType，改为客户端过滤
   const { data: emailsData, isLoading: isEmailsLoading, refetch: refetchEmails } = useEmails({
     account: selectedAccount || "",
@@ -116,8 +105,13 @@ export default function EmailsPage() {
     sortOrder: querySortOrder, // 使用查询用的排序字段
     page,
     page_size: pageSize,
-    forceRefresh: true // 邮件列表页始终从微软服务器获取最新数据
+    forceRefresh: forceRefreshOnce
   });
+  const refetchEmailsRef = useRef(refetchEmails);
+
+  useEffect(() => {
+    refetchEmailsRef.current = refetchEmails;
+  }, [refetchEmails]);
   
   // 客户端过滤邮件列表
   const filteredEmails = React.useMemo(() => {
@@ -172,10 +166,41 @@ export default function EmailsPage() {
     isLoading: isEmailsLoading,
   });
 
-  // 手动刷新
-  const handleManualRefresh = async () => {
-    await refetchEmails();
-    toast.success("邮件列表已刷新");
+  // 手动刷新：先触发一次强制刷新，再自动回落到缓存策略
+  useEffect(() => {
+    if (!isManualRefreshing || !forceRefreshOnce) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const runManualRefresh = async () => {
+      try {
+        await refetchEmailsRef.current();
+        if (!cancelled) {
+          toast.success("邮件列表已刷新");
+        }
+      } finally {
+        if (!cancelled) {
+          setForceRefreshOnce(false);
+          setIsManualRefreshing(false);
+        }
+      }
+    };
+
+    void runManualRefresh();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isManualRefreshing, forceRefreshOnce]);
+
+  const handleManualRefresh = () => {
+    if (isManualRefreshing) {
+      return;
+    }
+    setForceRefreshOnce(true);
+    setIsManualRefreshing(true);
   };
 
   const handlePageSizeChange = (newPageSize: string) => {
@@ -199,19 +224,12 @@ export default function EmailsPage() {
   // 从 URL 同步账户选择（处理浏览器前进/后退或直接修改 URL）
   useEffect(() => {
       const urlAccount = searchParams.get("account");
-      console.log('[EmailsPage] URL同步useEffect触发', {
-        timestamp: new Date().toISOString(),
-        urlAccount,
-        selectedAccount,
-        lastUpdated: lastUpdatedAccountRef.current
-      });
       
       if (urlAccount && urlAccount !== selectedAccount) {
           // 验证账户是否存在
           if (accountsData?.accounts?.some(acc => acc.email_id === urlAccount)) {
               // 只有当URL账户与ref不同时才更新（说明是外部URL变化）
               if (urlAccount !== lastUpdatedAccountRef.current) {
-                  console.log('[EmailsPage] 从URL设置账户', { urlAccount });
                   lastUpdatedAccountRef.current = urlAccount;
                   setSelectedAccount(urlAccount);
               }
@@ -222,25 +240,16 @@ export default function EmailsPage() {
 
   // Update URL when account changes (避免循环更新)
   useEffect(() => {
-      console.log('[EmailsPage] URL更新useEffect触发', {
-        timestamp: new Date().toISOString(),
-        selectedAccount,
-        lastUpdated: lastUpdatedAccountRef.current,
-        urlAccount: searchParams.get("account")
-      });
-      
       if (selectedAccount) {
           const currentAccountParam = searchParams.get("account");
           // 只有当选中的账户与URL不同，且不是由URL触发的变化时，才更新URL
           if (currentAccountParam !== selectedAccount && lastUpdatedAccountRef.current !== selectedAccount) {
-              console.log('[EmailsPage] 更新URL为选中账户', { selectedAccount });
               lastUpdatedAccountRef.current = selectedAccount;
               const params = new URLSearchParams(searchParams.toString());
               params.set("account", selectedAccount);
               router.replace(`?${params.toString()}`);
           } else if (currentAccountParam === selectedAccount && lastUpdatedAccountRef.current !== selectedAccount) {
               // URL 已经匹配，只需更新 ref
-              console.log('[EmailsPage] URL已匹配，更新ref', { selectedAccount });
               lastUpdatedAccountRef.current = selectedAccount;
           }
       }
@@ -249,15 +258,8 @@ export default function EmailsPage() {
 
   // If no account selected and accounts loaded, select first
   useEffect(() => {
-      console.log('[EmailsPage] 默认账户useEffect触发', {
-        timestamp: new Date().toISOString(),
-        selectedAccount,
-        hasAccounts: !!accountsData?.accounts?.length
-      });
-      
       if (!selectedAccount && accountsData?.accounts?.length && accountsData.accounts.length > 0) {
           const firstAccount = accountsData.accounts[0].email_id;
-          console.log('[EmailsPage] 设置第一个账户', { firstAccount });
           setSelectedAccount(firstAccount);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -513,10 +515,10 @@ export default function EmailsPage() {
                     size="sm"
                     className="h-8 px-3"
                     onClick={handleManualRefresh}
-                    disabled={isEmailsLoading}
+                    disabled={isEmailsLoading || isManualRefreshing}
                     title="刷新邮件列表"
                 >
-                    <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isEmailsLoading && "animate-spin")} />
+                    <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", (isEmailsLoading || isManualRefreshing) && "animate-spin")} />
                     <span className="text-xs md:text-sm">刷新</span>
                 </Button>
             </div>

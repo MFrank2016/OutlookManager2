@@ -132,6 +132,7 @@ class AccountDAO(BaseDAO):
         tag_search: Optional[str] = None,
         include_tags: Optional[List[str]] = None,
         exclude_tags: Optional[List[str]] = None,
+        allowed_emails: Optional[List[str]] = None,
         refresh_status: Optional[str] = None,
         time_filter: Optional[str] = None,
         after_date: Optional[str] = None,
@@ -148,6 +149,7 @@ class AccountDAO(BaseDAO):
             tag_search: 标签模糊搜索（已废弃，使用include_tags代替）
             include_tags: 必须包含的标签列表（同时包含所有指定标签）
             exclude_tags: 必须不包含的标签列表（不包含任何指定标签）
+            allowed_emails: 允许访问的邮箱列表（用于权限收敛）
             refresh_status: 刷新状态筛选 (never_refreshed, failed, success, pending, all)
             time_filter: 时间过滤器 (today, week, month, custom)
             after_date: 自定义日期（用于custom时间过滤，ISO格式）
@@ -159,9 +161,18 @@ class AccountDAO(BaseDAO):
         """
         conditions = []
         params = []
-        
+
         # 邮箱搜索
         placeholder = self._get_param_placeholder()
+
+        # 权限收敛：先在 SQL 层过滤可访问账户，避免先查全量再在 Python 层过滤
+        if allowed_emails is not None:
+            if not allowed_emails:
+                return [], 0
+            in_placeholders = ", ".join([placeholder] * len(allowed_emails))
+            conditions.append(f"email IN ({in_placeholders})")
+            params.extend(allowed_emails)
+
         if email_search:
             conditions.append(f"email LIKE {placeholder}")
             params.append(f"%{email_search}%")

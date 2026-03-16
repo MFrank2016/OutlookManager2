@@ -40,12 +40,6 @@ export function useAccounts(
   return useQuery({
     queryKey,
     queryFn: async () => {
-      console.log('[useAccounts] queryFn 被调用', {
-        timestamp: new Date().toISOString(),
-        queryKey,
-        params
-      });
-      
       const queryParams = {
         page: params.page || 1,
         page_size: params.page_size || 10,
@@ -55,23 +49,11 @@ export function useAccounts(
         exclude_tags: params.exclude_tags || undefined,
         refresh_status: params.refresh_status === "all" ? undefined : params.refresh_status,
       };
-      
-      console.log('[useAccounts] 发送 API 请求', {
-        timestamp: new Date().toISOString(),
-        url: '/accounts',
-        queryParams
-      });
-      
+
       const { data } = await api.get<AccountListResponse>("/accounts", {
         params: queryParams
       });
-      
-      console.log('[useAccounts] API 请求完成', {
-        timestamp: new Date().toISOString(),
-        accountCount: data?.accounts?.length || 0,
-        totalAccounts: data?.total_accounts || 0
-      });
-      
+
       return data;
     },
     ...options,
@@ -145,4 +127,3 @@ export function useBatchDeleteAccounts() {
       },
     });
   }
-
