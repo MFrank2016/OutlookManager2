@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import {
   LayoutDashboard,
   Mail,
@@ -138,17 +139,17 @@ export function Sidebar({ collapsed, toggleCollapsed, isMobile = false, onNaviga
             </h1>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={toggleCollapsed}
-          className={cn(
-            "text-[color:var(--text-faint)] hover:bg-[color:var(--surface-2)] hover:text-foreground",
-            collapsed ? "mx-auto" : "ml-auto"
-          )}
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
+        <div className={cn("flex items-center gap-2", collapsed ? "mx-auto" : "ml-auto")}>
+          <ThemeToggle compact />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleCollapsed}
+            className="text-[color:var(--text-faint)] hover:bg-[color:var(--surface-2)] hover:text-foreground"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
 
       {/* Nav */}

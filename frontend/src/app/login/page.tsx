@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 
 const formSchema = z.object({
   username: z.string().min(1, {
@@ -81,6 +82,7 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 page-enter">
+      <ThemeToggle compact className="absolute right-4 top-4 z-20" />
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-20 top-[-120px] h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--brand)_40%,transparent),transparent_68%)] blur-2xl" />
         <div className="absolute -right-16 bottom-[-160px] h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--accent)_35%,transparent),transparent_70%)] blur-2xl" />
