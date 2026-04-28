@@ -19,3 +19,8 @@ export function filterVerificationTestEmails<T extends EmailOption>(emails: T[],
     return haystacks.some((value) => value.toLowerCase().includes(keyword));
   });
 }
+
+export function sortVerificationTestEmails<T extends EmailOption>(emails: T[], onlyWithCode: boolean = false): T[] {
+  const next = onlyWithCode ? emails.filter((email) => !!email.verification_code) : [...emails];
+  return next.sort((left, right) => Number(!!right.verification_code) - Number(!!left.verification_code));
+}

@@ -6,7 +6,7 @@ import { useVerificationRules, useDeleteVerificationRule, useTestVerificationRul
 import { useAccounts } from "@/hooks/useAccounts";
 import { useEmails } from "@/hooks/useEmails";
 import { VerificationRuleDialog } from "./VerificationRuleDialog";
-import { filterVerificationTestEmails } from "./emailFilter";
+import { filterVerificationTestEmails, sortVerificationTestEmails } from "./emailFilter";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, Pencil, Trash2, Play, RefreshCw, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type RuleEvaluation = {
   rule_id?: number;
@@ -47,6 +48,7 @@ export function VerificationRulesTab() {
   const [testResult, setTestResult] = useState<VerificationRuleTestResult | null>(null);
   const [emailRefreshNonce, setEmailRefreshNonce] = useState(0);
   const [emailSearchInput, setEmailSearchInput] = useState("");
+  const [onlyCodeEmails, setOnlyCodeEmails] = useState(false);
 
   const rules = useMemo(() => data?.rules ?? [], [data?.rules]);
   const filteredRules = useMemo(() => {
@@ -73,11 +75,15 @@ export function VerificationRulesTab() {
   useEffect(() => {
     setSelectedMessageId("");
     setEmailSearchInput("");
+    setOnlyCodeEmails(false);
   }, [selectedAccount, emailRefreshNonce]);
 
   const filteredEmails = useMemo(
-    () => filterVerificationTestEmails(emailsData?.emails || [], emailSearchInput),
-    [emailsData?.emails, emailSearchInput]
+    () => sortVerificationTestEmails(
+      filterVerificationTestEmails(emailsData?.emails || [], emailSearchInput),
+      onlyCodeEmails
+    ),
+    [emailsData?.emails, emailSearchInput, onlyCodeEmails]
   );
 
   const selectedEmail = useMemo(
@@ -285,6 +291,14 @@ export function VerificationRulesTab() {
                 placeholder="按主题、发件人、邮件ID、验证码搜索邮件"
                 disabled={!selectedAccount}
               />
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Checkbox
+                  checked={onlyCodeEmails}
+                  onCheckedChange={(checked) => setOnlyCodeEmails(checked === true)}
+                  disabled={!selectedAccount}
+                />
+                只看含验证码邮件
+              </label>
               <Select value={selectedMessageId} onValueChange={setSelectedMessageId} disabled={!selectedAccount}>
                 <SelectTrigger><SelectValue placeholder={!selectedAccount ? "先选择测试账号" : isEmailsFetching ? "刷新邮件列表中..." : "选择指定邮件"} /></SelectTrigger>
                 <SelectContent>
