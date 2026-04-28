@@ -16,6 +16,16 @@ import random
 import string
 
 
+def _row_value(row, key: str, index: int):
+    if isinstance(row, dict):
+        return row[key]
+    return row[index]
+
+
+def _placeholder() -> str:
+    return "%s" if db.DB_TYPE == "postgresql" else "?"
+
+
 def generate_random_text(length):
     """生成随机文本"""
     return ''.join(random.choices(string.ascii_letters + string.digits + ' ', k=length))
@@ -176,17 +186,17 @@ def test_compression_ratio():
     # 查询实际存储大小
     with db.get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT body_size, body_plain, body_html 
             FROM email_details_cache 
-            WHERE email_account = ? AND message_id = ?
+            WHERE email_account = {_placeholder()} AND message_id = {_placeholder()}
         """, (test_account, 'compress-test-1'))
         row = cursor.fetchone()
         
         if row:
-            stored_size = row[0]
-            stored_plain = len(row[1]) if row[1] else 0
-            stored_html = len(row[2]) if row[2] else 0
+            stored_size = _row_value(row, "body_size", 0)
+            stored_plain = len(_row_value(row, "body_plain", 1)) if _row_value(row, "body_plain", 1) else 0
+            stored_html = len(_row_value(row, "body_html", 2)) if _row_value(row, "body_html", 2) else 0
             actual_stored_size = stored_plain + stored_html
             
             compression_ratio = (1 - actual_stored_size / original_body_size) * 100
@@ -286,4 +296,3 @@ def run_all_tests():
 if __name__ == "__main__":
     success = run_all_tests()
     sys.exit(0 if success else 1)
-

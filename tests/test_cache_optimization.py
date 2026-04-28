@@ -14,6 +14,40 @@ from datetime import datetime
 import time
 
 
+def _row_value(row, key: str, index: int):
+    if isinstance(row, dict):
+        return row[key]
+    return row[index]
+
+
+def _get_table_columns(table_name: str) -> set[str]:
+    schema = db.get_table_schema(table_name)
+    return {column["name"] for column in schema}
+
+
+def _get_index_names() -> set[str]:
+    with db.get_db_connection() as conn:
+        cursor = conn.cursor()
+        if db.DB_TYPE == "postgresql":
+            cursor.execute(
+                """
+                SELECT indexname
+                FROM pg_indexes
+                WHERE schemaname = 'public'
+                """
+            )
+            rows = cursor.fetchall()
+            return {_row_value(row, "indexname", 0) for row in rows}
+
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='index'")
+        rows = cursor.fetchall()
+        return {_row_value(row, "name", 0) for row in rows}
+
+
+def _placeholder() -> str:
+    return "%s" if db.DB_TYPE == "postgresql" else "?"
+
+
 def test_compression():
     """测试正文压缩功能"""
     print("\n=== 测试正文压缩 ===")
@@ -46,51 +80,39 @@ def test_lru_fields():
     print("\n=== 测试LRU字段 ===")
     
     # 检查数据库表是否有LRU字段
-    with db.get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        # 检查 emails_cache 表
-        cursor.execute("PRAGMA table_info(emails_cache)")
-        columns = {row[1] for row in cursor.fetchall()}
-        assert 'access_count' in columns, "emails_cache 应该有 access_count 字段"
-        assert 'last_accessed_at' in columns, "emails_cache 应该有 last_accessed_at 字段"
-        assert 'cache_size' in columns, "emails_cache 应该有 cache_size 字段"
-        print("✅ emails_cache 表有所有LRU字段: PASS")
-        
-        # 检查 email_details_cache 表
-        cursor.execute("PRAGMA table_info(email_details_cache)")
-        columns = {row[1] for row in cursor.fetchall()}
-        assert 'access_count' in columns, "email_details_cache 应该有 access_count 字段"
-        assert 'last_accessed_at' in columns, "email_details_cache 应该有 last_accessed_at 字段"
-        assert 'body_size' in columns, "email_details_cache 应该有 body_size 字段"
-        print("✅ email_details_cache 表有所有LRU字段: PASS")
+    columns = _get_table_columns("emails_cache")
+    assert 'access_count' in columns, "emails_cache 应该有 access_count 字段"
+    assert 'last_accessed_at' in columns, "emails_cache 应该有 last_accessed_at 字段"
+    assert 'cache_size' in columns, "emails_cache 应该有 cache_size 字段"
+    print("✅ emails_cache 表有所有LRU字段: PASS")
+
+    columns = _get_table_columns("email_details_cache")
+    assert 'access_count' in columns, "email_details_cache 应该有 access_count 字段"
+    assert 'last_accessed_at' in columns, "email_details_cache 应该有 last_accessed_at 字段"
+    assert 'body_size' in columns, "email_details_cache 应该有 body_size 字段"
+    print("✅ email_details_cache 表有所有LRU字段: PASS")
 
 
 def test_indexes():
     """测试性能索引"""
     print("\n=== 测试性能索引 ===")
     
-    with db.get_db_connection() as conn:
-        cursor = conn.cursor()
+    indexes = _get_index_names()
         
-        # 获取所有索引
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='index'")
-        indexes = {row[0] for row in cursor.fetchall()}
-        
-        # 检查必要的索引
-        required_indexes = [
-            'idx_emails_cache_folder',
-            'idx_emails_cache_from_email',
-            'idx_emails_cache_subject',
-            'idx_emails_cache_account_folder',
-            'idx_email_details_cache_message',
-            'idx_emails_cache_last_accessed',
-            'idx_email_details_cache_last_accessed'
-        ]
-        
-        for index_name in required_indexes:
-            assert index_name in indexes, f"缺少索引: {index_name}"
-            print(f"✅ 索引存在: {index_name}")
+    # 检查必要的索引
+    required_indexes = [
+        'idx_emails_cache_folder',
+        'idx_emails_cache_from_email',
+        'idx_emails_cache_subject',
+        'idx_emails_cache_account_folder',
+        'idx_email_details_cache_message',
+        'idx_emails_cache_last_accessed',
+        'idx_email_details_cache_last_accessed'
+    ]
+
+    for index_name in required_indexes:
+        assert index_name in indexes, f"缺少索引: {index_name}"
+        print(f"✅ 索引存在: {index_name}")
 
 
 def test_cache_size_check():
@@ -208,16 +230,16 @@ def test_access_count_update():
     # 检查访问计数
     with db.get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT access_count, last_accessed_at 
             FROM emails_cache 
-            WHERE email_account = ? AND message_id = ?
+            WHERE email_account = {_placeholder()} AND message_id = {_placeholder()}
         """, ('test@example.com', 'test-access-1'))
         row = cursor.fetchone()
         
         assert row is not None, "应该能找到测试邮件"
-        access_count = row[0]
-        last_accessed = row[1]
+        access_count = _row_value(row, "access_count", 0)
+        last_accessed = _row_value(row, "last_accessed_at", 1)
         
         assert access_count >= 3, f"访问计数应该>=3，实际为 {access_count}"
         assert last_accessed is not None, "最后访问时间应该被记录"
@@ -262,4 +284,3 @@ def run_all_tests():
 if __name__ == "__main__":
     success = run_all_tests()
     sys.exit(0 if success else 1)
-

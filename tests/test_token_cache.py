@@ -9,6 +9,8 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 # 添加项目根目录到 Python 路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -16,6 +18,14 @@ sys.path.insert(0, str(project_root))
 import database as db
 from models import AccountCredentials
 from oauth_service import get_cached_access_token, clear_cached_access_token
+
+
+def _to_datetime(value) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        return datetime.fromisoformat(value)
+    raise TypeError(f"Unsupported datetime value: {type(value).__name__}")
 
 
 def test_database_token_fields():
@@ -58,7 +68,7 @@ def test_database_token_fields():
     token_info = db.get_account_access_token(test_email)
     assert token_info is not None, "读取 token 失败"
     assert token_info['access_token'] == test_token, "Token 不匹配"
-    assert token_info['token_expires_at'] == expires_at, "过期时间不匹配"
+    assert _to_datetime(token_info['token_expires_at']).isoformat() == expires_at, "过期时间不匹配"
     print(f"✅ 成功读取 access token")
     
     # 测试清除 token（使用 None 而不是空字符串）
@@ -103,7 +113,7 @@ def test_token_expiry_logic():
     db.update_account_access_token(test_email, valid_token, expires_at)
     
     token_info = db.get_account_access_token(test_email)
-    expires_dt = datetime.fromisoformat(token_info['token_expires_at'])
+    expires_dt = _to_datetime(token_info['token_expires_at'])
     time_until_expiry = (expires_dt - datetime.now()).total_seconds()
     
     print(f"   Token: {valid_token}")
@@ -118,7 +128,7 @@ def test_token_expiry_logic():
     db.update_account_access_token(test_email, expiring_token, expires_at)
     
     token_info = db.get_account_access_token(test_email)
-    expires_dt = datetime.fromisoformat(token_info['token_expires_at'])
+    expires_dt = _to_datetime(token_info['token_expires_at'])
     time_until_expiry = (expires_dt - datetime.now()).total_seconds()
     
     print(f"   Token: {expiring_token}")
@@ -133,7 +143,7 @@ def test_token_expiry_logic():
     db.update_account_access_token(test_email, expired_token, expires_at)
     
     token_info = db.get_account_access_token(test_email)
-    expires_dt = datetime.fromisoformat(token_info['token_expires_at'])
+    expires_dt = _to_datetime(token_info['token_expires_at'])
     time_until_expiry = (expires_dt - datetime.now()).total_seconds()
     
     print(f"   Token: {expired_token}")
@@ -147,6 +157,7 @@ def test_token_expiry_logic():
     print("\n✅ 测试 2 通过: Token 过期检测逻辑正常\n")
 
 
+@pytest.mark.asyncio
 async def test_cached_token_function():
     """测试 get_cached_access_token 函数"""
     print("\n" + "=" * 60)
@@ -187,7 +198,7 @@ async def test_cached_token_function():
     print(f"   ✅ 数据库中有缓存的 token")
     print(f"   Token: {token_info['access_token'][:20]}...")
     
-    expires_dt = datetime.fromisoformat(token_info['token_expires_at'])
+    expires_dt = _to_datetime(token_info['token_expires_at'])
     time_until_expiry = (expires_dt - datetime.now()).total_seconds()
     print(f"   距离过期: {int(time_until_expiry / 60)} 分钟")
     
@@ -269,4 +280,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

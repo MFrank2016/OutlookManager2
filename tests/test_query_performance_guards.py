@@ -38,6 +38,7 @@ def test_account_tag_filters_use_jsonb_operator_on_postgres(monkeypatch: pytest.
         captured["params"] = kwargs.get("params")
         return [], 0
 
+    monkeypatch.setattr("dao.account_dao.DB_TYPE", "postgresql")
     monkeypatch.setattr(dao, "find_paginated", fake_find_paginated)
     dao.get_by_filters(include_tags=["vip"], exclude_tags=["disabled"])
 

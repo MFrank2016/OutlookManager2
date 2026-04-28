@@ -147,7 +147,7 @@ export function ExtendShareDialog({ open, onOpenChange, token, onSuccess }: Exte
         <DialogHeader>
           <DialogTitle>延期分享码</DialogTitle>
           <DialogDescription>
-            为分享码 "{token.email_account_id}" 延长有效期
+            为分享码 &quot;{token.email_account_id}&quot; 延长有效期
           </DialogDescription>
         </DialogHeader>
 
@@ -262,4 +262,3 @@ export function ExtendShareDialog({ open, onOpenChange, token, onSuccess }: Exte
     </Dialog>
   );
 }
-
