@@ -1,5 +1,17 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import { toast } from "sonner";
+
+export interface ApiValidationIssue {
+  msg?: string;
+  [key: string]: unknown;
+}
+
+export interface ApiErrorPayload {
+  detail?: string | ApiValidationIssue[] | Record<string, unknown>;
+  error_message?: string;
+}
+
+export type ApiError = AxiosError<ApiErrorPayload>;
 
 // Create Axios instance
 const api = axios.create({
@@ -26,7 +38,8 @@ api.interceptors.request.use(
 );
 
 // Helper to format error messages
-function getErrorMessage(data: any, error: any): string {
+export function extractApiErrorMessage(error: ApiError, fallback: string): string {
+  const data = error.response?.data;
   if (data?.detail) {
     if (typeof data.detail === "string") {
       return data.detail;
@@ -34,22 +47,21 @@ function getErrorMessage(data: any, error: any): string {
     if (Array.isArray(data.detail)) {
       // Handle Pydantic/FastAPI validation errors (array of objects)
       return data.detail
-        .map((err: any) => err.msg || JSON.stringify(err))
+        .map((err) => err.msg || JSON.stringify(err))
         .join(", ");
     }
     if (typeof data.detail === "object") {
       return JSON.stringify(data.detail);
     }
   }
-  return error.message || "An error occurred";
+  return data?.error_message || error.message || fallback;
 }
 
 // Response Interceptor: Handle Errors
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  (error: ApiError) => {
     const status = error.response?.status;
-    const data = error.response?.data;
 
     if (status === 401) {
       // Unauthorized - Clear token and redirect to login
@@ -68,7 +80,7 @@ api.interceptors.response.use(
       toast.error("You don't have permission to perform this action.");
     } else {
       // Generic error handling with safe message extraction
-      const message = getErrorMessage(data, error);
+      const message = extractApiErrorMessage(error, "An error occurred");
       
       // Don't show toast for 404s generally unless specific
       if (status !== 404) {

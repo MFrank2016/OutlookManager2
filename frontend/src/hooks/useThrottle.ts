@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect, useState } from "react";
+import { useRef, useCallback, useEffect, useState } from "react";
 
 /**
  * 节流回调函数 Hook
@@ -15,13 +15,17 @@ import React, { useRef, useCallback, useEffect, useState } from "react";
  * 
  * <Button onClick={() => throttledClick('value')} />
  */
-export function useThrottle<T extends (...args: any[]) => any>(
+export function useThrottle<T extends (...args: unknown[]) => void>(
   callback: T,
-  delay: number = 300,
-  deps: React.DependencyList = []
+  delay: number = 300
 ): T {
   const lastRun = useRef<number>(0);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   const throttledCallback = useCallback(
     ((...args: Parameters<T>) => {
@@ -31,7 +35,7 @@ export function useThrottle<T extends (...args: any[]) => any>(
       if (timeSinceLastRun >= delay) {
         // 可以立即执行
         lastRun.current = now;
-        callback(...args);
+        callbackRef.current(...args);
       } else {
         // 需要等待，清除之前的定时器
         if (timeoutRef.current) {
@@ -42,12 +46,12 @@ export function useThrottle<T extends (...args: any[]) => any>(
         const remainingTime = delay - timeSinceLastRun;
         timeoutRef.current = setTimeout(() => {
           lastRun.current = Date.now();
-          callback(...args);
+          callbackRef.current(...args);
           timeoutRef.current = null;
         }, remainingTime);
       }
     }) as T,
-    [callback, delay, ...deps]
+    [delay]
   );
 
   // 清理定时器
@@ -109,4 +113,3 @@ export function useThrottleValue<T>(value: T, delay: number = 300): T {
 
   return throttledValue;
 }
-

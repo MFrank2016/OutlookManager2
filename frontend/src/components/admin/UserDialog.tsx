@@ -30,7 +30,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCreateUser, useUpdateUser, useUpdateUserPassword } from "@/hooks/useAdmin";
 import { useState, useEffect } from "react";
-import { Plus, Edit } from "lucide-react";
+import { Plus } from "lucide-react";
 import { User } from "@/types";
 
 const userSchema = z.object({
@@ -86,7 +86,11 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
 
   function onSubmit(values: z.infer<typeof userSchema>) {
     if (isEdit && user) {
-      const updateData: any = {
+      const updateData: {
+        email: string | null;
+        role: User["role"];
+        is_active: boolean;
+      } = {
           email: values.email || null,
           role: values.role,
           is_active: values.is_active,
@@ -109,7 +113,7 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
           setOpen(false);
           form.reset();
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           // 错误已经在各自的 mutation 中处理了
           console.error("更新用户失败:", error);
         });
@@ -234,4 +238,3 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
     </Dialog>
   );
 }
-

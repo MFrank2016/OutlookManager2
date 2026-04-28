@@ -5,7 +5,7 @@
 """
 
 from typing import List, Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class AccountCredentials(BaseModel):
@@ -21,8 +21,8 @@ class AccountCredentials(BaseModel):
     refresh_error: Optional[str] = None
     api_method: str = "imap"  # 'graph_api' or 'imap'
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "email": "user@outlook.com",
                 "refresh_token": "0.AXoA...",
@@ -32,6 +32,7 @@ class AccountCredentials(BaseModel):
                 "refresh_status": "success",
             }
         }
+    )
 
 
 class EmailItem(BaseModel):
@@ -52,8 +53,8 @@ class EmailItem(BaseModel):
     body_plain: Optional[str] = None  # 纯文本正文（详情字段）
     body_html: Optional[str] = None  # HTML正文（详情字段）
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message_id": "INBOX-123",
                 "folder": "INBOX",
@@ -66,6 +67,7 @@ class EmailItem(BaseModel):
                 "verification_code": None,
             }
         }
+    )
 
 
 class EmailListResponse(BaseModel):
@@ -222,8 +224,8 @@ class SendEmailRequest(BaseModel):
     body_text: Optional[str] = Field(None, description="纯文本正文")
     body_html: Optional[str] = Field(None, description="HTML正文")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "to": "recipient@example.com",
                 "subject": "Test Email",
@@ -231,6 +233,7 @@ class SendEmailRequest(BaseModel):
                 "body_html": "<p>This is a test email</p>"
             }
         }
+    )
 
 
 class SendEmailResponse(BaseModel):
@@ -274,8 +277,8 @@ class UserCreateRequest(BaseModel):
     permissions: Optional[List[str]] = Field(default_factory=list, description="权限列表")
     is_active: bool = Field(True, description="账户是否启用")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "username": "testuser",
                 "password": "password123",
@@ -286,6 +289,7 @@ class UserCreateRequest(BaseModel):
                 "is_active": True
             }
         }
+    )
 
 
 class UserUpdateRequest(BaseModel):
@@ -297,8 +301,8 @@ class UserUpdateRequest(BaseModel):
     permissions: Optional[List[str]] = Field(None, description="权限列表")
     is_active: Optional[bool] = Field(None, description="是否激活")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "email": "newemail@example.com",
                 "role": "user",
@@ -307,6 +311,7 @@ class UserUpdateRequest(BaseModel):
                 "is_active": True
             }
         }
+    )
 
 
 class UserInfo(BaseModel):
@@ -322,8 +327,8 @@ class UserInfo(BaseModel):
     created_at: str
     last_login: Optional[str] = None
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": 1,
                 "username": "testuser",
@@ -336,6 +341,7 @@ class UserInfo(BaseModel):
                 "last_login": "2024-01-02T10:30:00"
             }
         }
+    )
 
 
 class UserListResponse(BaseModel):
@@ -353,12 +359,13 @@ class PermissionsUpdateRequest(BaseModel):
     
     permissions: List[str] = Field(..., description="权限列表")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "permissions": ["view_emails", "send_emails", "delete_emails"]
             }
         }
+    )
 
 
 class BindAccountsRequest(BaseModel):
@@ -366,12 +373,13 @@ class BindAccountsRequest(BaseModel):
     
     account_emails: List[str] = Field(..., description="邮箱账户列表")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "account_emails": ["user1@outlook.com", "user2@outlook.com"]
             }
         }
+    )
 
 
 class RoleUpdateRequest(BaseModel):
@@ -379,12 +387,13 @@ class RoleUpdateRequest(BaseModel):
     
     role: str = Field(..., description="角色 (admin/user)")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "role": "admin"
             }
         }
+    )
 
 
 class UserResponse(BaseModel):
@@ -399,12 +408,13 @@ class PasswordUpdateRequest(BaseModel):
     
     new_password: str = Field(..., min_length=6, description="新密码（至少6位）")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "new_password": "newpassword123"
             }
         }
+    )
 
 
 # ============================================================================
@@ -497,4 +507,3 @@ class ExtendShareTokenRequest(BaseModel):
     extend_hours: Optional[int] = Field(None, description="延长小时数")
     extend_days: Optional[int] = Field(None, description="延长天数")
     extend_to_time: Optional[str] = Field(None, description="延长至指定时间 (ISO8601)")
-

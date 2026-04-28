@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 /**
  * 防抖 Hook
@@ -19,36 +19,27 @@ import { useState, useEffect } from "react";
  */
 export function useDebounce<T>(value: T, delay: number = 500): [T, () => void] {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const cancel = () => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      setTimeoutId(null);
+  const cancel = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
-  };
+  }, []);
 
   useEffect(() => {
-    // 清除之前的定时器
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
+    cancel();
 
     // 设置新的定时器
-    const id = setTimeout(() => {
+    timeoutRef.current = setTimeout(() => {
       setDebouncedValue(value);
-      setTimeoutId(null);
+      timeoutRef.current = null;
     }, delay);
 
-    setTimeoutId(id);
-
     // 清理函数
-    return () => {
-      if (id) {
-        clearTimeout(id);
-      }
-    };
-  }, [value, delay]);
+    return cancel;
+  }, [value, delay, cancel]);
 
   return [debouncedValue, cancel];
 }
@@ -68,42 +59,37 @@ export function useDebounce<T>(value: T, delay: number = 500): [T, () => void] {
  * 
  * <Input onChange={(e) => debouncedSearch(e.target.value)} />
  */
-export function useDebounceCallback<T extends (...args: any[]) => any>(
+export function useDebounceCallback<T extends (...args: unknown[]) => void>(
   callback: T,
-  delay: number = 500,
-  deps: React.DependencyList = []
+  delay: number = 500
 ): [T, () => void] {
-  const [timeoutId, setTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callbackRef = useRef(callback);
 
-  const cancel = () => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      setTimeoutId(null);
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  const cancel = useCallback(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
     }
-  };
+  }, []);
 
-  const debouncedCallback = ((...args: Parameters<T>) => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
+  const debouncedCallback = useCallback((...args: Parameters<T>) => {
+    cancel();
 
-    const id = setTimeout(() => {
-      callback(...args);
-      setTimeoutId(null);
+    timeoutRef.current = setTimeout(() => {
+      callbackRef.current(...args);
+      timeoutRef.current = null;
     }, delay);
-
-    setTimeoutId(id);
-  }) as T;
+  }, [cancel, delay]) as T;
 
   // 当依赖变化时，取消当前的防抖
   useEffect(() => {
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, deps);
+    return cancel;
+  }, [cancel]);
 
   return [debouncedCallback, cancel];
 }
-

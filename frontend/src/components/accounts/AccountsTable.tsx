@@ -20,7 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, RefreshCw, Trash, Tag, Mail, CheckCircle, XCircle, Clock, Eye, Send, CheckSquare, Square, Share2 } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Trash, Tag, CheckCircle, XCircle, Clock, Eye, Send, Share2 } from "lucide-react";
 import { Account } from "@/types";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
@@ -36,12 +36,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 interface AccountsTableProps {
   accounts: Account[];
   isLoading: boolean;
-  onBatchRefresh?: (emailIds: string[]) => void;
   selectedAccounts?: string[];
   onSelectionChange?: (emailIds: string[]) => void;
 }
 
-export function AccountsTable({ accounts, isLoading, onBatchRefresh, selectedAccounts = [], onSelectionChange }: AccountsTableProps) {
+export function AccountsTable({ accounts, isLoading, selectedAccounts = [], onSelectionChange }: AccountsTableProps) {
   const router = useRouter();
   const [expandedMobileTags, setExpandedMobileTags] = useState<Record<string, boolean>>({});
   const [tagDialogState, setTagDialogState] = useState<{ open: boolean; email: string | null; tags: string[] }>({

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
-import api from "@/lib/api";
+import api, { ApiError, extractApiErrorMessage } from "@/lib/api";
 import { Account } from "@/types";
 import { toast } from "sonner";
 
@@ -70,8 +70,8 @@ export function useAddAccount() {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
       toast.success("Account added successfully");
     },
-    onError: (error: any) => {
-        toast.error(error.response?.data?.detail || "Failed to add account");
+    onError: (error: ApiError) => {
+        toast.error(extractApiErrorMessage(error, "Failed to add account"));
     }
   });
 }

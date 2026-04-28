@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, memo, useEffect } from "react";
-import { useTables, useTableData, useDeleteTableRecord } from "@/hooks/useAdmin";
+import { useTables, useTableData, useDeleteTableRecord, type TableRecord } from "@/hooks/useAdmin";
 import {
   Table,
   TableBody,
@@ -35,7 +35,6 @@ import { SqlQueryPanel } from "./SqlQueryPanel";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
@@ -134,7 +133,14 @@ function TableDataView({ tableName }: { tableName: string }) {
     
     // 构建实际查询参数（只有这些变化时才触发查询）
     const queryParams = useMemo(() => {
-      const params: any = {
+      const params: {
+        page: number;
+        page_size: number;
+        search?: string;
+        sort_by?: string;
+        sort_order?: "asc" | "desc";
+        field_search?: Record<string, string>;
+      } = {
         page,
         page_size: 20,
       };
@@ -151,7 +157,7 @@ function TableDataView({ tableName }: { tableName: string }) {
       if (Object.keys(appliedFieldSearch).length > 0) {
         // 过滤掉空值
         const filtered = Object.fromEntries(
-          Object.entries(appliedFieldSearch).filter(([_, v]) => v && v.trim())
+          Object.entries(appliedFieldSearch).filter(([, v]) => v && v.trim())
         );
         if (Object.keys(filtered).length > 0) {
           params.field_search = filtered;
@@ -165,15 +171,18 @@ function TableDataView({ tableName }: { tableName: string }) {
     const deleteRecord = useDeleteTableRecord();
 
     // Get columns from first record if available, and update stable columns
-    const currentColumns = data?.records && data.records.length > 0 ? Object.keys(data.records[0]) : [];
-    const currentColumnsKey = currentColumns.length > 0 ? currentColumns.join(',') : '';
+    const currentColumns = useMemo(
+      () => (data?.records && data.records.length > 0 ? Object.keys(data.records[0]) : []),
+      [data]
+    );
+    const currentColumnsKey = currentColumns.join(",");
     
     // 更新稳定的列信息（只在有新列时更新，避免在加载时清空）
     useEffect(() => {
       if (currentColumns.length > 0) {
-        setStableColumns(currentColumns);
+        setStableColumns((prev) => (prev.join(",") === currentColumnsKey ? prev : currentColumns));
       }
-    }, [currentColumnsKey]);
+    }, [currentColumns, currentColumnsKey]);
     
     // 使用稳定的列信息，如果当前没有数据则使用之前的列信息
     const columns = currentColumns.length > 0 ? currentColumns : stableColumns;
@@ -461,7 +470,6 @@ function TableDataView({ tableName }: { tableName: string }) {
               <TableContent 
                 columns={columns}
                 records={data.records}
-                sortState={sortState}
                 tableName={tableName}
                 onSort={handleSort}
                 getSortIcon={getSortIcon}
@@ -505,15 +513,13 @@ function TableDataView({ tableName }: { tableName: string }) {
 const TableContent = memo(function TableContent({
   columns,
   records,
-  sortState,
   tableName,
   onSort,
   getSortIcon,
   deleteRecord,
 }: {
   columns: string[];
-  records: any[];
-  sortState: SortState;
+  records: TableRecord[];
   tableName: string;
   onSort: (column: string, e?: React.MouseEvent) => void;
   getSortIcon: (column: string) => React.ReactNode;
@@ -521,13 +527,13 @@ const TableContent = memo(function TableContent({
 }) {
   const [copiedCell, setCopiedCell] = useState<string | null>(null);
 
-  const handleDelete = (record: any) => {
+  const handleDelete = (record: TableRecord) => {
     if (confirm(`确定要删除这条记录吗？\nID: ${record.id}`)) {
-      deleteRecord.mutate({ tableName, recordId: record.id });
+      deleteRecord.mutate({ tableName, recordId: Number(record.id) });
     }
   };
 
-  const handleCopy = async (value: any, cellKey: string) => {
+  const handleCopy = async (value: unknown, cellKey: string) => {
     try {
       let textToCopy: string;
       
@@ -549,7 +555,7 @@ const TableContent = memo(function TableContent({
     }
   };
 
-  const formatCellValue = (value: any): string => {
+  const formatCellValue = (value: unknown): string => {
     if (value === null || value === undefined) return "-";
     if (typeof value === "boolean") return value ? "是" : "否";
     if (typeof value === "object") return JSON.stringify(value);

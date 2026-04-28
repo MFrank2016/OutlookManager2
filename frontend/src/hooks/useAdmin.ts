@@ -1,7 +1,67 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api from "@/lib/api";
+import api, { ApiError, extractApiErrorMessage } from "@/lib/api";
 import { User, ConfigItem } from "@/types";
 import { toast } from "sonner";
+
+type TableCellValue =
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | Record<string, unknown>
+  | unknown[];
+
+export type TableRecord = Record<string, TableCellValue>;
+
+interface CreateUserPayload {
+    username: string;
+    password: string;
+    email?: string | null;
+    role: User["role"];
+    bound_accounts?: string[];
+    permissions?: string[];
+    is_active: boolean;
+}
+
+export interface UpdateUserPayload {
+    email?: string | null;
+    role?: User["role"];
+    bound_accounts?: string[] | null;
+    permissions?: string[] | null;
+    is_active?: boolean;
+}
+
+interface UpdateUserInput {
+    username: string;
+    update: UpdateUserPayload;
+}
+
+interface UpdateUserPasswordInput {
+    username: string;
+    new_password: string;
+}
+
+interface TableDataParams {
+    page?: number;
+    page_size?: number;
+    search?: string;
+    sort_by?: string;
+    sort_order?: "asc" | "desc";
+    field_search?: Record<string, string>;
+}
+
+interface TableRecordMutationInput {
+    tableName: string;
+    data: TableRecord;
+}
+
+interface TableRecordUpdateInput extends TableRecordMutationInput {
+    recordId: number;
+}
+
+const getMutationErrorMessage = (error: ApiError, fallback: string): string =>
+    extractApiErrorMessage(error, fallback);
 
 // ... existing User and Config code ...
 
@@ -33,15 +93,15 @@ export function useUsers(params: { page?: number; page_size?: number; search?: s
 export function useCreateUser() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async (data: any) => {
+        mutationFn: async (data: CreateUserPayload) => {
             return api.post("/admin/users", data);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["users"] });
             toast.success("User created successfully");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "Failed to create user");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "Failed to create user"));
         }
     });
 }
@@ -49,15 +109,15 @@ export function useCreateUser() {
 export function useUpdateUser() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async (data: { username: string; update: any }) => {
+        mutationFn: async (data: UpdateUserInput) => {
             return api.put(`/admin/users/${data.username}`, data.update);
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["users"] });
             toast.success("User updated successfully");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "Failed to update user");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "Failed to update user"));
         }
     });
 }
@@ -65,7 +125,7 @@ export function useUpdateUser() {
 export function useUpdateUserPassword() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async (data: { username: string; new_password: string }) => {
+        mutationFn: async (data: UpdateUserPasswordInput) => {
             return api.put(`/admin/users/${data.username}/password`, {
                 new_password: data.new_password
             });
@@ -74,8 +134,8 @@ export function useUpdateUserPassword() {
             queryClient.invalidateQueries({ queryKey: ["users"] });
             toast.success("密码修改成功");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "修改密码失败");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "修改密码失败"));
         }
     });
 }
@@ -90,8 +150,8 @@ export function useDeleteUser() {
             queryClient.invalidateQueries({ queryKey: ["users"] });
             toast.success("User deleted successfully");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "Failed to delete user");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "Failed to delete user"));
         }
     });
 }
@@ -121,8 +181,8 @@ export function useUpdateConfig() {
             queryClient.invalidateQueries({ queryKey: ["configs"] });
             toast.success("配置更新成功");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "更新配置失败");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "更新配置失败"));
         }
     });
 }
@@ -137,8 +197,8 @@ export function useCreateConfig() {
             queryClient.invalidateQueries({ queryKey: ["configs"] });
             toast.success("配置创建成功");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "创建配置失败");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "创建配置失败"));
         }
     });
 }
@@ -153,8 +213,8 @@ export function useDeleteConfig() {
             queryClient.invalidateQueries({ queryKey: ["configs"] });
             toast.success("配置删除成功");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "删除配置失败");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "删除配置失败"));
         }
     });
 }
@@ -185,24 +245,17 @@ interface TableDataResponse {
     page_size: number;
     total_records: number;
     total_pages: number;
-    records: any[];
+    records: TableRecord[];
 }
 
 export function useTableData(
     tableName: string, 
-    params: { 
-        page?: number; 
-        page_size?: number; 
-        search?: string;
-        sort_by?: string;
-        sort_order?: "asc" | "desc";
-        field_search?: Record<string, string>;
-    }
+    params: TableDataParams
 ) {
     return useQuery({
         queryKey: ["tableData", tableName, params],
         queryFn: async () => {
-            const apiParams: any = {
+            const apiParams: Record<string, string | number> = {
                 page: params.page || 1,
                 page_size: params.page_size || 20,
             };
@@ -221,7 +274,7 @@ export function useTableData(
 export function useCreateTableRecord() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async (data: { tableName: string; data: any }) => {
+        mutationFn: async (data: TableRecordMutationInput) => {
             return api.post(`/admin/tables/${data.tableName}`, { data: data.data });
         },
         onSuccess: (_, variables) => {
@@ -229,8 +282,8 @@ export function useCreateTableRecord() {
             queryClient.invalidateQueries({ queryKey: ["tables"] });
             toast.success("Record created successfully");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "Failed to create record");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "Failed to create record"));
         }
     });
 }
@@ -238,15 +291,15 @@ export function useCreateTableRecord() {
 export function useUpdateTableRecord() {
     const queryClient = useQueryClient();
     return useMutation({
-        mutationFn: async (data: { tableName: string; recordId: number; data: any }) => {
+        mutationFn: async (data: TableRecordUpdateInput) => {
             return api.put(`/admin/tables/${data.tableName}/${data.recordId}`, { data: data.data });
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ["tableData", variables.tableName] });
             toast.success("Record updated successfully");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "Failed to update record");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "Failed to update record"));
         }
     });
 }
@@ -263,8 +316,8 @@ export function useDeleteTableRecord() {
             queryClient.invalidateQueries({ queryKey: ["tables"] });
             toast.success("Record deleted successfully");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "Failed to delete record");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "Failed to delete record"));
         }
     });
 }
@@ -274,8 +327,8 @@ interface CacheStatistics {
     db_size_mb: number;
     max_size_mb: number;
     size_usage_percent: number;
-    emails_cache: any;
-    details_cache: any;
+    emails_cache: Record<string, unknown>;
+    details_cache: Record<string, unknown>;
     hit_rate?: number;
 }
 
@@ -299,8 +352,8 @@ export function useClearAllCache() {
             queryClient.invalidateQueries({ queryKey: ["cacheStats"] });
             toast.success("All cache cleared successfully");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "Failed to clear cache");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "Failed to clear cache"));
         }
     });
 }
@@ -315,8 +368,8 @@ export function useTriggerLruCleanup() {
             queryClient.invalidateQueries({ queryKey: ["cacheStats"] });
             toast.success("LRU cleanup completed");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "Failed to cleanup cache");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "Failed to cleanup cache"));
         }
     });
 }
@@ -329,7 +382,7 @@ interface SqlExecuteRequest {
 
 interface SqlExecuteResponse {
     success: boolean;
-    data?: any[];
+    data?: TableRecord[];
     row_count?: number;
     execution_time_ms: number;
     error_message?: string;
@@ -379,8 +432,8 @@ export function useExecuteSql() {
             queryClient.invalidateQueries({ queryKey: ["sqlHistory"] });
             toast.success("SQL执行成功");
         },
-        onError: (error: any) => {
-            const errorMsg = error.response?.data?.error_message || error.response?.data?.detail || "SQL执行失败";
+        onError: (error: ApiError) => {
+            const errorMsg = getMutationErrorMessage(error, "SQL执行失败");
             toast.error(errorMsg);
         }
     });
@@ -421,8 +474,8 @@ export function useCreateSqlFavorite() {
             queryClient.invalidateQueries({ queryKey: ["sqlFavorites"] });
             toast.success("SQL收藏创建成功");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "创建SQL收藏失败");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "创建SQL收藏失败"));
         }
     });
 }
@@ -437,8 +490,8 @@ export function useDeleteSqlFavorite() {
             queryClient.invalidateQueries({ queryKey: ["sqlFavorites"] });
             toast.success("SQL收藏删除成功");
         },
-        onError: (error: any) => {
-            toast.error(error.response?.data?.detail || "删除SQL收藏失败");
+        onError: (error: ApiError) => {
+            toast.error(getMutationErrorMessage(error, "删除SQL收藏失败"));
         }
     });
 }

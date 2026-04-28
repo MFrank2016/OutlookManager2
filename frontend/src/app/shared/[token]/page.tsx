@@ -21,7 +21,6 @@ import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { useRouter } from "next/navigation";
 
 interface EmailItem {
   message_id: string;
@@ -55,7 +54,6 @@ interface ShareTokenInfo {
 
 export default function SharedEmailPage() {
   const params = useParams();
-  const router = useRouter();
   const urlToken = params.token as string | undefined;
   const [inputToken, setInputToken] = useState<string>(urlToken || "");
   // 实际用于查询的 token，只在点击“查询”按钮或通过 URL 直接访问时更新
@@ -124,7 +122,7 @@ export default function SharedEmailPage() {
   }, [refetchEmails]);
   
   // 自动刷新配置（30秒）
-  const { countdown: refreshCountdown } = useAutoRefresh({
+  useAutoRefresh({
     enabled: !!activeToken && !isLoading,
     intervalSeconds: 30,
     onRefresh: handleAutoRefresh,

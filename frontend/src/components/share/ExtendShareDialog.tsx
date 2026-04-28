@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
@@ -82,7 +82,10 @@ export function ExtendShareDialog({ open, onOpenChange, token, onSuccess }: Exte
     },
   });
 
-  const extendType = form.watch("extend_type");
+  const extendType = useWatch({
+    control: form.control,
+    name: "extend_type",
+  });
 
   useEffect(() => {
     if (open) {

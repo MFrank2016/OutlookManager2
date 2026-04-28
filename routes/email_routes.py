@@ -31,14 +31,14 @@ router = APIRouter(prefix="/emails", tags=["邮件管理"])
 @router.get("/{email_id}", response_model=EmailListResponse)
 async def get_emails(
     email_id: str,
-    folder: str = Query("all", regex="^(inbox|junk|all)$"),
+    folder: str = Query("all", pattern="^(inbox|junk|all)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1, le=1000),
     refresh: bool = Query(False, description="强制刷新缓存"),
     sender_search: Optional[str] = Query(None, description="发件人模糊搜索"),
     subject_search: Optional[str] = Query(None, description="主题模糊搜索"),
     sort_by: str = Query("date", description="排序字段（date/subject/from_email）"),
-    sort_order: str = Query("desc", regex="^(asc|desc)$", description="排序方向"),
+    sort_order: str = Query("desc", pattern="^(asc|desc)$", description="排序方向"),
     user: dict = Depends(auth.get_current_user),
 ):
     """获取邮件列表（支持搜索、排序、SQLite缓存，根据用户权限控制）"""
@@ -106,7 +106,7 @@ async def get_email_detail(
 @router.delete("/{email_id}/batch", response_model=BatchDeleteEmailsResponse)
 async def delete_emails_batch_route(
     email_id: str,
-    folder: str = Query("inbox", regex="^(inbox|junk|all)$", description="要清空的文件夹"),
+    folder: str = Query("inbox", pattern="^(inbox|junk|all)$", description="要清空的文件夹"),
     user: dict = Depends(auth.get_current_user)
 ):
     """批量删除邮件（需要删除邮件权限）"""
@@ -199,4 +199,3 @@ async def send_email_route(
             message=str(e),
             message_id=None
         )
-

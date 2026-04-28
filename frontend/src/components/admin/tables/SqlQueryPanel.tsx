@@ -6,7 +6,8 @@ import {
   useSqlHistory, 
   useSqlFavorites, 
   useCreateSqlFavorite, 
-  useDeleteSqlFavorite 
+  useDeleteSqlFavorite,
+  type TableRecord,
 } from "@/hooks/useAdmin";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -135,7 +136,7 @@ export function SqlQueryPanel({ tableName }: SqlQueryPanelProps) {
     if (format === "csv") {
       // CSV导出
       const headers = Object.keys(executeSql.data.data[0]);
-      const rows = executeSql.data.data.map((row: any) =>
+      const rows = executeSql.data.data.map((row: TableRecord) =>
         headers.map((header) => {
           const value = row[header];
           // 处理包含逗号、引号或换行符的值
@@ -145,7 +146,7 @@ export function SqlQueryPanel({ tableName }: SqlQueryPanelProps) {
           return value ?? "";
         })
       );
-      content = [headers.join(","), ...rows.map((row: any[]) => row.join(","))].join("\n");
+      content = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
       filename = `sql_query_${new Date().toISOString().split("T")[0]}.csv`;
       mimeType = "text/csv";
     } else {
@@ -175,7 +176,7 @@ export function SqlQueryPanel({ tableName }: SqlQueryPanelProps) {
 
     try {
       const headers = Object.keys(executeSql.data.data[0]);
-      const rows = executeSql.data.data.map((row: any) =>
+      const rows = executeSql.data.data.map((row: TableRecord) =>
         headers.map((header) => {
           const value = row[header];
           if (value === null || value === undefined) {
@@ -506,7 +507,7 @@ export function SqlQueryPanel({ tableName }: SqlQueryPanelProps) {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {executeSql.data.data.map((row: any, idx: number) => {
+                          {executeSql.data.data.map((row: TableRecord, idx: number) => {
                             const firstRow = executeSql.data.data?.[0];
                             if (!firstRow) return null;
                             return (
@@ -551,4 +552,3 @@ export function SqlQueryPanel({ tableName }: SqlQueryPanelProps) {
     </Card>
   );
 }
-

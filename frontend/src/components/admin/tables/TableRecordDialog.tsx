@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,12 +13,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useCreateTableRecord, useUpdateTableRecord } from "@/hooks/useAdmin";
-import { Plus, Edit, Save } from "lucide-react";
+import { Plus } from "lucide-react";
+
+type EditableTableRecord = Record<string, unknown> & {
+  id?: number | string;
+};
 
 interface TableRecordDialogProps {
   tableName: string;
   columns: string[];
-  record?: any;
+  record?: EditableTableRecord;
   trigger?: React.ReactNode;
 }
 
@@ -30,14 +33,14 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
   const isEdit = !!record;
 
   // We use a simple state for form data since columns are dynamic
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
     if (open) {
         if (record) {
             setFormData({ ...record });
         } else {
-            const initialData: any = {};
+            const initialData: Record<string, string> = {};
             columns.forEach(col => {
                 if (col !== 'id' && col !== 'created_at' && col !== 'updated_at') {
                     initialData[col] = "";
@@ -64,7 +67,7 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
       if (isEdit && record) {
           updateRecord.mutate({ 
               tableName, 
-              recordId: record.id, 
+              recordId: Number(record.id), 
               data: dataToSubmit 
           }, {
               onSuccess: () => setOpen(false)
@@ -103,7 +106,7 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
                     return (
                         <div key={col} className="grid gap-2">
                             <Label htmlFor={col} className="capitalize">{col}</Label>
-                            <Input id={col} value={formData[col] || ''} disabled className="bg-slate-50" />
+                            <Input id={col} value={String(formData[col] ?? "")} disabled className="bg-slate-50" />
                         </div>
                     );
                 }
@@ -113,7 +116,7 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
                         <Label htmlFor={col} className="capitalize">{col}</Label>
                         <Input 
                             id={col} 
-                            value={formData[col] || ''} 
+                            value={String(formData[col] ?? "")} 
                             onChange={(e) => handleChange(col, e.target.value)}
                         />
                     </div>
@@ -129,4 +132,3 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
     </Dialog>
   );
 }
-

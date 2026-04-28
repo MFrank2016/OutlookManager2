@@ -114,7 +114,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
                 subject_keyword: tokenToEdit.subject_keyword || "",
                 sender_keyword: tokenToEdit.sender_keyword || "",
                 is_active: tokenToEdit.is_active,
-                max_emails: String((tokenToEdit as any).max_emails || 10),
+                max_emails: String(tokenToEdit.max_emails ?? 10),
             });
         } else {
             // Reset to defaults
@@ -393,4 +393,3 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
     </Dialog>
   );
 }
-
