@@ -70,3 +70,32 @@ export interface ShareToken {
   max_emails?: number;
   created_at: string;
 }
+
+export interface VerificationRule {
+  id: number;
+  name: string;
+  scope_type: "targeted" | "global";
+  match_mode: "and" | "or";
+  priority: number;
+  enabled: boolean;
+  sender_pattern?: string | null;
+  subject_pattern?: string | null;
+  body_pattern?: string | null;
+  extract_pattern: string;
+  is_regex: boolean;
+  description?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface VerificationRuleTestResult {
+  code?: string | null;
+  matched_rule?: VerificationRule | null;
+  matched_via?: "rule" | "fallback" | null;
+  source: string;
+  page_source: string;
+  rule_evaluations: Array<Record<string, unknown>>;
+  matched_sender?: string | null;
+  matched_subject?: string | null;
+  matched_body_excerpt?: string | null;
+}

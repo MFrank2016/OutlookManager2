@@ -34,6 +34,7 @@ import { Email } from "@/types";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useVerificationCodeAutoCopy } from "@/hooks/useVerificationCodeAutoCopy";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -141,6 +142,13 @@ function EmailsPageContent() {
       }
     });
   }, [emailsData?.emails, localSearch, localSearchType]);
+
+  useVerificationCodeAutoCopy({
+    emails: emailsData?.emails || [],
+    resetKey: selectedAccount || "dashboard",
+    enabled: !!selectedAccount,
+    toastTitle: "主站邮件页发现新验证码",
+  });
 
   // 使用 ref 跟踪上一次更新的账户，避免循环更新
   const lastUpdatedAccountRef = useRef<string | null>(null);

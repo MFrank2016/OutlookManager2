@@ -21,6 +21,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { useVerificationCodeAutoCopy } from "@/hooks/useVerificationCodeAutoCopy";
 
 interface EmailItem {
   message_id: string;
@@ -156,6 +157,17 @@ export default function SharedEmailPage() {
   // 优先使用列表数据，如果没有完整内容则使用详情数据
   const displayEmail = hasFullContent ? selectedEmailData : emailDetail;
 
+  const emails: EmailItem[] = data?.emails || [];
+  const total = data?.total_emails || 0;
+  const totalPages = Math.ceil(total / pageSize);
+
+  useVerificationCodeAutoCopy({
+    emails,
+    resetKey: activeToken || "shared",
+    enabled: !!activeToken,
+    toastTitle: "分享页发现新验证码",
+  });
+
   // 手动刷新
   const handleRefresh = async () => {
     try {
@@ -213,10 +225,6 @@ export default function SharedEmailPage() {
       </div>
     );
   }
-
-  const emails: EmailItem[] = data?.emails || [];
-  const total = data?.total_emails || 0;
-  const totalPages = Math.ceil(total / pageSize);
 
   return (
     <div className="page-enter min-h-screen bg-gray-50">
@@ -333,7 +341,16 @@ export default function SharedEmailPage() {
                             <span className="text-sm">{email.from_email}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium">{email.subject || "(无主题)"}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            {email.verification_code && (
+                              <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                验证码: {email.verification_code}
+                              </Badge>
+                            )}
+                            <span>{email.subject || "(无主题)"}</span>
+                          </div>
+                        </TableCell>
                         <TableCell className="text-sm text-gray-600">
                           {format(new Date(email.date), "yyyy-MM-dd HH:mm")}
                         </TableCell>

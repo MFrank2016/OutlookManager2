@@ -21,7 +21,7 @@ from email_utils import decode_header_value, extract_email_content
 from imap_pool import imap_pool
 from models import AccountCredentials, EmailDetailsResponse, EmailItem, EmailListResponse
 from oauth_service import get_cached_access_token, clear_cached_access_token
-from verification_code_detector import detect_verification_code
+from verification_rule_service import detect_verification_code_with_rules
 from logger_config import logger
 
 
@@ -368,10 +368,23 @@ async def list_emails(
                                     if email_match:
                                         sender_initial = email_match.group(1).upper()
 
-                                # 检测验证码（只从 body_plain 中检测，邮件列表中没有 body，所以不检测）
                                 verification_code = None
-                                # 注意：邮件列表获取时通常没有 body_plain，所以跳过验证码检测
-                                # 验证码检测将在获取邮件详情时进行
+                                try:
+                                    detection = detect_verification_code_with_rules(
+                                        email_account=credentials.email,
+                                        message_id=message_id,
+                                        from_email=from_email,
+                                        subject=subject,
+                                        body_plain="",
+                                        body_html="",
+                                        body_preview="",
+                                        source="runtime",
+                                        page_source="list",
+                                        persist_record=True,
+                                    )
+                                    verification_code = detection.get("code")
+                                except Exception as detection_error:
+                                    logger.warning(f"Failed to detect verification code in list item {message_id}: {detection_error}")
 
                                 email_item = EmailItem(
                                     message_id=message_id,
@@ -663,13 +676,22 @@ async def get_email_details(
             # 提取邮件内容
             body_plain, body_html = extract_email_content(msg)
 
-            # 检测验证码（只从 body_plain 中检测）
             verification_code = None
             try:
-                # 只使用 body_plain，不使用 body_html
-                code_info = detect_verification_code(subject="", body=body_plain or "")
-                if code_info:
-                    verification_code = code_info["code"]
+                detection = detect_verification_code_with_rules(
+                    email_account=credentials.email,
+                    message_id=message_id,
+                    from_email=from_email,
+                    subject=subject,
+                    body_plain=body_plain or "",
+                    body_html=body_html or "",
+                    body_preview="",
+                    source="runtime",
+                    page_source="detail",
+                    persist_record=True,
+                )
+                if detection.get("code"):
+                    verification_code = detection["code"]
                     logger.info(f"Detected verification code in email {message_id}: {verification_code}")
             except Exception as e:
                 logger.warning(f"Failed to detect verification code in email details: {e}")
@@ -1203,4 +1225,3 @@ async def send_email(
             status_code=400,
             detail="Sending email is only supported via Graph API. Please enable Graph API for this account."
         )
-

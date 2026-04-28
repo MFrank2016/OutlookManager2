@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { ApiError, extractApiErrorMessage } from "@/lib/api";
-import { User, ConfigItem } from "@/types";
+import { User, ConfigItem, VerificationRule, VerificationRuleTestResult } from "@/types";
 import { toast } from "sonner";
 
 type TableCellValue =
@@ -492,6 +492,99 @@ export function useDeleteSqlFavorite() {
         },
         onError: (error: ApiError) => {
             toast.error(getMutationErrorMessage(error, "删除SQL收藏失败"));
+        }
+    });
+}
+
+interface VerificationRuleListResponse {
+    total: number;
+    rules: VerificationRule[];
+}
+
+interface VerificationRulePayload {
+    name: string;
+    scope_type: "targeted" | "global";
+    match_mode: "and" | "or";
+    priority: number;
+    enabled: boolean;
+    sender_pattern?: string;
+    subject_pattern?: string;
+    body_pattern?: string;
+    extract_pattern: string;
+    is_regex: boolean;
+    description?: string;
+}
+
+export function useVerificationRules() {
+    return useQuery({
+        queryKey: ["verificationRules"],
+        queryFn: async () => {
+            const { data } = await api.get<VerificationRuleListResponse>("/admin/verification-rules");
+            return data;
+        }
+    });
+}
+
+export function useCreateVerificationRule() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (payload: VerificationRulePayload) => {
+            const { data } = await api.post<VerificationRule>("/admin/verification-rules", payload);
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["verificationRules"] });
+            toast.success("验证码规则创建成功");
+        },
+        onError: (error: ApiError) => {
+            toast.error(extractApiErrorMessage(error, "验证码规则创建失败"));
+        }
+    });
+}
+
+export function useUpdateVerificationRule() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (data: { ruleId: number; payload: VerificationRulePayload }) => {
+            const response = await api.put<VerificationRule>(`/admin/verification-rules/${data.ruleId}`, data.payload);
+            return response.data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["verificationRules"] });
+            toast.success("验证码规则更新成功");
+        },
+        onError: (error: ApiError) => {
+            toast.error(extractApiErrorMessage(error, "验证码规则更新失败"));
+        }
+    });
+}
+
+export function useDeleteVerificationRule() {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: async (ruleId: number) => {
+            const { data } = await api.delete<{ message: string }>(`/admin/verification-rules/${ruleId}`);
+            return data;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["verificationRules"] });
+            toast.success("验证码规则删除成功");
+        },
+        onError: (error: ApiError) => {
+            toast.error(extractApiErrorMessage(error, "验证码规则删除失败"));
+        }
+    });
+}
+
+export function useTestVerificationRule() {
+    return useMutation({
+        mutationFn: async (payload: { email_account: string; message_id: string; rule_id?: number }) => {
+            await api.get(`/emails/${payload.email_account}/${payload.message_id}`);
+            const { data } = await api.post<VerificationRuleTestResult>("/admin/verification-rules/test", payload);
+            return data;
+        },
+        onError: (error: ApiError) => {
+            toast.error(extractApiErrorMessage(error, "验证码规则测试失败"));
         }
     });
 }

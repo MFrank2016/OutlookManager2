@@ -97,6 +97,40 @@ CREATE TABLE IF NOT EXISTS share_tokens (
     max_emails INTEGER DEFAULT 10
 );
 
+-- 创建 verification_rules 表
+CREATE TABLE IF NOT EXISTS verification_rules (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    scope_type VARCHAR(50) NOT NULL DEFAULT 'global',
+    match_mode VARCHAR(20) NOT NULL DEFAULT 'and',
+    priority INTEGER DEFAULT 0,
+    enabled BOOLEAN DEFAULT TRUE,
+    sender_pattern TEXT,
+    subject_pattern TEXT,
+    body_pattern TEXT,
+    extract_pattern TEXT NOT NULL,
+    is_regex BOOLEAN DEFAULT TRUE,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 创建 verification_detection_records 表
+CREATE TABLE IF NOT EXISTS verification_detection_records (
+    id SERIAL PRIMARY KEY,
+    email_account VARCHAR(255) NOT NULL,
+    message_id VARCHAR(500) NOT NULL,
+    detected_code VARCHAR(255) NOT NULL,
+    rule_id INTEGER,
+    rule_name VARCHAR(255),
+    source VARCHAR(50) NOT NULL,
+    page_source VARCHAR(100),
+    matched_sender TEXT,
+    matched_subject TEXT,
+    matched_body_excerpt TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 创建 batch_import_tasks 表
 CREATE TABLE IF NOT EXISTS batch_import_tasks (
     id SERIAL PRIMARY KEY,
@@ -155,4 +189,3 @@ CREATE TABLE IF NOT EXISTS sql_query_favorites (
 CREATE INDEX IF NOT EXISTS idx_sql_query_history_created_at ON sql_query_history(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sql_query_history_created_by ON sql_query_history(created_by);
 CREATE INDEX IF NOT EXISTS idx_sql_query_favorites_created_by ON sql_query_favorites(created_by);
-

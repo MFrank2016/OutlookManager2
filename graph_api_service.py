@@ -14,7 +14,7 @@ from fastapi import HTTPException
 
 from config import GRAPH_API_BASE_URL, GRAPH_API_SCOPE, TOKEN_URL
 from models import AccountCredentials, EmailItem, EmailDetailsResponse
-from verification_code_detector import detect_verification_code
+from verification_rule_service import detect_verification_code_with_rules
 import database as db
 import cache_service
 from logger_config import logger
@@ -305,13 +305,22 @@ async def list_emails_graph(
                         else:
                             body_plain = body_content
                     
-                    # 检测验证码（从 body_plain 中检测）
                     verification_code = None
                     try:
-                        # 使用 body_plain 或 body_preview 检测验证码
-                        code_info = detect_verification_code(subject="", body=body_plain or body_preview)
-                        if code_info:
-                            verification_code = code_info["code"]
+                        detection = detect_verification_code_with_rules(
+                            email_account=credentials.email,
+                            message_id=email.get("id"),
+                            from_email=from_email,
+                            subject=subject,
+                            body_plain=body_plain or "",
+                            body_html=body_html or "",
+                            body_preview=body_preview or "",
+                            source="runtime",
+                            page_source="list",
+                            persist_record=True,
+                        )
+                        if detection.get("code"):
+                            verification_code = detection["code"]
                     except Exception as e:
                         logger.warning(f"Failed to detect verification code: {e}")
                     
@@ -557,13 +566,22 @@ async def list_emails_graph2(
                     else:
                         body_plain = body_content
                 
-                # 检测验证码（从 body_plain 中检测）
                 verification_code = None
                 try:
-                    # 使用 body_plain 或 body_preview 检测验证码
-                    code_info = detect_verification_code(subject="", body=body_plain or body_preview)
-                    if code_info:
-                        verification_code = code_info["code"]
+                    detection = detect_verification_code_with_rules(
+                        email_account=credentials.email,
+                        message_id=email.get("id"),
+                        from_email=from_email,
+                        subject=subject,
+                        body_plain=body_plain or "",
+                        body_html=body_html or "",
+                        body_preview=body_preview or "",
+                        source="runtime",
+                        page_source="list",
+                        persist_record=True,
+                    )
+                    if detection.get("code"):
+                        verification_code = detection["code"]
                 except Exception as e:
                     logger.warning(f"Failed to detect verification code: {e}")
                 
@@ -818,13 +836,22 @@ async def list_emails_with_body_graph(
                 except Exception:
                     formatted_date = datetime.now().isoformat()
                 
-                # 检测验证码（只从 body_plain 中检测）
                 verification_code = None
                 try:
-                    # 只使用 body_plain，不使用 body_html
-                    code_info = detect_verification_code(subject="", body=body_plain or "")
-                    if code_info:
-                        verification_code = code_info["code"]
+                    detection = detect_verification_code_with_rules(
+                        email_account=credentials.email,
+                        message_id=email.get("id"),
+                        from_email=from_email,
+                        subject=subject,
+                        body_plain=body_plain or "",
+                        body_html=body_html or "",
+                        body_preview=email.get("bodyPreview", "") or "",
+                        source="runtime",
+                        page_source="list",
+                        persist_record=True,
+                    )
+                    if detection.get("code"):
+                        verification_code = detection["code"]
                 except Exception as e:
                     logger.warning(f"Failed to detect verification code: {e}")
                 
@@ -1007,13 +1034,22 @@ async def get_email_details_graph(
             except Exception:
                 formatted_date = datetime.now().isoformat()
             
-            # 检测验证码（只从 body_plain 中检测）
             verification_code = None
             try:
-                # 只使用 body_plain，不使用 body_html
-                code_info = detect_verification_code(subject="", body=body_plain or "")
-                if code_info:
-                    verification_code = code_info["code"]
+                detection = detect_verification_code_with_rules(
+                    email_account=credentials.email,
+                    message_id=message_id,
+                    from_email=from_email,
+                    subject=subject,
+                    body_plain=body_plain or "",
+                    body_html=body_html or "",
+                    body_preview=email.get("bodyPreview", "") or "",
+                    source="runtime",
+                    page_source="detail",
+                    persist_record=True,
+                )
+                if detection.get("code"):
+                    verification_code = detection["code"]
                     logger.info(f"Detected verification code in email {message_id}: {verification_code}")
             except Exception as e:
                 logger.warning(f"Failed to detect verification code: {e}")
@@ -1333,4 +1369,3 @@ async def send_email_graph(
     except Exception as e:
         logger.error(f"Error sending email via Graph API: {e}")
         raise HTTPException(status_code=500, detail="Failed to send email via Graph API")
-

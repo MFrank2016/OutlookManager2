@@ -41,6 +41,14 @@ CREATE INDEX IF NOT EXISTS idx_share_tokens_created_at_id ON share_tokens(create
 CREATE INDEX IF NOT EXISTS idx_share_tokens_account_created_at_id ON share_tokens(email_account_id, created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_share_tokens_active_created_at_id ON share_tokens(is_active, created_at DESC, id DESC);
 
+-- verification_rules 表索引
+CREATE INDEX IF NOT EXISTS idx_verification_rules_scope_priority ON verification_rules(scope_type, priority DESC, id ASC);
+CREATE INDEX IF NOT EXISTS idx_verification_rules_enabled ON verification_rules(enabled);
+
+-- verification_detection_records 表索引
+CREATE INDEX IF NOT EXISTS idx_verification_detection_records_message ON verification_detection_records(email_account, message_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_verification_detection_records_rule ON verification_detection_records(rule_id);
+
 -- batch_import_tasks 表索引
 CREATE INDEX IF NOT EXISTS idx_batch_import_tasks_task_id ON batch_import_tasks(task_id);
 CREATE INDEX IF NOT EXISTS idx_batch_import_tasks_status ON batch_import_tasks(status);

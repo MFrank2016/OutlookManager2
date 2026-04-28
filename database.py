@@ -719,6 +719,48 @@ def init_database() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_created_at_id ON share_tokens(created_at DESC, id DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_account_created_at_id ON share_tokens(email_account_id, created_at DESC, id DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_share_tokens_active_created_at_id ON share_tokens(is_active, created_at DESC, id DESC)")
+
+        # 创建验证码规则表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS verification_rules (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                scope_type TEXT NOT NULL DEFAULT 'global',
+                match_mode TEXT NOT NULL DEFAULT 'and',
+                priority INTEGER DEFAULT 0,
+                enabled INTEGER DEFAULT 1,
+                sender_pattern TEXT,
+                subject_pattern TEXT,
+                body_pattern TEXT,
+                extract_pattern TEXT NOT NULL,
+                is_regex INTEGER DEFAULT 1,
+                description TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_rules_scope_priority ON verification_rules(scope_type, priority DESC, id ASC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_rules_enabled ON verification_rules(enabled)")
+
+        # 创建验证码识别记录表
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS verification_detection_records (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email_account TEXT NOT NULL,
+                message_id TEXT NOT NULL,
+                detected_code TEXT NOT NULL,
+                rule_id INTEGER,
+                rule_name TEXT,
+                source TEXT NOT NULL,
+                page_source TEXT,
+                matched_sender TEXT,
+                matched_subject TEXT,
+                matched_body_excerpt TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_detection_records_message ON verification_detection_records(email_account, message_id, created_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_detection_records_rule ON verification_detection_records(rule_id)")
         
         # 创建批量导入任务表
         cursor.execute("""
@@ -816,6 +858,8 @@ _email_detail_cache_dao = None
 _share_token_dao = None
 _batch_import_task_dao = None
 _batch_import_task_item_dao = None
+_verification_rule_dao = None
+_verification_detection_record_dao = None
 
 def _get_account_dao():
     """获取 AccountDAO 实例（单例）"""
@@ -880,6 +924,22 @@ def _get_batch_import_task_item_dao():
         from dao.batch_import_task_dao import BatchImportTaskItemDAO
         _batch_import_task_item_dao = BatchImportTaskItemDAO()
     return _batch_import_task_item_dao
+
+def _get_verification_rule_dao():
+    """获取 VerificationRuleDAO 实例（单例）"""
+    global _verification_rule_dao
+    if _verification_rule_dao is None:
+        from dao.verification_rule_dao import VerificationRuleDAO
+        _verification_rule_dao = VerificationRuleDAO()
+    return _verification_rule_dao
+
+def _get_verification_detection_record_dao():
+    """获取 VerificationDetectionRecordDAO 实例（单例）"""
+    global _verification_detection_record_dao
+    if _verification_detection_record_dao is None:
+        from dao.verification_rule_dao import VerificationDetectionRecordDAO
+        _verification_detection_record_dao = VerificationDetectionRecordDAO()
+    return _verification_detection_record_dao
 
 
 # Accounts 表操作 - 委托给 AccountDAO
@@ -1027,6 +1087,30 @@ def list_share_tokens(
     page_size: int = 50
 ) -> Tuple[List[Dict[str, Any]], int]:
     return _get_share_token_dao().list_tokens(email_account_id, account_search, token_search, page, page_size)
+
+
+def list_verification_rules(enabled_only: bool = False) -> List[Dict[str, Any]]:
+    return _get_verification_rule_dao().list_rules(enabled_only)
+
+
+def create_verification_rule(data: Dict[str, Any]) -> Dict[str, Any]:
+    return _get_verification_rule_dao().create_rule(data)
+
+
+def update_verification_rule(rule_id: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    return _get_verification_rule_dao().update_rule(rule_id, data)
+
+
+def delete_verification_rule(rule_id: int) -> bool:
+    return _get_verification_rule_dao().delete(rule_id)
+
+
+def get_verification_rule(rule_id: int) -> Optional[Dict[str, Any]]:
+    return _get_verification_rule_dao().find_by_id(rule_id)
+
+
+def create_verification_detection_record(data: Dict[str, Any]) -> Dict[str, Any]:
+    return _get_verification_detection_record_dao().record_success(data)
 
 
 # 邮件缓存操作 - 委托给 EmailCacheDAO 和 EmailDetailCacheDAO

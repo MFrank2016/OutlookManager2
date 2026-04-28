@@ -5,12 +5,13 @@ import { UsersTable } from "@/components/admin/UsersTable";
 import { ConfigTable } from "@/components/admin/ConfigTable";
 import { TablesManager } from "@/components/admin/tables/TablesManager";
 import { CacheManager } from "@/components/admin/cache/CacheManager";
+import { VerificationRulesTab } from "@/components/admin/verification-rules/VerificationRulesTab";
 
 export default function AdminPage() {
   return (
     <div className="page-enter space-y-6">
       <Tabs defaultValue="tables" className="space-y-4">
-        <TabsList className="panel-surface grid h-12 w-full grid-cols-4">
+        <TabsList className="panel-surface grid h-12 w-full grid-cols-5">
           <TabsTrigger value="tables" className="text-lg font-semibold transition-all duration-200 data-[state=active]:border data-[state=active]:border-primary/45 data-[state=active]:bg-primary/20">
             📊 数据表管理
           </TabsTrigger>
@@ -22,6 +23,9 @@ export default function AdminPage() {
           </TabsTrigger>
           <TabsTrigger value="cache" className="text-lg font-semibold transition-all duration-200 data-[state=active]:border data-[state=active]:border-primary/45 data-[state=active]:bg-primary/20">
             💾 缓存管理
+          </TabsTrigger>
+          <TabsTrigger value="verification-rules" className="text-lg font-semibold transition-all duration-200 data-[state=active]:border data-[state=active]:border-primary/45 data-[state=active]:bg-primary/20">
+            🔑 验证码规则
           </TabsTrigger>
         </TabsList>
         <TabsContent value="tables" className="space-y-4">
@@ -35,6 +39,9 @@ export default function AdminPage() {
         </TabsContent>
         <TabsContent value="cache" className="space-y-4">
           <CacheManager />
+        </TabsContent>
+        <TabsContent value="verification-rules" className="space-y-4">
+          <VerificationRulesTab />
         </TabsContent>
       </Tabs>
     </div>

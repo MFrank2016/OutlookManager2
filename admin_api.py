@@ -15,6 +15,14 @@ import database as db
 import cache_service
 from logger_config import logger
 from datetime import datetime
+from verification_rule_service import (
+    create_verification_rule,
+    delete_verification_rule,
+    detect_verification_code_with_rules,
+    list_verification_rules,
+    run_verification_rule_test_for_message,
+    update_verification_rule,
+)
 from models import (
     UserCreateRequest,
     UserUpdateRequest,
@@ -46,6 +54,14 @@ def _extract_scalar_value(row: Any) -> Any:
     if isinstance(row, dict) and len(row) > 0:
         return list(row.values())[0]
     return row
+
+
+def _serialize_rule(rule: Dict[str, Any]) -> Dict[str, Any]:
+    serialized = dict(rule)
+    for key in ("created_at", "updated_at"):
+        if key in serialized:
+            serialized[key] = _convert_datetime_to_str(serialized[key])
+    return serialized
 
 # 创建路由器
 router = APIRouter(prefix="/admin", tags=["管理面板"])
@@ -125,6 +141,60 @@ class ConfigUpdateRequest(BaseModel):
 class MessageResponse(BaseModel):
     """消息响应模型"""
     message: str
+
+
+class VerificationRuleUpsertRequest(BaseModel):
+    name: str
+    scope_type: str = "global"
+    match_mode: str = "and"
+    priority: int = 0
+    enabled: bool = True
+    sender_pattern: Optional[str] = None
+    subject_pattern: Optional[str] = None
+    body_pattern: Optional[str] = None
+    extract_pattern: str
+    is_regex: bool = True
+    description: Optional[str] = None
+
+
+class VerificationRuleItem(BaseModel):
+    id: int
+    name: str
+    scope_type: str
+    match_mode: str
+    priority: int
+    enabled: bool
+    sender_pattern: Optional[str] = None
+    subject_pattern: Optional[str] = None
+    body_pattern: Optional[str] = None
+    extract_pattern: str
+    is_regex: bool
+    description: Optional[str] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class VerificationRuleListResponse(BaseModel):
+    total: int
+    rules: List[VerificationRuleItem]
+
+
+class VerificationRuleTestRequest(BaseModel):
+    email_account: str
+    message_id: str
+    rule_id: Optional[int] = None
+
+
+class VerificationRuleTestResponse(BaseModel):
+    code: Optional[str] = None
+    matched_rule: Optional[Dict[str, Any]] = None
+    matched_via: Optional[str] = None
+    source: str
+    page_source: str
+    rule_evaluations: List[Dict[str, Any]]
+    matched_sender: Optional[str] = None
+    matched_subject: Optional[str] = None
+    matched_body_excerpt: Optional[str] = None
 
 
 # ============================================================================
@@ -427,6 +497,68 @@ async def delete_config(
             raise HTTPException(status_code=500, detail="配置删除失败")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"删除配置失败: {str(e)}")
+
+
+# ============================================================================
+# 验证码规则 API
+# ============================================================================
+
+
+@router.get("/verification-rules", response_model=VerificationRuleListResponse)
+async def list_verification_rules_route(admin: dict = Depends(auth.get_current_admin)):
+    rules = [VerificationRuleItem(**_serialize_rule(rule)) for rule in list_verification_rules(False)]
+    return VerificationRuleListResponse(total=len(rules), rules=rules)
+
+
+@router.post("/verification-rules", response_model=VerificationRuleItem)
+async def create_verification_rule_route(
+    request: VerificationRuleUpsertRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    try:
+        rule = create_verification_rule(request.model_dump())
+        return VerificationRuleItem(**_serialize_rule(rule))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.put("/verification-rules/{rule_id}", response_model=VerificationRuleItem)
+async def update_verification_rule_route(
+    rule_id: int,
+    request: VerificationRuleUpsertRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    try:
+        rule = update_verification_rule(rule_id, request.model_dump())
+        return VerificationRuleItem(**_serialize_rule(rule))
+    except ValueError as exc:
+        raise HTTPException(status_code=404 if "not found" in str(exc) else 400, detail=str(exc))
+
+
+@router.delete("/verification-rules/{rule_id}", response_model=MessageResponse)
+async def delete_verification_rule_route(
+    rule_id: int,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    if not delete_verification_rule(rule_id):
+        raise HTTPException(status_code=404, detail=f"规则 {rule_id} 不存在")
+    return MessageResponse(message=f"规则 {rule_id} 删除成功")
+
+
+@router.post("/verification-rules/test", response_model=VerificationRuleTestResponse)
+async def test_verification_rule_route(
+    request: VerificationRuleTestRequest,
+    admin: dict = Depends(auth.get_current_admin)
+):
+    try:
+        result = run_verification_rule_test_for_message(
+            email_account=request.email_account,
+            message_id=request.message_id,
+            rule_id=request.rule_id,
+        )
+        return VerificationRuleTestResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 # ============================================================================
@@ -1472,4 +1604,3 @@ async def delete_sql_favorite(
     except Exception as e:
         logger.error(f"Error deleting SQL favorite: {e}")
         raise HTTPException(status_code=500, detail=f"删除SQL收藏失败: {str(e)}")
-
