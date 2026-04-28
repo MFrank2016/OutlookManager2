@@ -127,6 +127,35 @@ def test_fallback_detector_runs_when_no_rule_matches():
     assert result["matched_via"] == "fallback"
 
 
+def test_can_extract_code_directly_from_subject():
+    rule = create_verification_rule(
+        {
+            "name": "主题验证码规则",
+            "scope_type": "targeted",
+            "match_mode": "and",
+            "priority": 70,
+            "enabled": True,
+            "subject_pattern": "verification",
+            "extract_pattern": r"(\d{6})",
+            "is_regex": True,
+        }
+    )
+
+    result = detect_verification_code_with_rules(
+        email_account="subject@example.com",
+        message_id="msg-subject",
+        from_email="noreply@example.com",
+        subject="Verification 246810",
+        body_plain="",
+        body_html="",
+        persist_record=False,
+    )
+
+    assert result["code"] == "246810"
+    assert result["matched_rule"]["id"] == rule["id"]
+    assert result["matched_subject"] == "Verification 246810"
+
+
 def test_can_test_rule_against_cached_email_detail():
     rule = create_verification_rule(
         {

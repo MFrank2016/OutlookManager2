@@ -9,7 +9,7 @@ import email
 import re
 from datetime import datetime, timezone
 from itertools import groupby
-from typing import Optional
+from typing import Any, Dict, Optional
 import time
 import database as db
 from email.utils import parsedate_to_datetime
@@ -23,6 +23,18 @@ from models import AccountCredentials, EmailDetailsResponse, EmailItem, EmailLis
 from oauth_service import get_cached_access_token, clear_cached_access_token
 from verification_rule_service import detect_verification_code_with_rules
 from logger_config import logger
+
+IMAP_RECENT_WINDOW_MIN = 120
+IMAP_RECENT_WINDOW_MULTIPLIER = 2
+IMAP_VERIFICATION_HINTS = (
+    "verification",
+    "verify",
+    "security code",
+    "otp",
+    "验证码",
+    "驗證碼",
+    "code",
+)
 
 
 def _format_token_info(token: str, expires_at: Optional[str] = None) -> str:
@@ -61,6 +73,57 @@ def _format_token_info(token: str, expires_at: Optional[str] = None) -> str:
             info += f", Expires at: {expires_at}"
     
     return info
+
+
+def _should_use_imap_recent_window(
+    *,
+    sender_search: Optional[str],
+    subject_search: Optional[str],
+    sort_by: str,
+    sort_order: str,
+    start_time: Optional[str],
+    end_time: Optional[str],
+) -> bool:
+    return (
+        not sender_search
+        and not subject_search
+        and not start_time
+        and not end_time
+        and sort_by == "date"
+        and sort_order == "desc"
+    )
+
+
+def _build_imap_recent_window(message_ids: list[bytes], page: int, page_size: int) -> list[bytes]:
+    window_size = max(page * page_size * IMAP_RECENT_WINDOW_MULTIPLIER, IMAP_RECENT_WINDOW_MIN)
+    return message_ids[:window_size]
+
+
+def _should_prefetch_imap_detail(email_item: EmailItem) -> bool:
+    haystack = f"{email_item.subject or ''} {email_item.from_email or ''}".lower()
+    return any(token in haystack for token in IMAP_VERIFICATION_HINTS)
+
+
+def _build_body_preview_from_detail(detail: Dict[str, Any]) -> Optional[str]:
+    preview_source = detail.get("body_plain") or detail.get("body_html") or ""
+    if not preview_source:
+        return None
+    compact = " ".join(str(preview_source).split())
+    return compact[:180] if compact else None
+
+
+def _enrich_paginated_items_from_cached_details(
+    email_items: list[EmailItem],
+    details_by_id: Dict[str, Dict[str, Any]],
+) -> None:
+    for email_item in email_items:
+        cached_detail = details_by_id.get(email_item.message_id)
+        if not cached_detail:
+            continue
+        if not email_item.verification_code:
+            email_item.verification_code = cached_detail.get("verification_code")
+        if not email_item.body_preview:
+            email_item.body_preview = _build_body_preview_from_detail(cached_detail)
 
 
 async def list_emails(
@@ -237,6 +300,15 @@ async def list_emails(
             imap_client = imap_pool.get_connection(credentials.email, access_token)
 
             all_emails_data = []
+            total_messages_in_folders = 0
+            use_recent_window = _should_use_imap_recent_window(
+                sender_search=sender_search,
+                subject_search=subject_search,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                start_time=start_time,
+                end_time=end_time,
+            )
 
             # 根据folder参数决定要获取的文件夹
             folders_to_check = []
@@ -258,10 +330,13 @@ async def list_emails(
                         continue
 
                     message_ids = messages[0].split()
+                    total_messages_in_folders += len(message_ids)
 
                     # 按日期排序所需的数据（邮件ID和日期）
                     # 为了避免获取所有邮件的日期，我们假设ID顺序与日期大致相关
                     message_ids.reverse()  # 通常ID越大越新
+                    if use_recent_window:
+                        message_ids = _build_imap_recent_window(message_ids, page, page_size)
 
                     for msg_id in message_ids:
                         all_emails_data.append(
@@ -450,11 +525,18 @@ async def list_emails(
             filtered_email_items.sort(key=get_sort_key, reverse=(sort_order == "desc"))
             
             # 应用分页
-            total_emails = len(filtered_email_items)
+            total_emails = total_messages_in_folders if use_recent_window else len(filtered_email_items)
             start_index = (page - 1) * page_size
             end_index = start_index + page_size
             paginated_email_items = filtered_email_items[start_index:end_index]
-            
+
+            details_by_id: Dict[str, Dict[str, Any]] = {}
+            for email_item in paginated_email_items:
+                cached_detail = db.get_cached_email_detail(credentials.email, email_item.message_id)
+                if cached_detail:
+                    details_by_id[email_item.message_id] = cached_detail
+            _enrich_paginated_items_from_cached_details(paginated_email_items, details_by_id)
+
             email_items = paginated_email_items
 
             # 归还连接到池中

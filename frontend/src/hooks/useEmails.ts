@@ -21,6 +21,7 @@ interface EmailsParams {
     sortBy?: string;
     sortOrder?: "asc" | "desc";
     forceRefresh?: boolean; // 强制刷新，不走缓存
+    refreshNonce?: number; // 手动刷新触发器
 }
 
 // 请求去重 Map，防止同一时间多次请求同一资源
@@ -38,7 +39,8 @@ export function useEmails(params: EmailsParams) {
         params.search || "",
         params.searchType || "subject",
         params.sortBy || "date",
-        params.sortOrder || "desc"
+        params.sortOrder || "desc",
+        params.refreshNonce || 0
     ];
     
     return useQuery({
