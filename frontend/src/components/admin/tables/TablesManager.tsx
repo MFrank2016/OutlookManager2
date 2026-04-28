@@ -527,6 +527,14 @@ const TableContent = memo(function TableContent({
 }) {
   const [copiedCell, setCopiedCell] = useState<string | null>(null);
 
+  const getRowKey = (record: TableRecord, idx: number): string | number => {
+    const idValue = record.id;
+    if (typeof idValue === "string" || typeof idValue === "number") {
+      return idValue;
+    }
+    return idx;
+  };
+
   const handleDelete = (record: TableRecord) => {
     if (confirm(`确定要删除这条记录吗？\nID: ${record.id}`)) {
       deleteRecord.mutate({ tableName, recordId: Number(record.id) });
@@ -600,7 +608,7 @@ const TableContent = memo(function TableContent({
               </TableRow>
             ) : (
               records.map((record, idx) => (
-                <TableRow key={record.id || idx} className="hover:bg-gray-50">
+                <TableRow key={getRowKey(record, idx)} className="hover:bg-gray-50">
                   {columns.map((col) => {
                     const cellValue = formatCellValue(record[col]);
                     const originalValue = record[col];
@@ -609,7 +617,7 @@ const TableContent = memo(function TableContent({
                       ? originalValue.substring(0, 50) + '...' 
                       : cellValue;
                     const fullValue = typeof originalValue === 'string' ? originalValue : cellValue;
-                    const cellKey = `${record.id || idx}-${col}`;
+                    const cellKey = `${String(getRowKey(record, idx))}-${col}`;
                     const isCopied = copiedCell === cellKey;
                     
                     return (

@@ -36,10 +36,12 @@ COPY email_service.py .
 COPY email_utils.py .
 COPY imap_pool.py .
 COPY cache_service.py .
+COPY verification_rule_service.py .
 COPY verification_code_detector.py .
 COPY rate_limiter.py .
 COPY routes/ ./routes/
 COPY dao/ ./dao/
+COPY database/ ./database/
 COPY static/ ./static/
 COPY docker/docker-entrypoint.sh .
 

@@ -12,11 +12,19 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useCreateTableRecord, useUpdateTableRecord } from "@/hooks/useAdmin";
+import { TableRecord, useCreateTableRecord, useUpdateTableRecord } from "@/hooks/useAdmin";
 import { Plus } from "lucide-react";
 
 type EditableTableRecord = Record<string, unknown> & {
   id?: number | string;
+};
+
+const toTableRecord = (record: EditableTableRecord): TableRecord => {
+  const next: TableRecord = {};
+  Object.entries(record).forEach(([key, value]) => {
+    next[key] = value as TableRecord[string];
+  });
+  return next;
 };
 
 interface TableRecordDialogProps {
@@ -33,14 +41,14 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
   const isEdit = !!record;
 
   // We use a simple state for form data since columns are dynamic
-  const [formData, setFormData] = useState<Record<string, unknown>>({});
+  const [formData, setFormData] = useState<TableRecord>({});
 
   useEffect(() => {
     if (open) {
         if (record) {
-            setFormData({ ...record });
+            setFormData(toTableRecord(record));
         } else {
-            const initialData: Record<string, string> = {};
+            const initialData: TableRecord = {};
             columns.forEach(col => {
                 if (col !== 'id' && col !== 'created_at' && col !== 'updated_at') {
                     initialData[col] = "";
@@ -59,7 +67,7 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
       e.preventDefault();
       
       // Filter out read-only columns for create/update
-      const dataToSubmit = { ...formData };
+      const dataToSubmit: TableRecord = { ...formData };
       delete dataToSubmit.id;
       delete dataToSubmit.created_at;
       delete dataToSubmit.updated_at;

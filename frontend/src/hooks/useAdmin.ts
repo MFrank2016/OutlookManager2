@@ -327,8 +327,18 @@ interface CacheStatistics {
     db_size_mb: number;
     max_size_mb: number;
     size_usage_percent: number;
-    emails_cache: Record<string, unknown>;
-    details_cache: Record<string, unknown>;
+    emails_cache: {
+        count: number;
+        max_count: number;
+        size_bytes: number;
+        usage_percent: number;
+    };
+    details_cache: {
+        count: number;
+        max_count: number;
+        size_bytes: number;
+        usage_percent: number;
+    };
     hit_rate?: number;
 }
 

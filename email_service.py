@@ -12,12 +12,17 @@ from itertools import groupby
 from typing import Any, Dict, Optional
 import time
 import database as db
-from email.utils import parsedate_to_datetime
 from fastapi import HTTPException
 
 import database as db
 import cache_service
-from email_utils import decode_header_value, extract_email_content
+from email_utils import (
+    decode_header_value,
+    extract_email_address,
+    extract_email_content,
+    extract_email_addresses,
+    parse_email_datetime,
+)
 from imap_pool import imap_pool
 from models import AccountCredentials, EmailDetailsResponse, EmailItem, EmailListResponse
 from oauth_service import get_cached_access_token, clear_cached_access_token
@@ -420,11 +425,7 @@ async def list_emails(
                                 date_str = msg.get("Date", "")
 
                                 try:
-                                    date_obj = (
-                                        parsedate_to_datetime(date_str)
-                                        if date_str
-                                        else datetime.now()
-                                    )
+                                    date_obj = parse_email_datetime(date_str) if date_str else datetime.now()
                                     # 转换为UTC时间并去除时区信息，确保统一格式
                                     if date_obj.tzinfo is not None:
                                         date_obj = date_obj.astimezone(datetime.now().astimezone().tzinfo).replace(tzinfo=None)
@@ -437,9 +438,10 @@ async def list_emails(
 
                                 # 提取发件人首字母
                                 sender_initial = "?"
-                                if from_email:
+                                normalized_from_email = extract_email_address(from_email)
+                                if normalized_from_email:
                                     # 尝试提取邮箱用户名的首字母
-                                    email_match = re.search(r"([a-zA-Z])", from_email)
+                                    email_match = re.search(r"([a-zA-Z])", normalized_from_email)
                                     if email_match:
                                         sender_initial = email_match.group(1).upper()
 
@@ -742,13 +744,13 @@ async def get_email_details(
             # 提取基本信息
             subject = decode_header_value(msg.get("Subject", "(No Subject)"))
             from_email = decode_header_value(msg.get("From", "(Unknown Sender)"))
-            to_email = decode_header_value(msg.get("To", "(Unknown Recipient)"))
+            to_email = ", ".join(extract_email_addresses(msg.get("To", ""))) or decode_header_value(msg.get("To", "(Unknown Recipient)"))
             date_str = msg.get("Date", "")
 
             # 格式化日期
             try:
                 if date_str:
-                    date_obj = parsedate_to_datetime(date_str)
+                    date_obj = parse_email_datetime(date_str)
                     formatted_date = date_obj.isoformat()
                 else:
                     formatted_date = datetime.now().isoformat()

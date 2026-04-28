@@ -9,6 +9,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 import database as db
+from email_utils import extract_email_address
 from logger_config import logger
 from verification_code_detector import detect_verification_code
 
@@ -211,7 +212,7 @@ def _build_email_context(
         [part for part in [subject, body_preview, body_plain, html_text] if part]
     )
     return {
-        "from_email": from_email or "",
+        "from_email": extract_email_address(from_email) or from_email or "",
         "subject": subject or "",
         "body_plain": body_plain or "",
         "body_html": body_html or "",

@@ -34,18 +34,20 @@ services:
       # 日志级别
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # 数据库配置（可选，用于连接PostgreSQL）
-      # 使用Docker网络时，DB_HOST设置为容器名"postgresql"
-      # 使用远程连接时，DB_HOST设置为服务器IP或localhost
-      - DB_TYPE=${DB_TYPE:-sqlite}
-      - DB_HOST=${DB_HOST:-postgresql}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-outlook_manager}
-      - DB_USER=${DB_USER:-outlook_user}
-      - DB_PASSWORD=${DB_PASSWORD:-changeme}
+      # docker compose 本地栈固定连接当前 compose 内的 PostgreSQL 容器
+      - DB_TYPE=postgresql
+      - DB_HOST=postgresql
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB:-outlook_manager}
+      - DB_USER=${POSTGRES_USER:-outlook_user}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-changeme}
       - DB_POOL_SIZE=${DB_POOL_SIZE:-5}
       - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-15}
       - DB_POOL_TIMEOUT=${DB_POOL_TIMEOUT:-30}
     restart: unless-stopped
+    depends_on:
+      postgresql:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -82,10 +84,9 @@ services:
     restart: unless-stopped
     depends_on:
       outlook-email-api:
-        condition: service_started
-      # 如果使用PostgreSQL，取消下面的注释以等待PostgreSQL就绪
-      # postgresql:
-      #   condition: service_healthy
+        condition: service_healthy
+      postgresql:
+        condition: service_healthy
     networks:
       - outlook-network
 
@@ -106,7 +107,7 @@ services:
       # 映射端口到主机，允许远程连接
       # Docker网络内应用使用容器名"postgresql"连接
       # 远程工具使用localhost或服务器IP连接
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-55432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       # 初始化脚本

@@ -6,6 +6,8 @@
 
 import email
 from email.header import decode_header
+from email.utils import getaddresses, parsedate_to_datetime
+from datetime import datetime
 
 from logger_config import logger
 
@@ -111,3 +113,61 @@ def extract_email_content(email_message: email.message.EmailMessage) -> tuple[st
 
     return body_plain.strip(), body_html.strip()
 
+
+def get_message_id(email_message: email.message.EmailMessage) -> str:
+    """
+    获取消息ID，缺失时生成兜底ID
+    """
+    message_id = (email_message.get("Message-ID") or "").strip()
+    if message_id:
+        return message_id.strip("<>")
+
+    subject = email_message.get("Subject", "no-subject")
+    date = email_message.get("Date", "no-date")
+    return f"{hash(subject + date)}@generated"
+
+
+def extract_email_address(header_value: str) -> str:
+    """
+    从头部字段中提取首个邮箱地址
+    """
+    if not header_value:
+        return ""
+
+    decoded = decode_header_value(header_value)
+    addresses = getaddresses([decoded])
+    for _, addr in addresses:
+        addr = addr.strip()
+        if addr:
+            return addr.lower()
+    return decoded.strip().lower()
+
+
+def extract_email_addresses(header_value: str) -> list[str]:
+    """
+    从头部字段中提取多个邮箱地址
+    """
+    if not header_value:
+        return []
+
+    decoded = decode_header_value(header_value)
+    results: list[str] = []
+    for _, addr in getaddresses([decoded]):
+        addr = addr.strip()
+        if addr:
+            results.append(addr.lower())
+    return results
+
+
+def parse_email_datetime(date_value: str | None) -> datetime:
+    """
+    解析邮件日期，失败时回退到当前时间
+    """
+    if not date_value:
+        return datetime.utcnow()
+
+    try:
+        return parsedate_to_datetime(date_value)
+    except Exception as e:
+        logger.warning(f"Failed to parse date '{date_value}': {e}")
+        return datetime.utcnow()
