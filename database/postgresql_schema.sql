@@ -115,6 +115,26 @@ CREATE TABLE IF NOT EXISTS verification_rules (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS verification_rule_matchers (
+    id SERIAL PRIMARY KEY,
+    rule_id INTEGER NOT NULL,
+    source_type VARCHAR(50) NOT NULL,
+    keyword TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS verification_rule_extractors (
+    id SERIAL PRIMARY KEY,
+    rule_id INTEGER NOT NULL,
+    source_type VARCHAR(50) NOT NULL,
+    extract_pattern TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 创建 verification_detection_records 表
 CREATE TABLE IF NOT EXISTS verification_detection_records (
     id SERIAL PRIMARY KEY,

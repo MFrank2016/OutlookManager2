@@ -741,6 +741,30 @@ def init_database() -> None:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_rules_scope_priority ON verification_rules(scope_type, priority DESC, id ASC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_rules_enabled ON verification_rules(enabled)")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS verification_rule_matchers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_id INTEGER NOT NULL,
+                source_type TEXT NOT NULL,
+                keyword TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS verification_rule_extractors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                rule_id INTEGER NOT NULL,
+                source_type TEXT NOT NULL,
+                extract_pattern TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_rule_matchers_rule_sort ON verification_rule_matchers(rule_id, sort_order ASC, id ASC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_verification_rule_extractors_rule_sort ON verification_rule_extractors(rule_id, sort_order ASC, id ASC)")
 
         # 创建验证码识别记录表
         cursor.execute("""
