@@ -75,4 +75,3 @@ def test_compose_docs_reference_helper_script():
     assert "./scripts/compose-up.sh" in root_readme
     assert "./scripts/compose-up.sh" in docker_readme
     assert "docker compose --env-file .env.compose.local up -d --build" in docker_readme
-
