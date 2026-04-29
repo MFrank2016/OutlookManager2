@@ -1,0 +1,33 @@
+import asyncio
+import re
+from pathlib import Path
+
+from main import app
+
+
+def _find_route(path: str):
+    return next((route for route in app.routes if getattr(route, "path", None) == path), None)
+
+
+def _extract_healthcheck_paths(text: str) -> list[str]:
+    return re.findall(r"urlopen\('http://localhost:8000([^']*)'", text)
+
+
+def test_healthz_route_is_registered_with_minimal_payload():
+    route = _find_route("/healthz")
+
+    assert route is not None
+    assert "GET" in route.methods
+    assert asyncio.run(route.endpoint()) == {"status": "ok"}
+
+
+def test_container_healthchecks_use_healthz_endpoint():
+    dockerfile_paths = _extract_healthcheck_paths(
+        Path("docker/Dockerfile").read_text(encoding="utf-8")
+    )
+    compose_paths = _extract_healthcheck_paths(
+        Path("docker-compose.yml").read_text(encoding="utf-8")
+    )
+
+    assert dockerfile_paths == ["/healthz"]
+    assert compose_paths == ["/healthz"]
