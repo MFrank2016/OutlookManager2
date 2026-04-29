@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$REPO_ROOT/.env.compose.local"
+USE_BUILD=1
 
 require_command() {
   local command_name="$1"
@@ -11,6 +12,22 @@ require_command() {
     echo "缺少命令: $command_name" >&2
     exit 1
   fi
+}
+
+read_env_value() {
+  local key="$1"
+  local file="$2"
+  local value
+
+  value="$(grep -E "^${key}=" "$file" | head -n 1 | cut -d'=' -f2- || true)"
+  value="${value%$'\r'}"
+
+  if [[ -z "$value" ]]; then
+    echo "缺少配置: ${key} (from ${file})" >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$value"
 }
 
 wait_for_url() {
@@ -37,24 +54,36 @@ wait_for_url() {
 require_command docker
 require_command curl
 
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --no-build)
+      USE_BUILD=0
+      shift
+      ;;
+    *)
+      echo "未知参数: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "缺少 .env.compose.local，请先执行：" >&2
   echo "cp .env.compose.example .env.compose.local" >&2
   exit 1
 fi
 
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
-
-: "${PORT:?PORT is required in .env.compose.local}"
-: "${FRONTEND_PORT:?FRONTEND_PORT is required in .env.compose.local}"
-: "${POSTGRES_PORT:?POSTGRES_PORT is required in .env.compose.local}"
+PORT="$(read_env_value "PORT" "$ENV_FILE")"
+FRONTEND_PORT="$(read_env_value "FRONTEND_PORT" "$ENV_FILE")"
+POSTGRES_PORT="$(read_env_value "POSTGRES_PORT" "$ENV_FILE")"
 
 cd "$REPO_ROOT"
 
-docker compose --env-file .env.compose.local up -d --build
+if (( USE_BUILD )); then
+  docker compose --env-file .env.compose.local up -d --build
+else
+  docker compose --env-file .env.compose.local up -d
+fi
 docker compose ps
 wait_for_url "http://127.0.0.1:${PORT}/healthz" "API /healthz"
 wait_for_url "http://127.0.0.1:${FRONTEND_PORT}" "Frontend 首页"

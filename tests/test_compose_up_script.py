@@ -144,3 +144,74 @@ exit 0
     calls = calls_log.read_text(encoding="utf-8")
     assert calls.count("http://127.0.0.1:8000/healthz") == 3
     assert calls.count("http://127.0.0.1:3000") == 2
+
+
+def test_compose_up_no_build_skips_rebuild(tmp_path):
+    repo = _make_fake_repo(tmp_path)
+    (repo / ".env.compose.local").write_text(
+        "PORT=8000\nFRONTEND_PORT=3000\nPOSTGRES_PORT=55432\n",
+        encoding="utf-8",
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    calls_log = tmp_path / "calls.log"
+
+    _write_executable(
+        bin_dir / "docker",
+        f"#!/bin/sh\necho docker \"$@\" >> \"{calls_log}\"\nexit 0\n",
+    )
+    _write_executable(
+        bin_dir / "curl",
+        f"#!/bin/sh\necho curl \"$@\" >> \"{calls_log}\"\nexit 0\n",
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+
+    result = subprocess.run(
+        ["bash", "scripts/compose-up.sh", "--no-build"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=env,
+    )
+
+    calls = calls_log.read_text(encoding="utf-8")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "compose --env-file .env.compose.local up -d\n" in calls
+    assert "compose --env-file .env.compose.local up -d --build" not in calls
+
+
+def test_compose_up_reads_required_env_keys_without_sourcing_whole_file(tmp_path):
+    repo = _make_fake_repo(tmp_path)
+    (repo / ".env.compose.local").write_text(
+        "PORT=8000\nFRONTEND_PORT=3000\nPOSTGRES_PORT=55432\nUNUSED_VALUE=$(exit 99)\n",
+        encoding="utf-8",
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    calls_log = tmp_path / "calls.log"
+
+    _write_executable(
+        bin_dir / "docker",
+        f"#!/bin/sh\necho docker \"$@\" >> \"{calls_log}\"\nexit 0\n",
+    )
+    _write_executable(
+        bin_dir / "curl",
+        f"#!/bin/sh\necho curl \"$@\" >> \"{calls_log}\"\nexit 0\n",
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+
+    result = subprocess.run(
+        ["bash", "scripts/compose-up.sh"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=env,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
