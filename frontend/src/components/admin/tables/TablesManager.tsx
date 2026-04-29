@@ -11,17 +11,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { DataEmptyState } from "@/components/ui/data-empty-state";
+import { DataLoadingState } from "@/components/ui/data-loading-state";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  Trash2, 
-  Database, 
-  ArrowLeft, 
-  Edit, 
-  Plus, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  Trash2,
+  Database,
+  ArrowLeft,
+  Edit,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
   Search,
   ArrowUpDown,
   ArrowUp,
@@ -51,10 +54,11 @@ export function TablesManager() {
 
   if (tablesLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-        <span className="ml-2 text-lg">加载数据表中...</span>
-      </div>
+      <DataLoadingState
+        title="正在加载数据表"
+        description="表结构、记录量与数据工作区正在同步。"
+        rows={2}
+      />
     );
   }
 
@@ -62,15 +66,15 @@ export function TablesManager() {
     return (
       <div className="space-y-4 animate-in fade-in duration-300">
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => setSelectedTable(null)}
             className="transition-all duration-200 hover:bg-blue-50"
           >
             <ArrowLeft className="mr-2 h-4 w-4" /> 返回
           </Button>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            📊 {selectedTable}
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+            {selectedTable}
           </h2>
         </div>
         <TableDataView tableName={selectedTable} />
@@ -81,8 +85,8 @@ export function TablesManager() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 animate-in fade-in duration-300">
       {tablesData?.tables.map((table, idx) => (
-        <Card 
-          key={table.name} 
+        <Card
+          key={table.name}
           className="hover:shadow-lg transition-all duration-300 cursor-pointer border-l-4 border-l-blue-500 hover:border-l-indigo-600 hover:scale-[1.02] animate-in fade-in"
           style={{ animationDelay: `${idx * 50}ms` }}
           onClick={() => setSelectedTable(table.name)}
@@ -96,8 +100,8 @@ export function TablesManager() {
           <CardContent>
             <div className="text-3xl font-bold text-blue-600 mb-1">{table.record_count}</div>
             <p className="text-sm text-muted-foreground mb-4">条记录</p>
-            <Button 
-                className="w-full transition-all duration-200 hover:bg-blue-600" 
+            <Button
+                className="w-full transition-all duration-200 hover:bg-blue-600"
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -120,7 +124,7 @@ function TableDataView({ tableName }: { tableName: string }) {
     const [tempSearch, setTempSearch] = useState("");
     // 实际查询用的搜索（触发查询）
     const [appliedSearch, setAppliedSearch] = useState("");
-    
+
     const [sortState, setSortState] = useState<SortState>({ column: "id", order: "asc" });
     const [selectedFields, setSelectedFields] = useState<string[]>([]);
     // 临时字段筛选状态（不触发查询）
@@ -130,7 +134,7 @@ function TableDataView({ tableName }: { tableName: string }) {
     const [showSqlPanel, setShowSqlPanel] = useState(false);
     // 保存列信息，避免在加载时丢失
     const [stableColumns, setStableColumns] = useState<string[]>([]);
-    
+
     // 构建实际查询参数（只有这些变化时才触发查询）
     const queryParams = useMemo(() => {
       const params: {
@@ -144,16 +148,16 @@ function TableDataView({ tableName }: { tableName: string }) {
         page,
         page_size: 20,
       };
-      
+
       if (appliedSearch) {
         params.search = appliedSearch;
       }
-      
+
       if (sortState.column) {
         params.sort_by = sortState.column;
         params.sort_order = sortState.order;
       }
-      
+
       if (Object.keys(appliedFieldSearch).length > 0) {
         // 过滤掉空值
         const filtered = Object.fromEntries(
@@ -163,10 +167,10 @@ function TableDataView({ tableName }: { tableName: string }) {
           params.field_search = filtered;
         }
       }
-      
+
       return params;
     }, [page, appliedSearch, sortState, appliedFieldSearch]);
-    
+
     const { data, isLoading } = useTableData(tableName, queryParams);
     const deleteRecord = useDeleteTableRecord();
 
@@ -176,14 +180,14 @@ function TableDataView({ tableName }: { tableName: string }) {
       [data]
     );
     const currentColumnsKey = currentColumns.join(",");
-    
+
     // 更新稳定的列信息（只在有新列时更新，避免在加载时清空）
     useEffect(() => {
       if (currentColumns.length > 0) {
         setStableColumns((prev) => (prev.join(",") === currentColumnsKey ? prev : currentColumns));
       }
     }, [currentColumns, currentColumnsKey]);
-    
+
     // 使用稳定的列信息，如果当前没有数据则使用之前的列信息
     const columns = currentColumns.length > 0 ? currentColumns : stableColumns;
 
@@ -193,7 +197,7 @@ function TableDataView({ tableName }: { tableName: string }) {
         e.preventDefault();
         e.stopPropagation();
       }
-      
+
       // 排序立即生效，更新状态会触发查询
       setSortState(prev => {
         if (prev.column === column) {
@@ -210,14 +214,14 @@ function TableDataView({ tableName }: { tableName: string }) {
       });
       setPage(1);
     };
-    
+
     // 应用筛选条件（点击查询按钮时调用）
     const applyFilters = () => {
       setAppliedSearch(tempSearch);
       setAppliedFieldSearch(tempFieldSearch);
       setPage(1);
     };
-    
+
     // 清除筛选条件
     const clearFilters = () => {
       setTempSearch("");
@@ -232,7 +236,7 @@ function TableDataView({ tableName }: { tableName: string }) {
       if (sortState.column !== column) {
         return <ArrowUpDown className="h-4 w-4 text-gray-400" />;
       }
-      return sortState.order === "asc" 
+      return sortState.order === "asc"
         ? <ArrowUp className="h-4 w-4 text-blue-600" />
         : <ArrowDown className="h-4 w-4 text-blue-600" />;
     };
@@ -266,12 +270,14 @@ function TableDataView({ tableName }: { tableName: string }) {
     return (
         <div className="space-y-4">
             {/* 搜索和操作栏 */}
-            <div className="flex flex-wrap items-center gap-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg">
-                <div className="relative flex-1 min-w-[200px]">
+            <FilterToolbar
+              className="space-y-0"
+              leading={
+                <div className="relative min-w-[220px]">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                    <Input 
-                        placeholder="🔍 全字段搜索..." 
-                        className="pl-9 transition-all duration-200 focus:ring-2 focus:ring-blue-500" 
+                    <Input
+                        placeholder="全字段搜索..."
+                        className="pl-9 transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                         value={tempSearch}
                         onChange={(e) => setTempSearch(e.target.value)}
                         onKeyDown={(e) => {
@@ -281,8 +287,8 @@ function TableDataView({ tableName }: { tableName: string }) {
                         }}
                     />
                 </div>
-                
-                {/* 字段筛选 */}
+              }
+              center={
                 <div className="flex flex-wrap items-center gap-2">
                   {selectedFields.map(field => (
                     <div key={field} className="flex items-center gap-2 bg-white px-3 py-1 rounded-md border">
@@ -338,9 +344,9 @@ function TableDataView({ tableName }: { tableName: string }) {
                     添加字段筛选
                   </Button>
                 </div>
-
-                {/* 查询和清除按钮 */}
-                <div className="flex items-center gap-2">
+              }
+              trailing={
+                <>
                   <Button
                     variant="default"
                     size="sm"
@@ -361,28 +367,24 @@ function TableDataView({ tableName }: { tableName: string }) {
                       清除
                     </Button>
                   )}
-                </div>
-
-                {/* 操作按钮 */}
-                <div className="flex items-center gap-2">
-                    {columns.length > 0 && (
-                        <TableRecordDialog tableName={tableName} columns={columns} />
-                    )}
-                    <Button
-                      variant={showSqlPanel ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setShowSqlPanel(!showSqlPanel)}
-                      className="h-8"
-                    >
-                      <Code className="h-4 w-4 mr-1" />
-                      {showSqlPanel ? "隐藏" : "显示"} SQL查询
-                    </Button>
-                </div>
-                
-                <div className="text-sm font-semibold text-blue-700">
-                    📊 总计: {data?.total_records ?? 0} 条
-                </div>
-            </div>
+                  {columns.length > 0 && (
+                      <TableRecordDialog tableName={tableName} columns={columns} />
+                  )}
+                  <Button
+                    variant={showSqlPanel ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowSqlPanel(!showSqlPanel)}
+                    className="h-8"
+                  >
+                    <Code className="h-4 w-4 mr-1" />
+                    {showSqlPanel ? "隐藏" : "显示"} SQL查询
+                  </Button>
+                  <div className="text-sm font-semibold text-blue-700">
+                      总计: {data?.total_records ?? 0} 条
+                  </div>
+                </>
+              }
+            />
 
             {/* SQL查询面板 */}
             {showSqlPanel && (
@@ -463,11 +465,15 @@ function TableDataView({ tableName }: { tableName: string }) {
                   </Table>
                 )}
                 {columns.length === 0 && (
-                  <div className="text-center p-8 text-muted-foreground">未找到数据</div>
+                  <DataEmptyState
+                    title="未找到数据"
+                    description="试试调整关键字、字段筛选条件或切换到其他数据表。"
+                    className="min-h-[180px] rounded-none border-0"
+                  />
                 )}
               </div>
             ) : (
-              <TableContent 
+              <TableContent
                 columns={columns}
                 records={data.records}
                 tableName={tableName}
@@ -544,7 +550,7 @@ const TableContent = memo(function TableContent({
   const handleCopy = async (value: unknown, cellKey: string) => {
     try {
       let textToCopy: string;
-      
+
       if (value === null || value === undefined) {
         textToCopy = "";
       } else if (typeof value === "object") {
@@ -552,7 +558,7 @@ const TableContent = memo(function TableContent({
       } else {
         textToCopy = String(value);
       }
-      
+
       await navigator.clipboard.writeText(textToCopy);
       setCopiedCell(cellKey);
       toast.success("已复制到剪贴板");
@@ -613,16 +619,16 @@ const TableContent = memo(function TableContent({
                     const cellValue = formatCellValue(record[col]);
                     const originalValue = record[col];
                     const isLongText = typeof originalValue === 'string' && originalValue.length > 50;
-                    const displayValue = isLongText 
-                      ? originalValue.substring(0, 50) + '...' 
+                    const displayValue = isLongText
+                      ? originalValue.substring(0, 50) + '...'
                       : cellValue;
                     const fullValue = typeof originalValue === 'string' ? originalValue : cellValue;
                     const cellKey = `${String(getRowKey(record, idx))}-${col}`;
                     const isCopied = copiedCell === cellKey;
-                    
+
                     return (
-                      <TableCell 
-                        key={col} 
+                      <TableCell
+                        key={col}
                         className="overflow-hidden cursor-pointer select-none hover:bg-blue-50 transition-colors"
                         onDoubleClick={() => handleCopy(originalValue, cellKey)}
                         title="双击复制"

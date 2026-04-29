@@ -11,7 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import { Input } from "@/components/ui/input";
+import { PageSection } from "@/components/layout/PageSection";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -153,26 +155,36 @@ export function VerificationRulesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <Input
-          placeholder="搜索规则名称、匹配条件或提取规则..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-md"
-        />
-        <Button
-          onClick={() => {
-            setEditingRule(null);
-            setDialogOpen(true);
-          }}
-        >
-          <Plus className="mr-2 h-4 w-4" />
-          新建规则
-        </Button>
-      </div>
+      <FilterToolbar
+        leading={
+          <Input
+            placeholder="搜索规则名称、匹配条件或提取规则..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-md"
+          />
+        }
+        trailing={
+          <Button
+            onClick={() => {
+              setEditingRule(null);
+              setDialogOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            新建规则
+          </Button>
+        }
+      />
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)]">
-        <Card className="panel-surface">
+        <PageSection
+          title="验证码规则"
+          description="维护 matcher 与 extractor，统一控制验证码识别语义。"
+          className="p-0"
+          contentClassName="p-0"
+        >
+        <Card className="panel-surface border-0 shadow-none">
           <CardHeader>
             <CardTitle>验证码规则</CardTitle>
           </CardHeader>
@@ -255,8 +267,15 @@ export function VerificationRulesTab() {
             </Table>
           </CardContent>
         </Card>
+        </PageSection>
 
-        <Card className="panel-surface">
+        <PageSection
+          title="实时测试"
+          description="选择账号与邮件，模拟规则命中过程与提取结果。"
+          className="p-0"
+          contentClassName="p-0"
+        >
+        <Card className="panel-surface border-0 shadow-none">
           <CardHeader>
             <CardTitle>实时测试</CardTitle>
           </CardHeader>
@@ -575,6 +594,7 @@ export function VerificationRulesTab() {
             </div>
           </CardContent>
         </Card>
+        </PageSection>
       </div>
 
       <VerificationRuleDialog open={dialogOpen} onOpenChange={setDialogOpen} rule={editingRule} />

@@ -12,6 +12,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { DataEmptyState } from "@/components/ui/data-empty-state";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { PageSection } from "@/components/layout/PageSection";
 import { Edit, Trash2, Search, Check } from "lucide-react";
 import { ConfigDialog } from "./ConfigDialog";
 import { ConfigItem } from "@/types";
@@ -68,10 +71,14 @@ export function ConfigTable() {
   if (isLoading) return <div className="p-4">加载配置中...</div>;
 
   return (
-    <div className="space-y-4">
-      {/* 搜索框和新增按钮 */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-md">
+    <PageSection
+      title="系统配置"
+      description="统一管理系统键值、描述与运行参数。"
+      contentClassName="space-y-4"
+    >
+      <FilterToolbar
+        leading={
+          <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="搜索配置键、值或描述..."
@@ -79,11 +86,11 @@ export function ConfigTable() {
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
           />
-        </div>
-        <ConfigDialog />
-      </div>
+          </div>
+        }
+        trailing={<ConfigDialog />}
+      />
 
-      {/* 配置表格 */}
       <div className="panel-surface rounded-md">
         <Table>
           <TableHeader>
@@ -97,8 +104,12 @@ export function ConfigTable() {
           <TableBody>
             {filteredConfigs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-gray-500 py-8">
-                  {searchQuery ? "未找到匹配的配置" : "暂无配置项"}
+                <TableCell colSpan={4} className="p-0">
+                  <DataEmptyState
+                    title={searchQuery ? "未找到匹配的配置" : "暂无配置项"}
+                    description={searchQuery ? "可以尝试缩短关键词，或检查键名和值是否包含输入内容。" : "当前系统还没有可编辑的配置项。"}
+                    className="min-h-[200px] rounded-none border-0"
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -137,7 +148,7 @@ export function ConfigTable() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageSection>
   );
 }
 

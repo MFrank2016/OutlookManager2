@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -144,9 +146,12 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>{isEdit ? "编辑用户" : "添加新用户"}</DialogTitle>
+          <DialogDescription>
+            维护用户基础资料、角色与启停状态。编辑时若不修改密码，可将密码字段留空。
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -229,9 +234,14 @@ export function UserDialog({ user, trigger }: UserDialogProps) {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={createUser.isPending || updateUser.isPending}>
-              {createUser.isPending || updateUser.isPending ? "保存中..." : "保存用户"}
-            </Button>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                取消
+              </Button>
+              <Button type="submit" disabled={createUser.isPending || updateUser.isPending}>
+                {createUser.isPending || updateUser.isPending ? "保存中..." : "保存用户"}
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>

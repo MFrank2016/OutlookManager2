@@ -1,6 +1,7 @@
 "use client";
 
 import { useCacheStats, useClearAllCache, useTriggerLruCleanup } from "@/hooks/useAdmin";
+import { PageSection } from "@/components/layout/PageSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -11,11 +12,15 @@ export function CacheManager() {
   const clearAllCache = useClearAllCache();
   const triggerLruCleanup = useTriggerLruCleanup();
 
-  if (isLoading) return <div>加载统计信息中...</div>;
-  if (!stats) return <div>无可用数据</div>;
+  if (isLoading) return <div className="p-4 text-muted-foreground">加载统计信息中...</div>;
+  if (!stats) return <div className="p-4 text-muted-foreground">无可用数据</div>;
 
   return (
-    <div className="space-y-6">
+    <PageSection
+      title="缓存管理"
+      description="查看缓存容量、命中率与数据库体积，并执行清空或 LRU 清理。"
+      contentClassName="space-y-6"
+    >
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -62,7 +67,7 @@ export function CacheManager() {
         </Card>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-wrap gap-4">
         <Button 
             variant="destructive" 
             onClick={() => {
@@ -84,7 +89,6 @@ export function CacheManager() {
             {triggerLruCleanup.isPending ? "清理中..." : "触发LRU清理"}
         </Button>
       </div>
-    </div>
+    </PageSection>
   );
 }
-

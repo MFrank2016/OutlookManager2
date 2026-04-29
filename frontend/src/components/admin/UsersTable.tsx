@@ -13,6 +13,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { DataEmptyState } from "@/components/ui/data-empty-state";
+import { DataLoadingState } from "@/components/ui/data-loading-state";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
+import { PageSection } from "@/components/layout/PageSection";
 import { Trash, Edit, Search, ShieldAlert, ShieldCheck, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { UserDialog } from "./UserDialog";
@@ -30,12 +34,25 @@ export function UsersTable() {
   });
   const deleteUser = useDeleteUser();
 
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">加载用户中...</div>;
+  if (isLoading) {
+    return (
+      <DataLoadingState
+        title="正在加载用户"
+        description="用户列表、角色与状态信息正在同步。"
+        rows={2}
+      />
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="relative flex-1 min-w-[200px] max-w-md">
+    <PageSection
+      title="用户管理"
+      description="管理后台用户、角色权限与启停状态。"
+      contentClassName="space-y-4"
+    >
+      <FilterToolbar
+        leading={
+          <div className="relative min-w-[200px] max-w-md">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
                 placeholder="搜索用户..." 
@@ -46,14 +63,15 @@ export function UsersTable() {
                     setPage(1);
                 }}
             />
-        </div>
-        <UserDialog />
-      </div>
+          </div>
+        }
+        trailing={<UserDialog />}
+      />
 
       <div className="panel-surface overflow-hidden rounded-md">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50 hover:bg-slate-50">
+            <TableRow>
               <TableHead className="w-[50px]"></TableHead>
               <TableHead>用户</TableHead>
               <TableHead>角色</TableHead>
@@ -65,8 +83,12 @@ export function UsersTable() {
           <TableBody>
             {data?.users.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={6} className="text-center p-8 text-muted-foreground">
-                        未找到用户
+                    <TableCell colSpan={6} className="p-0">
+                        <DataEmptyState
+                          title="未找到用户"
+                          description={search ? "试试调整搜索关键词，或清空搜索后重试。" : "当前还没有可管理的用户记录。"}
+                          className="min-h-[200px] rounded-none border-0"
+                        />
                     </TableCell>
                 </TableRow>
             )}
@@ -179,6 +201,6 @@ export function UsersTable() {
             </div>
         </div>
       )}
-    </div>
+    </PageSection>
   );
 }

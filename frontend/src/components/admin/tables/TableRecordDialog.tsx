@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,9 +102,12 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[560px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEdit ? "编辑记录" : "添加新记录"}</DialogTitle>
+          <DialogDescription>
+            当前正在维护 <strong>{tableName}</strong> 表的数据记录。系统字段默认只读，业务字段可直接编辑。
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
             {columns.map(col => {
@@ -131,6 +135,9 @@ export function TableRecordDialog({ tableName, columns, record, trigger }: Table
                 );
             })}
             <DialogFooter>
+                <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                    取消
+                </Button>
                 <Button type="submit" disabled={isPending}>
                     {isPending ? "保存中..." : "保存记录"}
                 </Button>

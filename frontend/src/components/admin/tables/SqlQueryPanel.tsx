@@ -201,8 +201,8 @@ export function SqlQueryPanel({ tableName }: SqlQueryPanelProps) {
   };
 
   return (
-    <Card className="border-2 border-blue-200 shadow-lg">
-      <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+    <Card className="border-border/70 shadow-[var(--shadow-soft)]">
+      <CardHeader className="border-b border-border/70 bg-[color:var(--surface-1)]/75">
         <CardTitle className="flex items-center gap-2 text-xl">
           <Code className="h-5 w-5 text-blue-600" />
           SQL查询面板

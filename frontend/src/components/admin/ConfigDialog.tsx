@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -109,9 +111,12 @@ export function ConfigDialog({ config, trigger }: ConfigDialogProps) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>{isEdit ? "编辑配置" : "新增配置"}</DialogTitle>
+          <DialogDescription>
+            维护系统配置键值与说明。配置键创建后不可直接修改，请确认命名后再保存。
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -158,21 +163,24 @@ export function ConfigDialog({ config, trigger }: ConfigDialogProps) {
                 </FormItem>
               )}
             />
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={createConfig.isPending || updateConfig.isPending}
-            >
-              {createConfig.isPending || updateConfig.isPending
-                ? "保存中..."
-                : isEdit
-                ? "更新配置"
-                : "创建配置"}
-            </Button>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                取消
+              </Button>
+              <Button
+                type="submit"
+                disabled={createConfig.isPending || updateConfig.isPending}
+              >
+                {createConfig.isPending || updateConfig.isPending
+                  ? "保存中..."
+                  : isEdit
+                  ? "更新配置"
+                  : "创建配置"}
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
   );
 }
-

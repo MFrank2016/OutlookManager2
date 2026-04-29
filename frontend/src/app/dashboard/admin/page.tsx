@@ -1,33 +1,35 @@
 "use client";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UsersTable } from "@/components/admin/UsersTable";
-import { ConfigTable } from "@/components/admin/ConfigTable";
-import { TablesManager } from "@/components/admin/tables/TablesManager";
 import { CacheManager } from "@/components/admin/cache/CacheManager";
+import { ConfigTable } from "@/components/admin/ConfigTable";
+import { AdminModuleTabs } from "@/components/admin/AdminModuleTabs";
 import { VerificationRulesTab } from "@/components/admin/verification-rules/VerificationRulesTab";
+import { TablesManager } from "@/components/admin/tables/TablesManager";
+import { UsersTable } from "@/components/admin/UsersTable";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageIntro } from "@/components/layout/PageIntro";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 
 export default function AdminPage() {
   return (
-    <div className="page-enter space-y-6">
+    <div className="page-enter space-y-4">
+      <PageHeader
+        title="管理面板"
+        description="集中处理数据表、用户、配置、缓存与验证码规则等后台能力。"
+      />
+
+      <PageIntro description="切换不同控制模块时，共享同一套专业化控制台结构与主题表现。">
+        <div className="grid gap-2 text-xs text-[color:var(--text-soft)] sm:grid-cols-3 xl:grid-cols-5">
+          <div className="rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-2">数据与结构：表记录、字段与 SQL</div>
+          <div className="rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-2">用户权限：账户、角色、启停状态</div>
+          <div className="rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-2">系统配置：运行参数与业务键值</div>
+          <div className="rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-2">缓存策略：容量、命中率与清理操作</div>
+          <div className="rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-2">验证码规则：匹配、提取与测试</div>
+        </div>
+      </PageIntro>
+
       <Tabs defaultValue="tables" className="space-y-4">
-        <TabsList className="panel-surface grid h-12 w-full grid-cols-5">
-          <TabsTrigger value="tables" className="text-lg font-semibold transition-all duration-200 data-[state=active]:border data-[state=active]:border-primary/45 data-[state=active]:bg-primary/20">
-            📊 数据表管理
-          </TabsTrigger>
-          <TabsTrigger value="users" className="text-lg font-semibold transition-all duration-200 data-[state=active]:border data-[state=active]:border-primary/45 data-[state=active]:bg-primary/20">
-            👥 用户管理
-          </TabsTrigger>
-          <TabsTrigger value="config" className="text-lg font-semibold transition-all duration-200 data-[state=active]:border data-[state=active]:border-primary/45 data-[state=active]:bg-primary/20">
-            ⚙️ 系统配置
-          </TabsTrigger>
-          <TabsTrigger value="cache" className="text-lg font-semibold transition-all duration-200 data-[state=active]:border data-[state=active]:border-primary/45 data-[state=active]:bg-primary/20">
-            💾 缓存管理
-          </TabsTrigger>
-          <TabsTrigger value="verification-rules" className="text-lg font-semibold transition-all duration-200 data-[state=active]:border data-[state=active]:border-primary/45 data-[state=active]:bg-primary/20">
-            🔑 验证码规则
-          </TabsTrigger>
-        </TabsList>
+        <AdminModuleTabs />
         <TabsContent value="tables" className="space-y-4">
           <TablesManager />
         </TabsContent>
