@@ -13,6 +13,27 @@ require_command() {
   fi
 }
 
+wait_for_url() {
+  local url="$1"
+  local service_name="$2"
+  local max_attempts=10
+  local sleep_seconds=1
+  local attempt
+
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    if curl -fsS "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+
+    if (( attempt < max_attempts )); then
+      sleep "$sleep_seconds"
+    fi
+  done
+
+  echo "探活失败: ${service_name} (${url})" >&2
+  return 1
+}
+
 require_command docker
 require_command curl
 
@@ -35,8 +56,8 @@ cd "$REPO_ROOT"
 
 docker compose --env-file .env.compose.local up -d --build
 docker compose ps
-curl -fsS "http://127.0.0.1:${PORT}/healthz"
-curl -fsS "http://127.0.0.1:${FRONTEND_PORT}"
+wait_for_url "http://127.0.0.1:${PORT}/healthz" "API /healthz"
+wait_for_url "http://127.0.0.1:${FRONTEND_PORT}" "Frontend 首页"
 
 echo
 echo "✅ 本地 Compose 栈已启动"
