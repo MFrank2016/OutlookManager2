@@ -1,58 +1,94 @@
-# Docker 快速部署指南
+# Docker 运维手册
 
-## 🚀 一键启动
+> 首次启动请先看 README.md。
+> 这份文档只负责 **本地 Docker Compose 栈** 的日常运维，不再重复首启流程。
+
+## 适用范围
+
+- 你已经按 `README.md` 完成过首次启动
+- 当前栈使用 `.env.compose.local`
+- 你要做的是查看状态、看日志、重建、重启、清理或进入容器
+
+## 常用运维命令
 
 ```bash
-# 1. 准备本地 compose 配置
-cp .env.compose.example .env.compose.local
+# 查看服务状态
+docker compose ps
 
-# 2. 启动服务
-docker compose --env-file .env.compose.local up -d --build
-
-# 3. 查看日志
+# 查看所有服务日志
 docker compose logs -f
-```
 
-> 不要直接复用远程数据库模式的 `.env`。
-> 本地 compose 栈只使用 `.env.compose.local`（由 `.env.compose.example` 复制而来）。
+# 查看 API 日志
+docker compose logs -f outlook-email-api
 
-## 📝 常用命令
+# 查看 Frontend 日志
+docker compose logs -f outlook-email-frontend
 
-```bash
-# 启动服务
-docker compose --env-file .env.compose.local up -d
+# 查看 PostgreSQL 日志
+docker compose logs -f postgresql
 
 # 停止服务
 docker compose stop
 
-# 重启服务
+# 启动已存在容器
+docker compose --env-file .env.compose.local up -d
+
+# 重启所有服务
 docker compose restart
 
-# 查看日志
-docker compose logs -f
+# 重新构建并启动
+docker compose --env-file .env.compose.local up -d --build
 
-# 查看状态
-docker compose ps
-
-# 进入容器
-docker compose exec outlook-email-api /bin/sh
-
-# 更新代码（重新构建）
-docker compose down
+# 强制重新构建后启动
 docker compose --env-file .env.compose.local build --no-cache
 docker compose --env-file .env.compose.local up -d
+
+# 停止并移除容器
+docker compose down
 ```
 
-## 🔧 配置说明
+## 验活命令
 
-- API 端口：`8000`（由 `.env.compose.local` 中的 `PORT` 控制）
-- Frontend 端口：`3000`
-- PostgreSQL 主机端口：`55432`
-- 日志目录：`./logs`
-- 时区：Asia/Shanghai
-- PostgreSQL 容器账户默认来自：
-  - `POSTGRES_DB`
-  - `POSTGRES_USER`
-  - `POSTGRES_PASSWORD`
+```bash
+# 容器状态
+docker compose ps
 
-详细配置请参考 [DOCKER_UPDATE_GUIDE.md](./DOCKER_UPDATE_GUIDE.md)
+# API 健康检查
+curl http://127.0.0.1:8000/healthz
+
+# Frontend 首页
+curl -I http://127.0.0.1:3000
+```
+
+## 常见运维场景
+
+### 仅重启 API
+
+```bash
+docker compose restart outlook-email-api
+```
+
+### 进入 API 容器
+
+```bash
+docker compose exec outlook-email-api /bin/sh
+```
+
+### 进入 PostgreSQL 容器
+
+```bash
+docker compose exec postgresql /bin/sh
+```
+
+### 清理并重新拉起本地栈
+
+```bash
+docker compose down
+docker compose --env-file .env.compose.local up -d --build
+```
+
+## 排障入口
+
+- 首次启动不会用：回到 `README.md`
+- 需要远程 PostgreSQL / 只跑后端：看 `docs/LOCAL_DEVELOPMENT.md`
+- 需要理解旧 `.env` / 旧 Docker 模板：看 `docker/docker.env.example` 顶部说明

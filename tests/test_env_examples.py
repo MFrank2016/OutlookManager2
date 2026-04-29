@@ -33,3 +33,36 @@ def test_root_readme_promotes_compose_first_and_advanced_mode_handoff():
     assert readme_text.index("## 推荐路径：先用本地 Docker Compose 栈跑起来") < readme_text.index(
         "## 高级模式：远程 PostgreSQL / 只跑后端"
     )
+
+
+
+def test_docker_readme_targets_compose_ops_only():
+    text = Path("README_DOCKER.md").read_text(encoding="utf-8")
+
+    assert "首次启动请先看 README.md" in text
+    assert ".env.compose.local" in text
+    assert "cp docker/docker.env.example .env" not in text
+
+
+def test_local_development_is_clearly_advanced_mode():
+    text = Path("docs/LOCAL_DEVELOPMENT.md").read_text(encoding="utf-8")
+
+    assert "高级模式" in text
+    assert ".env.remote-db.example" in text
+    assert "只跑后端" in text
+
+
+def test_legacy_docker_env_example_is_marked_historical():
+    text = Path("docker/docker.env.example").read_text(encoding="utf-8")
+
+    assert "历史兼容" in text
+    assert ".env.compose.local" in text
+    assert "cp docker/docker.env.example .env" not in text
+
+
+def test_docker_update_guide_redirects_to_authoritative_docs():
+    text = Path("DOCKER_UPDATE_GUIDE.md").read_text(encoding="utf-8")
+
+    assert "README_DOCKER.md" in text
+    assert "docs/LOCAL_DEVELOPMENT.md" in text
+    assert "cp docker/docker.env.example .env" not in text
