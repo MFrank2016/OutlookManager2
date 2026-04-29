@@ -600,6 +600,9 @@ function EmailsPageContent() {
                                             <div className="text-xs text-slate-500 truncate max-w-[500px]">
                                                 {email.body_preview || "无预览"}
                                             </div>
+                                            <div className="text-[11px] text-slate-400 truncate max-w-[500px]">
+                                                ID: {email.message_id}
+                                            </div>
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-slate-500 text-sm">
@@ -718,6 +721,10 @@ function EmailsPageContent() {
                                                     {email.subject}
                                                 </div>
                                             </div>
+                                        </div>
+
+                                        <div className="pl-3.5 text-[11px] text-gray-500 break-all">
+                                            ID: {email.message_id}
                                         </div>
                                         
                                         {/* 预览内容 */}
@@ -1153,7 +1160,25 @@ function EmailDetailModalView({ account, messageId, emailData, onDelete }: { acc
                     </div>
                     <div className="text-sm">
                         <span className="font-medium text-gray-600">邮件ID: </span>
-                        <span className="text-gray-900 font-mono text-xs">{email.message_id}</span>
+                        <span className="inline-flex items-center gap-2">
+                            <span className="text-gray-900 font-mono text-xs">{email.message_id}</span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={async () => {
+                                    const success = await copyToClipboard(email.message_id);
+                                    if (success) {
+                                        toast.success("邮件 ID 已复制");
+                                    } else {
+                                        toast.error("复制失败，请手动复制");
+                                    }
+                                }}
+                            >
+                                <Copy className="mr-1 h-3.5 w-3.5" />
+                                复制
+                            </Button>
+                        </span>
                     </div>
                 </div>
 

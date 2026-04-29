@@ -18,13 +18,36 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Pencil, Trash2, Play, RefreshCw, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
+type RuleMatcher = {
+  source_type?: "sender" | "subject" | "body";
+  keyword?: string;
+  sort_order?: number;
+};
+
+type RuleExtractorAttempt = {
+  source_type?: "subject" | "body";
+  extract_pattern?: string;
+  sort_order?: number;
+  matched?: boolean;
+  code?: string | null;
+};
+
 type RuleEvaluation = {
   rule_id?: number;
   rule_name?: string;
   matched?: boolean;
   reason?: string;
-  checks?: Record<string, { configured?: boolean; matched?: boolean; pattern?: string | null }>;
+  matched_matchers?: RuleMatcher[];
+  extractor_attempts?: RuleExtractorAttempt[];
 };
+
+const SOURCE_LABELS: Record<string, string> = {
+  sender: "发件人",
+  subject: "主题",
+  body: "内容",
+};
+
+const formatSourceLabel = (sourceType?: string) => SOURCE_LABELS[sourceType || ""] || sourceType || "-";
 
 export function VerificationRulesTab() {
   const { data } = useVerificationRules();
@@ -44,6 +67,7 @@ export function VerificationRulesTab() {
   const [search, setSearch] = useState("");
   const [selectedAccount, setSelectedAccount] = useState("");
   const [selectedMessageId, setSelectedMessageId] = useState("");
+  const [manualMessageId, setManualMessageId] = useState("");
   const [selectedRuleId, setSelectedRuleId] = useState<string>("all");
   const [testResult, setTestResult] = useState<VerificationRuleTestResult | null>(null);
   const [emailRefreshNonce, setEmailRefreshNonce] = useState(0);
@@ -55,7 +79,12 @@ export function VerificationRulesTab() {
     const keyword = search.trim().toLowerCase();
     if (!keyword) return rules;
     return rules.filter((rule) =>
-      [rule.name, rule.sender_pattern, rule.subject_pattern, rule.body_pattern, rule.extract_pattern, rule.description]
+      [
+        rule.name,
+        rule.description,
+        ...rule.matchers.map((matcher) => `${matcher.source_type} ${matcher.keyword}`),
+        ...rule.extractors.map((extractor) => `${extractor.source_type} ${extractor.extract_pattern}`),
+      ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(keyword))
     );
@@ -74,6 +103,7 @@ export function VerificationRulesTab() {
 
   useEffect(() => {
     setSelectedMessageId("");
+    setManualMessageId("");
     setEmailSearchInput("");
     setOnlyCodeEmails(false);
   }, [selectedAccount, emailRefreshNonce]);
@@ -104,10 +134,11 @@ export function VerificationRulesTab() {
   };
 
   const handleRunTest = async (ruleId?: number) => {
-    if (!selectedAccount || !selectedMessageId) return;
+    const effectiveMessageId = manualMessageId.trim() || selectedMessageId;
+    if (!selectedAccount || !effectiveMessageId) return;
     const result = await testRule.mutateAsync({
       email_account: selectedAccount,
-      message_id: selectedMessageId,
+      message_id: effectiveMessageId,
       rule_id: ruleId,
     });
     setTestResult(result);
@@ -179,11 +210,29 @@ export function VerificationRulesTab() {
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[280px] text-xs text-muted-foreground">
-                        <div>发件人：{rule.sender_pattern || "-"}</div>
-                        <div>主题：{rule.subject_pattern || "-"}</div>
-                        <div>内容：{rule.body_pattern || "-"}</div>
+                        {rule.matchers.length === 0 ? (
+                          <div>-</div>
+                        ) : (
+                          rule.matchers.map((matcher) => (
+                            <div key={`${rule.id}-matcher-${matcher.id ?? matcher.sort_order}`}>
+                              {formatSourceLabel(matcher.source_type)}：{matcher.keyword}
+                            </div>
+                          ))
+                        )}
                       </TableCell>
-                      <TableCell className="max-w-[240px] break-all text-xs">{rule.extract_pattern}</TableCell>
+                      <TableCell className="max-w-[240px] break-all text-xs">
+                        {rule.extractors.length === 0 ? (
+                          "-"
+                        ) : (
+                          <div className="space-y-1">
+                            {rule.extractors.map((extractor) => (
+                              <div key={`${rule.id}-extractor-${extractor.id ?? extractor.sort_order}`}>
+                                {formatSourceLabel(extractor.source_type)}：{extractor.extract_pattern}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button variant="outline" size="sm" onClick={() => {
@@ -304,14 +353,36 @@ export function VerificationRulesTab() {
                 <SelectContent>
                   {filteredEmails.map((email) => (
                     <SelectItem key={email.message_id} value={email.message_id}>
-                      {(email.subject || "(无主题)").slice(0, 44)} · {email.from_email}
+                      <div className="flex flex-col gap-0.5 py-1">
+                        <span className="max-w-[320px] truncate text-sm font-medium">
+                          {(email.subject || "(无主题)").slice(0, 44)}
+                        </span>
+                        <span className="max-w-[320px] truncate text-xs text-muted-foreground">
+                          {email.from_email}
+                        </span>
+                        <span className="max-w-[320px] truncate text-[11px] text-muted-foreground">
+                          ID: {email.message_id}
+                          {email.verification_code ? ` · 验证码: ${email.verification_code}` : ""}
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <Input
+                value={manualMessageId}
+                onChange={(event) => setManualMessageId(event.target.value)}
+                placeholder="手动输入 message_id，优先级高于下拉选择"
+                disabled={!selectedAccount}
+              />
               <div className="text-xs text-muted-foreground">
                 当前显示 {filteredEmails.length} / {emailsData?.emails?.length || 0} 封邮件
               </div>
+              {manualMessageId.trim() && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  当前测试将优先使用手输 message_id：{manualMessageId.trim()}
+                </div>
+              )}
               {selectedEmail && (
                 <div className="rounded-xl border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground space-y-1">
                   <div className="font-medium text-foreground">{selectedEmail.subject || "(无主题)"}</div>
@@ -345,7 +416,7 @@ export function VerificationRulesTab() {
 
             <Button
               className="w-full"
-              disabled={!selectedAccount || !selectedMessageId || testRule.isPending}
+              disabled={!selectedAccount || (!selectedMessageId && !manualMessageId.trim()) || testRule.isPending}
               onClick={() => handleRunTest(selectedRuleId === "all" ? undefined : Number(selectedRuleId))}
             >
               <Play className="mr-2 h-4 w-4" />
@@ -374,6 +445,11 @@ export function VerificationRulesTab() {
                       命中规则：{testResult.matched_rule.name} · {testResult.matched_rule.scope_type} · priority {testResult.matched_rule.priority}
                     </div>
                   )}
+                  {testResult.resolved_code_source && (
+                    <div className="text-xs text-muted-foreground">
+                      命中来源：{formatSourceLabel(testResult.resolved_code_source)}
+                    </div>
+                  )}
                   {testResult.matched_subject && (
                     <div className="text-xs text-muted-foreground">
                       主题命中：{testResult.matched_subject}
@@ -382,6 +458,47 @@ export function VerificationRulesTab() {
                   {testResult.matched_body_excerpt && (
                     <div className="text-xs text-muted-foreground">
                       摘要：{testResult.matched_body_excerpt}
+                    </div>
+                  )}
+
+                  {testResult.matched_matchers && testResult.matched_matchers.length > 0 && (
+                    <div className="space-y-2 rounded-lg border border-border/60 bg-background/70 p-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        命中的 matcher
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {testResult.matched_matchers.map((matcher, index) => (
+                          <Badge key={`${matcher.source_type}-${matcher.sort_order ?? index}`} variant="secondary">
+                            {formatSourceLabel(matcher.source_type)} · {matcher.keyword}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {testResult.extractor_attempts && testResult.extractor_attempts.length > 0 && (
+                    <div className="space-y-2 rounded-lg border border-border/60 bg-background/70 p-3">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        extractor 尝试顺序
+                      </div>
+                      <div className="space-y-2">
+                        {testResult.extractor_attempts.map((attempt, index) => (
+                          <div key={`${attempt.source_type}-${attempt.sort_order ?? index}`} className="rounded-md bg-muted/40 px-3 py-2 text-xs">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={attempt.matched ? "default" : "secondary"}>
+                                {attempt.matched ? "命中" : "未命中"}
+                              </Badge>
+                              <span className="font-medium text-foreground">{formatSourceLabel(String(attempt.source_type || ""))}</span>
+                              {attempt.code ? (
+                                <span className="text-emerald-700">提取结果: {String(attempt.code)}</span>
+                              ) : null}
+                            </div>
+                            {attempt.extract_pattern ? (
+                              <div className="mt-1 break-all text-muted-foreground">{String(attempt.extract_pattern)}</div>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -404,23 +521,41 @@ export function VerificationRulesTab() {
                                 <span className="text-xs text-muted-foreground">{evaluation.reason}</span>
                               )}
                             </div>
-                            {evaluation.checks && (
-                              <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                                {Object.entries(evaluation.checks).map(([key, value]) => (
-                                  <div key={key} className="rounded-md bg-muted/40 px-2.5 py-2 text-xs">
-                                    <div className="font-medium text-foreground">{key}</div>
-                                    <div className="mt-1 text-muted-foreground">
-                                      {value.configured ? (value.matched ? "已命中" : "未命中") : "未配置"}
-                                    </div>
-                                    {value.pattern && (
-                                      <div className="mt-1 break-all text-[11px] text-muted-foreground/90">
-                                        {value.pattern}
-                                      </div>
-                                    )}
+                            <div className="mt-2 grid gap-2">
+                              {evaluation.matched_matchers && evaluation.matched_matchers.length > 0 ? (
+                                <div className="rounded-md bg-muted/40 px-2.5 py-2 text-xs">
+                                  <div className="font-medium text-foreground">命中的 matcher</div>
+                                  <div className="mt-1 flex flex-wrap gap-2">
+                                    {evaluation.matched_matchers.map((matcher, matcherIndex) => (
+                                      <Badge key={`${matcher.source_type}-${matcher.sort_order ?? matcherIndex}`} variant="secondary">
+                                        {formatSourceLabel(matcher.source_type)} · {matcher.keyword}
+                                      </Badge>
+                                    ))}
                                   </div>
-                                ))}
-                              </div>
-                            )}
+                                </div>
+                              ) : null}
+                              {evaluation.extractor_attempts && evaluation.extractor_attempts.length > 0 ? (
+                                <div className="rounded-md bg-muted/40 px-2.5 py-2 text-xs">
+                                  <div className="font-medium text-foreground">extractor 尝试</div>
+                                  <div className="mt-2 space-y-2">
+                                    {evaluation.extractor_attempts.map((attempt, attemptIndex) => (
+                                      <div key={`${attempt.source_type}-${attempt.sort_order ?? attemptIndex}`} className="rounded-md border border-border/50 bg-background/80 px-2 py-2">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <Badge variant={attempt.matched ? "default" : "secondary"}>
+                                            {attempt.matched ? "命中" : "未命中"}
+                                          </Badge>
+                                          <span className="font-medium text-foreground">{formatSourceLabel(attempt.source_type)}</span>
+                                          {attempt.code ? <span className="text-emerald-700">结果: {attempt.code}</span> : null}
+                                        </div>
+                                        {attempt.extract_pattern ? (
+                                          <div className="mt-1 break-all text-muted-foreground">{attempt.extract_pattern}</div>
+                                        ) : null}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         ))}
                       </div>
