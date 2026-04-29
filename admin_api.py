@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import auth
 import database as db
@@ -61,6 +61,15 @@ def _serialize_rule(rule: Dict[str, Any]) -> Dict[str, Any]:
     for key in ("created_at", "updated_at"):
         if key in serialized:
             serialized[key] = _convert_datetime_to_str(serialized[key])
+    for child_key in ("matchers", "extractors"):
+        items = []
+        for item in serialized.get(child_key, []) or []:
+            serialized_item = dict(item)
+            for datetime_key in ("created_at", "updated_at"):
+                if datetime_key in serialized_item:
+                    serialized_item[datetime_key] = _convert_datetime_to_str(serialized_item[datetime_key])
+            items.append(serialized_item)
+        serialized[child_key] = items
     return serialized
 
 # 创建路由器
@@ -143,16 +152,40 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class VerificationRuleMatcherInput(BaseModel):
+    source_type: str
+    keyword: str
+    sort_order: int = 1
+
+
+class VerificationRuleExtractorInput(BaseModel):
+    source_type: str
+    extract_pattern: str
+    sort_order: int = 1
+
+
+class VerificationRuleMatcherItem(VerificationRuleMatcherInput):
+    id: Optional[int] = None
+    rule_id: Optional[int] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class VerificationRuleExtractorItem(VerificationRuleExtractorInput):
+    id: Optional[int] = None
+    rule_id: Optional[int] = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
 class VerificationRuleUpsertRequest(BaseModel):
     name: str
     scope_type: str = "global"
-    match_mode: str = "and"
+    match_mode: str = "or"
     priority: int = 0
     enabled: bool = True
-    sender_pattern: Optional[str] = None
-    subject_pattern: Optional[str] = None
-    body_pattern: Optional[str] = None
-    extract_pattern: str
+    matchers: List[VerificationRuleMatcherInput] = Field(default_factory=list)
+    extractors: List[VerificationRuleExtractorInput] = Field(default_factory=list)
     is_regex: bool = True
     description: Optional[str] = None
 
@@ -164,10 +197,8 @@ class VerificationRuleItem(BaseModel):
     match_mode: str
     priority: int
     enabled: bool
-    sender_pattern: Optional[str] = None
-    subject_pattern: Optional[str] = None
-    body_pattern: Optional[str] = None
-    extract_pattern: str
+    matchers: List[VerificationRuleMatcherItem] = Field(default_factory=list)
+    extractors: List[VerificationRuleExtractorItem] = Field(default_factory=list)
     is_regex: bool
     description: Optional[str] = None
     created_at: Optional[str] = None
@@ -192,6 +223,9 @@ class VerificationRuleTestResponse(BaseModel):
     source: str
     page_source: str
     rule_evaluations: List[Dict[str, Any]]
+    matched_matchers: List[Dict[str, Any]] = Field(default_factory=list)
+    extractor_attempts: List[Dict[str, Any]] = Field(default_factory=list)
+    resolved_code_source: Optional[str] = None
     matched_sender: Optional[str] = None
     matched_subject: Optional[str] = None
     matched_body_excerpt: Optional[str] = None
