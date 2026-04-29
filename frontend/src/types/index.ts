@@ -71,6 +71,26 @@ export interface ShareToken {
   created_at: string;
 }
 
+export interface VerificationRuleMatcher {
+  id?: number;
+  rule_id?: number;
+  source_type: "sender" | "subject" | "body";
+  keyword: string;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface VerificationRuleExtractor {
+  id?: number;
+  rule_id?: number;
+  source_type: "subject" | "body";
+  extract_pattern: string;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface VerificationRule {
   id: number;
   name: string;
@@ -78,10 +98,8 @@ export interface VerificationRule {
   match_mode: "and" | "or";
   priority: number;
   enabled: boolean;
-  sender_pattern?: string | null;
-  subject_pattern?: string | null;
-  body_pattern?: string | null;
-  extract_pattern: string;
+  matchers: VerificationRuleMatcher[];
+  extractors: VerificationRuleExtractor[];
   is_regex: boolean;
   description?: string | null;
   created_at?: string;
@@ -95,6 +113,9 @@ export interface VerificationRuleTestResult {
   source: string;
   page_source: string;
   rule_evaluations: Array<Record<string, unknown>>;
+  matched_matchers?: VerificationRuleMatcher[];
+  extractor_attempts?: Array<Record<string, unknown>>;
+  resolved_code_source?: "subject" | "body" | null;
   matched_sender?: string | null;
   matched_subject?: string | null;
   matched_body_excerpt?: string | null;

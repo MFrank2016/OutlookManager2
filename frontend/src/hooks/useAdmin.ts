@@ -1,6 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { ApiError, extractApiErrorMessage } from "@/lib/api";
-import { User, ConfigItem, VerificationRule, VerificationRuleTestResult } from "@/types";
+import {
+    User,
+    ConfigItem,
+    VerificationRule,
+    VerificationRuleExtractor,
+    VerificationRuleMatcher,
+    VerificationRuleTestResult,
+} from "@/types";
 import { toast } from "sonner";
 
 type TableCellValue =
@@ -517,10 +524,8 @@ interface VerificationRulePayload {
     match_mode: "and" | "or";
     priority: number;
     enabled: boolean;
-    sender_pattern?: string;
-    subject_pattern?: string;
-    body_pattern?: string;
-    extract_pattern: string;
+    matchers: VerificationRuleMatcher[];
+    extractors: VerificationRuleExtractor[];
     is_regex: boolean;
     description?: string;
 }
