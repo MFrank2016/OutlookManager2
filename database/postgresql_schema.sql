@@ -12,11 +12,16 @@ CREATE TABLE IF NOT EXISTS accounts (
     next_refresh_time TIMESTAMP,
     refresh_status VARCHAR(50) DEFAULT 'pending',
     refresh_error TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     access_token TEXT,
     token_expires_at TIMESTAMP,
-    api_method VARCHAR(50) DEFAULT 'imap'
+    api_method VARCHAR(50) DEFAULT 'imap',
+    strategy_mode TEXT DEFAULT 'auto',
+    lifecycle_state TEXT DEFAULT 'new',
+    last_provider_used TEXT,
+    capability_snapshot_json TEXT DEFAULT '{}',
+    provider_health_json TEXT DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 创建 users 表

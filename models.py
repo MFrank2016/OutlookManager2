@@ -20,6 +20,11 @@ class AccountCredentials(BaseModel):
     refresh_status: str = "pending"
     refresh_error: Optional[str] = None
     api_method: str = "imap"  # 'graph_api' or 'imap'
+    strategy_mode: str = "auto"
+    lifecycle_state: str = "new"
+    last_provider_used: Optional[str] = None
+    capability_snapshot_json: Optional[str] = None
+    provider_health_json: Optional[str] = None
 
     model_config = ConfigDict(
         json_schema_extra={
@@ -125,6 +130,11 @@ class AccountInfo(BaseModel):
     next_refresh_time: Optional[str] = None
     refresh_status: str = "pending"
     api_method: str = "imap"  # 'graph_api' or 'imap'
+    strategy_mode: str = "auto"
+    lifecycle_state: str = "new"
+    last_provider_used: Optional[str] = None
+    capability_snapshot_json: Optional[str] = None
+    provider_health_json: Optional[str] = None
 
 
 class AccountListResponse(BaseModel):

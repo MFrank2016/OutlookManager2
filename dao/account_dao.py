@@ -18,6 +18,57 @@ class AccountDAO(BaseDAO):
         super().__init__("accounts")
         self.default_page_size = 10
         self.max_page_size = 100
+
+    def _encode_json_text(self, value: Any, default: str = "{}") -> str:
+        """安全编码 JSON 文本字段，确保数据库里始终保存可读字符串。"""
+        if value in (None, ""):
+            return default
+        if isinstance(value, str):
+            try:
+                return json.dumps(json.loads(value), ensure_ascii=False)
+            except (TypeError, ValueError):
+                return value
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return default
+
+    def _decode_json_text(self, value: Any, default: str = "{}") -> str:
+        """安全解码 JSON 字段，统一返回可读字符串。"""
+        if value in (None, ""):
+            return default
+        if isinstance(value, str):
+            try:
+                return json.dumps(json.loads(value), ensure_ascii=False)
+            except (TypeError, ValueError):
+                return value
+        try:
+            return json.dumps(value, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return default
+
+    def _decode_tags(self, value: Any) -> List[str]:
+        """统一解析 tags 字段。"""
+        if isinstance(value, str):
+            return json.loads(value) if value else []
+        if value is None or isinstance(value, dict):
+            return []
+        if isinstance(value, list):
+            return value
+        return []
+
+    def _normalize_account_record(self, account: Dict[str, Any]) -> Dict[str, Any]:
+        """统一处理账户记录的 JSON / 文本字段。"""
+        account["tags"] = self._decode_tags(account.get("tags"))
+        account["strategy_mode"] = account.get("strategy_mode") or "auto"
+        account["lifecycle_state"] = account.get("lifecycle_state") or "new"
+        account["capability_snapshot_json"] = self._decode_json_text(
+            account.get("capability_snapshot_json")
+        )
+        account["provider_health_json"] = self._decode_json_text(
+            account.get("provider_health_json")
+        )
+        return account
     
     def get_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         """
@@ -36,22 +87,7 @@ class AccountDAO(BaseDAO):
             row = cursor.fetchone()
             
             if row:
-                account = dict(row)
-                # 解析 tags JSON (PostgreSQL 可能会返回 dict，SQLite 返回 string)
-                tags = account.get('tags')
-                if isinstance(tags, str):
-                    account['tags'] = json.loads(tags) if tags else []
-                elif tags is None:
-                    account['tags'] = []
-                elif isinstance(tags, dict):
-                    # PostgreSQL 可能返回空字典，转换为空列表
-                    account['tags'] = []
-                elif not isinstance(tags, list):
-                    # 其他类型，转换为空列表
-                    account['tags'] = []
-                # 如果是 list，已经是正确的格式，不需要做任何处理
-                
-                return account
+                return self._normalize_account_record(dict(row))
             return None
     
     def get_all(
@@ -108,21 +144,7 @@ class AccountDAO(BaseDAO):
             order_by=order_by
         )
         
-        # 解析 tags JSON
-        for account in records:
-            tags = account.get('tags')
-            if isinstance(tags, str):
-                account['tags'] = json.loads(tags) if tags else []
-            elif tags is None:
-                account['tags'] = []
-            elif isinstance(tags, dict):
-                # PostgreSQL 可能返回空字典，转换为空列表
-                account['tags'] = []
-            elif not isinstance(tags, list):
-                # 其他类型，转换为空列表
-                account['tags'] = []
-        
-        return records, total
+        return [self._normalize_account_record(account) for account in records], total
     
     def get_by_filters(
         self,
@@ -256,22 +278,8 @@ class AccountDAO(BaseDAO):
             order_by=order_by
         )
         
-        # 解析 tags JSON
-        for account in records:
-            tags = account.get('tags')
-            if isinstance(tags, str):
-                account['tags'] = json.loads(tags) if tags else []
-            elif tags is None:
-                account['tags'] = []
-            elif isinstance(tags, dict):
-                # PostgreSQL 可能返回空字典，转换为空列表
-                account['tags'] = []
-            elif not isinstance(tags, list):
-                # 其他类型，转换为空列表
-                account['tags'] = []
-        
         logger.info(f"[筛选] 符合条件的总数: {total}")
-        return records, total
+        return [self._normalize_account_record(account) for account in records], total
     
     def create(
         self,
@@ -279,7 +287,12 @@ class AccountDAO(BaseDAO):
         refresh_token: str,
         client_id: str,
         tags: List[str] = None,
-        api_method: str = "imap"
+        api_method: str = "imap",
+        strategy_mode: str = "auto",
+        lifecycle_state: str = "new",
+        last_provider_used: Optional[str] = None,
+        capability_snapshot_json: Optional[str] = None,
+        provider_health_json: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         创建新账户
@@ -297,21 +310,46 @@ class AccountDAO(BaseDAO):
         tags = tags or []
         tags_json = json.dumps(tags, ensure_ascii=False)
         
-        data = {
-            'email': email,
-            'refresh_token': refresh_token,
-            'client_id': client_id,
-            'tags': tags_json,
-            'api_method': api_method
-        }
-        
         placeholder = self._get_param_placeholder()
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(f"""
-                INSERT INTO accounts (email, refresh_token, client_id, tags, api_method)
-                VALUES ({placeholder}, {placeholder}, {placeholder}, {placeholder}, {placeholder})
-            """, (email, refresh_token, client_id, tags_json, api_method))
+                INSERT INTO accounts (
+                    email,
+                    refresh_token,
+                    client_id,
+                    tags,
+                    api_method,
+                    strategy_mode,
+                    lifecycle_state,
+                    last_provider_used,
+                    capability_snapshot_json,
+                    provider_health_json
+                )
+                VALUES (
+                    {placeholder},
+                    {placeholder},
+                    {placeholder},
+                    {placeholder},
+                    {placeholder},
+                    {placeholder},
+                    {placeholder},
+                    {placeholder},
+                    {placeholder},
+                    {placeholder}
+                )
+            """, (
+                email,
+                refresh_token,
+                client_id,
+                tags_json,
+                api_method,
+                strategy_mode,
+                lifecycle_state,
+                last_provider_used,
+                self._encode_json_text(capability_snapshot_json),
+                self._encode_json_text(provider_health_json),
+            ))
             conn.commit()
             
             logger.info(f"Created account: {email}")
@@ -334,6 +372,14 @@ class AccountDAO(BaseDAO):
         # 处理 tags 字段
         if 'tags' in kwargs:
             kwargs['tags'] = json.dumps(kwargs['tags'], ensure_ascii=False)
+        if 'capability_snapshot_json' in kwargs:
+            kwargs['capability_snapshot_json'] = self._encode_json_text(
+                kwargs['capability_snapshot_json']
+            )
+        if 'provider_health_json' in kwargs:
+            kwargs['provider_health_json'] = self._encode_json_text(
+                kwargs['provider_health_json']
+            )
         
         # 添加更新时间
         kwargs['updated_at'] = datetime.now().isoformat()
@@ -503,14 +549,7 @@ class AccountDAO(BaseDAO):
             
             accounts = []
             for row in rows:
-                account = dict(row)
-                # 解析 tags JSON
-                tags = account.get('tags')
-                if isinstance(tags, str):
-                    account['tags'] = json.loads(tags) if tags else []
-                elif tags is None:
-                    account['tags'] = []
-                accounts.append(account)
+                accounts.append(self._normalize_account_record(dict(row)))
             
             logger.info(f"Random accounts query: {len(accounts)} accounts found (total: {total})")
             return accounts, total

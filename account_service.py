@@ -21,6 +21,15 @@ def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
     return dt  # 如果已经是字符串或None，直接返回
 
 
+def _get_explicit_model_fields(model: Any) -> set[str]:
+    """获取调用方显式传入的 Pydantic 字段集合。"""
+    if hasattr(model, "model_fields_set"):
+        return set(model.model_fields_set)
+    if hasattr(model, "__fields_set__"):
+        return set(model.__fields_set__)
+    return set()
+
+
 async def get_account_credentials(email_id: str) -> AccountCredentials:
     """
     从SQLite数据库获取指定邮箱的账户凭证
@@ -65,6 +74,11 @@ async def get_account_credentials(email_id: str) -> AccountCredentials:
             refresh_status=account.get("refresh_status", "pending"),
             refresh_error=account.get("refresh_error"),
             api_method=account.get("api_method", "imap"),
+            strategy_mode=account.get("strategy_mode", "auto"),
+            lifecycle_state=account.get("lifecycle_state", "new"),
+            last_provider_used=account.get("last_provider_used"),
+            capability_snapshot_json=account.get("capability_snapshot_json"),
+            provider_health_json=account.get("provider_health_json"),
         )
 
     except HTTPException:
@@ -86,17 +100,31 @@ async def save_account_credentials(
         existing_account = db.get_account_by_email(email_id)
 
         if existing_account:
-            # 更新现有账户
-            db.update_account(
-                email_id,
-                refresh_token=credentials.refresh_token,
-                client_id=credentials.client_id,
-                tags=credentials.tags if hasattr(credentials, "tags") else [],
-                last_refresh_time=credentials.last_refresh_time,
-                next_refresh_time=credentials.next_refresh_time,
-                refresh_status=credentials.refresh_status,
-                refresh_error=credentials.refresh_error,
+            explicit_fields = _get_explicit_model_fields(credentials)
+            update_payload = {
+                "refresh_token": credentials.refresh_token,
+                "client_id": credentials.client_id,
+            }
+
+            optional_update_fields = (
+                "tags",
+                "last_refresh_time",
+                "next_refresh_time",
+                "refresh_status",
+                "refresh_error",
+                "api_method",
+                "strategy_mode",
+                "lifecycle_state",
+                "last_provider_used",
+                "capability_snapshot_json",
+                "provider_health_json",
             )
+            for field_name in optional_update_fields:
+                if field_name in explicit_fields:
+                    update_payload[field_name] = getattr(credentials, field_name)
+
+            # 更新现有账户
+            db.update_account(email_id, **update_payload)
         else:
             # 创建新账户
             db.create_account(
@@ -105,6 +133,11 @@ async def save_account_credentials(
                 client_id=credentials.client_id,
                 tags=credentials.tags if hasattr(credentials, "tags") else [],
                 api_method=credentials.api_method if hasattr(credentials, "api_method") else "imap",
+                strategy_mode=credentials.strategy_mode if hasattr(credentials, "strategy_mode") else "auto",
+                lifecycle_state=credentials.lifecycle_state if hasattr(credentials, "lifecycle_state") else "new",
+                last_provider_used=credentials.last_provider_used if hasattr(credentials, "last_provider_used") else None,
+                capability_snapshot_json=credentials.capability_snapshot_json if hasattr(credentials, "capability_snapshot_json") else None,
+                provider_health_json=credentials.provider_health_json if hasattr(credentials, "provider_health_json") else None,
             )
 
             # 更新额外字段
@@ -161,6 +194,11 @@ async def get_all_accounts(
                 next_refresh_time=_serialize_datetime(account_data.get("next_refresh_time")),
                 refresh_status=account_data.get("refresh_status", "pending"),
                 api_method=account_data.get("api_method", "imap"),
+                strategy_mode=account_data.get("strategy_mode", "auto"),
+                lifecycle_state=account_data.get("lifecycle_state", "new"),
+                last_provider_used=account_data.get("last_provider_used"),
+                capability_snapshot_json=account_data.get("capability_snapshot_json"),
+                provider_health_json=account_data.get("provider_health_json"),
             )
             all_accounts.append(account)
 
@@ -180,4 +218,3 @@ async def get_all_accounts(
     except Exception as e:
         logger.error(f"Error getting accounts list: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
-

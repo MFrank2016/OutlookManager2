@@ -430,6 +430,19 @@ def _init_postgresql_database() -> None:
         except Exception as e:
             # 列已存在或其他错误，记录但不中断
             logger.debug(f"max_emails column check: {e}")
+
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS access_token TEXT")
+            cursor.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP")
+            cursor.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS api_method TEXT DEFAULT 'imap'")
+            cursor.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS strategy_mode TEXT DEFAULT 'auto'")
+            cursor.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS lifecycle_state TEXT DEFAULT 'new'")
+            cursor.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS last_provider_used TEXT")
+            cursor.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS capability_snapshot_json TEXT DEFAULT '{}'")
+            cursor.execute("ALTER TABLE accounts ADD COLUMN IF NOT EXISTS provider_health_json TEXT DEFAULT '{}'")
+            logger.info("Ensured legacy and microsoft access columns exist on accounts table")
+        except Exception as e:
+            logger.debug(f"accounts microsoft access column check: {e}")
         
         conn.commit()
         logger.info("PostgreSQL database initialized successfully")
@@ -461,6 +474,14 @@ def init_database() -> None:
                 next_refresh_time TEXT,
                 refresh_status TEXT DEFAULT 'pending',
                 refresh_error TEXT,
+                access_token TEXT,
+                token_expires_at TEXT,
+                api_method TEXT DEFAULT 'imap',
+                strategy_mode TEXT DEFAULT 'auto',
+                lifecycle_state TEXT DEFAULT 'new',
+                last_provider_used TEXT,
+                capability_snapshot_json TEXT DEFAULT '{}',
+                provider_health_json TEXT DEFAULT '{}',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
@@ -658,6 +679,36 @@ def init_database() -> None:
         try:
             cursor.execute("ALTER TABLE accounts ADD COLUMN api_method TEXT DEFAULT 'imap'")
             logger.info("Added api_method column to accounts table")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN strategy_mode TEXT DEFAULT 'auto'")
+            logger.info("Added strategy_mode column to accounts table")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN lifecycle_state TEXT DEFAULT 'new'")
+            logger.info("Added lifecycle_state column to accounts table")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN last_provider_used TEXT")
+            logger.info("Added last_provider_used column to accounts table")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN capability_snapshot_json TEXT DEFAULT '{}'")
+            logger.info("Added capability_snapshot_json column to accounts table")
+        except Exception:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN provider_health_json TEXT DEFAULT '{}'")
+            logger.info("Added provider_health_json column to accounts table")
         except Exception:
             pass
         
@@ -992,8 +1043,30 @@ def get_accounts_by_filters(
         refresh_status, time_filter, after_date, refresh_start_date, refresh_end_date
     )
 
-def create_account(email: str, refresh_token: str, client_id: str, tags: List[str] = None, api_method: str = "imap") -> Dict[str, Any]:
-    return _get_account_dao().create(email, refresh_token, client_id, tags, api_method)
+def create_account(
+    email: str,
+    refresh_token: str,
+    client_id: str,
+    tags: List[str] = None,
+    api_method: str = "imap",
+    strategy_mode: str = "auto",
+    lifecycle_state: str = "new",
+    last_provider_used: Optional[str] = None,
+    capability_snapshot_json: Optional[str] = None,
+    provider_health_json: Optional[str] = None,
+) -> Dict[str, Any]:
+    return _get_account_dao().create(
+        email,
+        refresh_token,
+        client_id,
+        tags,
+        api_method,
+        strategy_mode,
+        lifecycle_state,
+        last_provider_used,
+        capability_snapshot_json,
+        provider_health_json,
+    )
 
 def update_account(email: str, **kwargs) -> bool:
     return _get_account_dao().update_account(email, **kwargs)
