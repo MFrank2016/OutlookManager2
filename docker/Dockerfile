@@ -1,5 +1,5 @@
-# 使用固定 digest 的 Python 3.11 Alpine 基础镜像，避免 tag 元数据解析抖动
-FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.11-alpine3.21@sha256:daddc7d73b5f3ab953718a89a5271a5381b986570bb743d9afd87b9e719909bf
+# 使用固定 multi-arch digest 的 Python 3.11 Alpine 基础镜像，避免 tag 元数据解析抖动
+FROM docker.io/library/python:3.11-alpine3.21@sha256:cc89153ee2e125296614f6a032cb473e2bc2c0203cbe2305c917ece8866e5b01
 
 # 设置工作目录
 WORKDIR /app
