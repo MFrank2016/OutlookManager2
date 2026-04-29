@@ -81,7 +81,7 @@ export function BatchShareDialog({ open, onOpenChange, onSuccess }: BatchShareDi
       email_accounts: "",
       valid_hours: "24",
       valid_days: "0",
-      filter_start_time: formatLocalDateTime(new Date()),
+      filter_start_time: "",
       filter_end_time: "",
       subject_keyword: "",
       sender_keyword: "",

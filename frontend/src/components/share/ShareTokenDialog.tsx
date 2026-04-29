@@ -84,7 +84,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
       valid_hours: "24",
       valid_days: "0",
       expiry_time: "",
-      filter_start_time: formatLocalDateTime(new Date()),
+      filter_start_time: "",
       filter_end_time: "",
       subject_keyword: "",
       sender_keyword: "",

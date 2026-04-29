@@ -78,7 +78,7 @@ export function ExtendShareDialog({ open, onOpenChange, token, onSuccess }: Exte
       extend_type: "duration",
       extend_hours: "24",
       extend_days: "0",
-      extend_to_time: token.expiry_time ? isoToLocalDateTime(token.expiry_time) : formatLocalDateTime(new Date()),
+      extend_to_time: "",
     },
   });
 
