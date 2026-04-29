@@ -1,5 +1,5 @@
-# 使用Python 3.11 Alpine作为基础镜像，体积更小
-FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.11-alpine3.21
+# 使用固定 digest 的 Python 3.11 Alpine 基础镜像，避免 tag 元数据解析抖动
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.11-alpine3.21@sha256:daddc7d73b5f3ab953718a89a5271a5381b986570bb743d9afd87b9e719909bf
 
 # 设置工作目录
 WORKDIR /app

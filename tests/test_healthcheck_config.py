@@ -31,3 +31,12 @@ def test_container_healthchecks_use_healthz_endpoint():
 
     assert dockerfile_paths == ["/healthz"]
     assert compose_paths == ["/healthz"]
+
+
+def test_api_dockerfile_pins_base_image_digest():
+    dockerfile_text = Path("docker/Dockerfile").read_text(encoding="utf-8")
+    first_from = next(
+        line.strip() for line in dockerfile_text.splitlines() if line.strip().startswith("FROM ")
+    )
+
+    assert "@sha256:" in first_from
