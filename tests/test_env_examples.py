@@ -66,3 +66,13 @@ def test_docker_update_guide_redirects_to_authoritative_docs():
     assert "README_DOCKER.md" in text
     assert "docs/LOCAL_DEVELOPMENT.md" in text
     assert "cp docker/docker.env.example .env" not in text
+
+
+def test_compose_docs_reference_helper_script():
+    root_readme = Path("README.md").read_text(encoding="utf-8")
+    docker_readme = Path("README_DOCKER.md").read_text(encoding="utf-8")
+
+    assert "./scripts/compose-up.sh" in root_readme
+    assert "./scripts/compose-up.sh" in docker_readme
+    assert "docker compose --env-file .env.compose.local up -d --build" in docker_readme
+

@@ -18,30 +18,41 @@ cp .env.compose.example .env.compose.local
 
 ### 2. 启动服务
 
+最快启动方式：
+
 ```bash
-docker compose --env-file .env.compose.local up -d --build
+./scripts/compose-up.sh
 ```
 
-### 3. 验证服务
+这个脚本会执行 `docker compose --env-file .env.compose.local up -d --build`，并自动检查容器状态、API `/healthz` 和 Frontend 首页。
+
+如果你想手动执行，再用下面这组备用命令：
 
 ```bash
+docker compose --env-file .env.compose.local up -d --build
 docker compose ps
 curl http://127.0.0.1:8000/healthz
 ```
 
-默认入口：
+### 3. 默认入口
+
 
 - Frontend: `http://127.0.0.1:3000`
 - API: `http://127.0.0.1:8000`
 - PostgreSQL(host): `127.0.0.1:55432`
 
-### 4. 常用运维命令
+### 4. 遇到问题先看这里
 
 ```bash
-# 查看日志
+docker compose ps
 docker compose logs -f outlook-email-api
 docker compose logs -f outlook-email-frontend
+docker compose logs -f postgresql
+```
 
+### 5. 常用运维命令
+
+```bash
 # 重建并重启
 docker compose --env-file .env.compose.local up -d --build
 
