@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient, UseQueryOptions } from "@tanstack/react-query";
 import api, { ApiError, extractApiErrorMessage } from "@/lib/api";
 import { Account } from "@/types";
 import { toast } from "sonner";
@@ -56,6 +56,7 @@ export function useAccounts(
 
       return data;
     },
+    placeholderData: keepPreviousData,
     ...options,
   });
 }
@@ -68,10 +69,10 @@ export function useAddAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      toast.success("Account added successfully");
+      toast.success("账户已添加");
     },
     onError: (error: ApiError) => {
-        toast.error(extractApiErrorMessage(error, "Failed to add account"));
+        toast.error(extractApiErrorMessage(error, "添加账户失败"));
     }
   });
 }
@@ -84,7 +85,7 @@ export function useDeleteAccount() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      toast.success("Account deleted successfully");
+      toast.success("账户已删除");
     },
   });
 }
@@ -97,7 +98,7 @@ export function useUpdateTags() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      toast.success("Tags updated successfully");
+      toast.success("标签已更新");
     },
   });
 }
@@ -110,7 +111,7 @@ export function useRefreshToken() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      toast.success("Token refreshed successfully");
+      toast.success("Token 已刷新");
     },
   });
 }
@@ -123,7 +124,7 @@ export function useBatchDeleteAccounts() {
       },
       onSuccess: (data) => {
         queryClient.invalidateQueries({ queryKey: ["accounts"] });
-        toast.success(`Batch delete completed: ${data.data.success_count} success, ${data.data.failed_count} failed`);
+        toast.success(`批量删除完成：成功 ${data.data.success_count}，失败 ${data.data.failed_count}`);
       },
     });
   }

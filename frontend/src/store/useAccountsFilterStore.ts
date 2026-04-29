@@ -9,7 +9,7 @@ interface AccountsFilterState {
   excludeTags: string;
   refreshStatus?: string;
   setFilters: (partial: Partial<AccountsFilterState>) => void;
-  reset: () => void;
+  reset: (partial?: Partial<Omit<AccountsFilterState, "setFilters" | "reset">>) => void;
 }
 
 const initialState: Omit<AccountsFilterState, "setFilters" | "reset"> = {
@@ -30,7 +30,7 @@ export const useAccountsFilterStore = create<AccountsFilterState>()(
           ...state,
           ...partial,
         })),
-      reset: () => set(() => ({ ...initialState })),
+      reset: (partial = {}) => set(() => ({ ...initialState, ...partial })),
     }),
     {
       name: "accounts-filters-storage",
@@ -38,5 +38,4 @@ export const useAccountsFilterStore = create<AccountsFilterState>()(
     }
   )
 );
-
 

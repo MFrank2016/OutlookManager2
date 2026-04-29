@@ -1,18 +1,25 @@
 "use client";
 
-import { useState } from "react";
-import { useAccounts, useBatchDeleteAccounts } from "@/hooks/useAccounts";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight, PackagePlus, RefreshCw, Search, Trash2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
 import { AccountsTable } from "@/components/accounts/AccountsTable";
 import { AddAccountDialog } from "@/components/accounts/AddAccountDialog";
-import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageSection } from "@/components/layout/PageSection";
+import { DataEmptyState } from "@/components/ui/data-empty-state";
+import { DataLoadingState } from "@/components/ui/data-loading-state";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SelectionBar } from "@/components/ui/selection-bar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Search, PackagePlus, Filter, RefreshCw, Trash2 } from "lucide-react";
-import Link from "next/link";
-import api from "@/lib/api";
-import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import api from "@/lib/api";
+import { useAccounts, useBatchDeleteAccounts } from "@/hooks/useAccounts";
 import { useAccountsFilterStore } from "@/store/useAccountsFilterStore";
 
 export default function DashboardPage() {
@@ -28,6 +35,7 @@ export default function DashboardPage() {
     includeTags: storedIncludeTags,
     excludeTags: storedExcludeTags,
     refreshStatus: storedRefreshStatus,
+    reset,
     setFilters,
   } = useAccountsFilterStore();
 
@@ -46,35 +54,56 @@ export default function DashboardPage() {
     exclude_tags: storedExcludeTags || "",
     refresh_status: storedRefreshStatus as string | undefined,
   });
-  const [shouldQuery, setShouldQuery] = useState(true); // 初始为 true，页面加载时自动请求
   const [jumpPage, setJumpPage] = useState("");
   const queryClient = useQueryClient();
   const batchDeleteAccounts = useBatchDeleteAccounts();
-  
-  const { data, isLoading } = useAccounts({ 
-      page: queryParams.page, 
-      page_size: queryParams.page_size, 
-      email_search: queryParams.email_search,
-      include_tags: queryParams.include_tags || undefined,
-      exclude_tags: queryParams.exclude_tags || undefined,
-      refresh_status: queryParams.refresh_status
-  }, {
-    enabled: shouldQuery,
+
+  const { data, isLoading, isFetching, refetch } = useAccounts({
+    page: queryParams.page,
+    page_size: queryParams.page_size,
+    email_search: queryParams.email_search,
+    include_tags: queryParams.include_tags || undefined,
+    exclude_tags: queryParams.exclude_tags || undefined,
+    refresh_status: queryParams.refresh_status,
   });
+
+  useEffect(() => {
+    if (!data?.accounts) {
+      return;
+    }
+
+    const visibleAccountIds = new Set(data.accounts.map((account) => account.email_id));
+    setSelectedAccounts((current) => current.filter((emailId) => visibleAccountIds.has(emailId)));
+  }, [data?.accounts]);
+
+  const hasDraftFilters = useMemo(
+    () => Boolean(search.trim() || includeTags.trim() || excludeTags.trim() || refreshStatus),
+    [search, includeTags, excludeTags, refreshStatus]
+  );
+
+  const hasAppliedFilters = useMemo(
+    () =>
+      Boolean(
+        queryParams.email_search ||
+        queryParams.include_tags ||
+        queryParams.exclude_tags ||
+        queryParams.refresh_status
+      ),
+    [queryParams]
+  );
 
   const handleSearch = () => {
     const newParams = {
       page: 1,
       page_size: queryParams.page_size,
-      email_search: search,
-      include_tags: includeTags,
-      exclude_tags: excludeTags,
+      email_search: search.trim(),
+      include_tags: includeTags.trim(),
+      exclude_tags: excludeTags.trim(),
       refresh_status: refreshStatus,
     };
 
     setQueryParams(newParams);
     setPage(1);
-    // 将当前查询条件保存到全局 store，便于返回时恢复
     setFilters({
       page: 1,
       pageSize: newParams.page_size,
@@ -83,36 +112,54 @@ export default function DashboardPage() {
       excludeTags,
       refreshStatus,
     });
-    setShouldQuery(true);
   };
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
-    setQueryParams(prev => ({ ...prev, page: newPage }));
+    setQueryParams((prev) => ({ ...prev, page: newPage }));
     setFilters({ page: newPage });
-    // 如果已经查询过，直接更新页码并重新请求
-    if (shouldQuery) {
-      // refetch(); // param change will trigger query
-    }
   };
 
   const handlePageSizeChange = (newPageSize: string) => {
-    const size = parseInt(newPageSize);
-    setQueryParams(prev => ({ ...prev, page_size: size, page: 1 }));
+    const size = parseInt(newPageSize, 10);
+    setQueryParams((prev) => ({ ...prev, page_size: size, page: 1 }));
     setPage(1);
     setFilters({ pageSize: size, page: 1 });
   };
 
   const handleJumpPage = () => {
-      const pageNum = parseInt(jumpPage);
-      if (!data) return;
-      
-      if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= data.total_pages) {
-          handlePageChange(pageNum);
-          setJumpPage("");
-      } else {
-          toast.error(`请输入有效的页码 (1-${data.total_pages})`);
-      }
+    const pageNum = parseInt(jumpPage, 10);
+    if (!data) return;
+
+    if (!Number.isNaN(pageNum) && pageNum >= 1 && pageNum <= data.total_pages) {
+      handlePageChange(pageNum);
+      setJumpPage("");
+    } else {
+      toast.error(`请输入有效的页码 (1-${data.total_pages})`);
+    }
+  };
+
+  const handleResetFilters = () => {
+    const preservedPageSize = queryParams.page_size;
+    setSearch("");
+    setIncludeTags("");
+    setExcludeTags("");
+    setRefreshStatus(undefined);
+    setJumpPage("");
+    setPage(1);
+    setQueryParams({
+      page: 1,
+      page_size: preservedPageSize,
+      email_search: "",
+      include_tags: "",
+      exclude_tags: "",
+      refresh_status: undefined,
+    });
+    reset({ pageSize: preservedPageSize });
+  };
+
+  const handleRefreshResults = async () => {
+    await refetch();
   };
 
   const handleBatchRefresh = async () => {
@@ -121,23 +168,19 @@ export default function DashboardPage() {
       return;
     }
 
-    if (!confirm(`确定要批量刷新 ${selectedAccounts.length} 个账户的Token吗？`)) {
+    if (!confirm(`确定要批量刷新 ${selectedAccounts.length} 个账户的 Token 吗？`)) {
       return;
     }
 
     setIsBatchRefreshing(true);
     try {
       const response = await api.post("/accounts/batch-refresh-tokens", {
-        email_ids: selectedAccounts
+        email_ids: selectedAccounts,
       });
-      
+
       const result = response.data;
-      toast.success(`批量刷新完成！成功: ${result.success_count}, 失败: ${result.failed_count}`);
-      
-      // 刷新账户列表
+      toast.success(`批量刷新完成：成功 ${result.success_count}，失败 ${result.failed_count}`);
       queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      
-      // 清空选择
       setSelectedAccounts([]);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "批量刷新失败"));
@@ -164,133 +207,126 @@ export default function DashboardPage() {
     }
   };
 
-  return (
-    <div className="page-enter space-y-2 px-0 md:space-y-4 md:px-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 md:gap-4">
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">账户管理</h1>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button asChild variant="secondary" className="flex-1 sm:flex-initial h-9">
-            <Link href="/dashboard/accounts/batch">
-              <PackagePlus className="mr-2 h-4 w-4" /> 批量添加
-            </Link>
-          </Button>
-          <AddAccountDialog />
-        </div>
-      </div>
+  const resultDescription = data
+    ? `第 ${page} 页，共 ${data.total_accounts} 个账户。支持筛选、批量刷新与批量删除。`
+    : "集中查看 Outlook 账户状态、标签与批量操作。";
 
-      <div className="panel-surface flex flex-col gap-2 p-3 md:p-4">
-        {/* 第一行：搜索邮箱 */}
-        <div className="relative flex-1 w-full">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-            <Input 
-                placeholder="搜索邮箱..." 
-                className="pl-9 h-9" 
-                value={search}
-                onChange={(e) => {
-                    setSearch(e.target.value);
-                }}
+  return (
+    <div className="page-enter space-y-3 md:space-y-4">
+      <PageHeader
+        title="账户管理"
+        description="统一查看 Outlook 账户状态、筛选标签并执行批量工作流。"
+        actions={
+          <>
+            <Button asChild variant="secondary">
+              <Link href="/dashboard/accounts/batch">
+                <PackagePlus className="mr-2 h-4 w-4" /> 批量添加
+              </Link>
+            </Button>
+            <AddAccountDialog />
+          </>
+        }
+      />
+
+      <FilterToolbar
+        leading={
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-[color:var(--text-faint)]" />
+            <Input
+              placeholder="搜索邮箱..."
+              className="pl-10"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              debounce={true}
+              debounceMs={500}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  handleSearch();
+                }
+              }}
+            />
+          </div>
+        }
+        center={
+          <>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Input
+                placeholder="包含标签（多个用逗号分隔）..."
+                value={includeTags}
+                onChange={(event) => setIncludeTags(event.target.value)}
                 debounce={true}
                 debounceMs={500}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
                     handleSearch();
                   }
                 }}
-            />
-        </div>
-
-        {/* 第二行：包含标签 + 排除标签 */}
-        <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-                <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                <Input 
-                    placeholder="包含标签（多个用逗号分隔）..." 
-                    className="pl-9 h-9 text-xs md:text-sm" 
-                    value={includeTags}
-                    onChange={(e) => {
-                        setIncludeTags(e.target.value);
-                    }}
-                    debounce={true}
-                    debounceMs={500}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSearch();
-                      }
-                    }}
-                />
+              />
+              <Input
+                placeholder="排除标签（多个用逗号分隔）..."
+                value={excludeTags}
+                onChange={(event) => setExcludeTags(event.target.value)}
+                debounce={true}
+                debounceMs={500}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    handleSearch();
+                  }
+                }}
+              />
             </div>
-            <div className="relative flex-1">
-                <Filter className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-                <Input 
-                    placeholder="排除标签（多个用逗号分隔）..." 
-                    className="pl-9 h-9 text-xs md:text-sm" 
-                    value={excludeTags}
-                    onChange={(e) => {
-                        setExcludeTags(e.target.value);
-                    }}
-                    debounce={true}
-                    debounceMs={500}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleSearch();
-                      }
-                    }}
-                />
-            </div>
-        </div>
-
-        {/* 第三行：筛选状态 + 查询按钮 */}
-        <div className="flex items-center gap-2">
-            <Select value={refreshStatus} onValueChange={(val) => { setRefreshStatus(val === "all" ? undefined : val); }}>
-                <SelectTrigger className="flex-1 h-9 text-xs md:text-sm">
-                    <SelectValue placeholder="筛选状态" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">全部状态</SelectItem>
-                    <SelectItem value="success">成功</SelectItem>
-                    <SelectItem value="failed">失败</SelectItem>
-                    <SelectItem value="pending">待处理</SelectItem>
-                </SelectContent>
+            <Select value={refreshStatus ?? "all"} onValueChange={(value) => setRefreshStatus(value === "all" ? undefined : value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="筛选状态" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部状态</SelectItem>
+                <SelectItem value="success">成功</SelectItem>
+                <SelectItem value="failed">失败</SelectItem>
+                <SelectItem value="pending">待处理</SelectItem>
+              </SelectContent>
             </Select>
-            <Button 
-              onClick={handleSearch}
-              disabled={isLoading}
-              throttle={true}
-              throttleMs={300}
-              className="h-9 px-4"
+          </>
+        }
+        trailing={
+          <>
+            <Button
+              variant="outline"
+              onClick={handleResetFilters}
+              disabled={!hasDraftFilters && !hasAppliedFilters}
             >
+              重置
+            </Button>
+            <Button variant="outline" onClick={handleRefreshResults} disabled={isFetching}>
+              <RefreshCw className={cn("mr-2 h-4 w-4", isFetching && "animate-spin")} />
+              刷新
+            </Button>
+            <Button onClick={handleSearch} disabled={isLoading} throttle={true} throttleMs={300}>
               <Search className="mr-2 h-4 w-4" />
               查询
             </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
-      {selectedAccounts.length > 0 && (
-        <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 p-2 md:p-4">
-          <div className="text-xs md:text-sm text-blue-900">
-            已选择 <span className="font-bold">{selectedAccounts.length}</span> 个账户
-          </div>
-          <div className="flex items-center gap-2">
+      {selectedAccounts.length > 0 ? (
+        <SelectionBar
+          selectedCount={selectedAccounts.length}
+          itemLabel="个账户"
+          primaryActions={
             <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedAccounts([])}
-              className="h-8 px-2 text-xs md:text-sm"
-            >
-              取消选择
-            </Button>
-            <Button
-              variant="default"
+              variant="secondary"
               size="sm"
               onClick={handleBatchRefresh}
               disabled={isBatchRefreshing || batchDeleteAccounts.isPending}
               throttle={true}
               throttleMs={300}
-              className="h-8 px-2 text-xs md:text-sm"
             >
               <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isBatchRefreshing && "animate-spin")} />
-              批量刷新Token
+              批量刷新 Token
             </Button>
+          }
+          secondaryActions={
             <Button
               variant="destructive"
               size="sm"
@@ -298,106 +334,123 @@ export default function DashboardPage() {
               disabled={batchDeleteAccounts.isPending || isBatchRefreshing}
               throttle={true}
               throttleMs={300}
-              className="h-8 px-2 text-xs md:text-sm"
             >
               <Trash2 className="mr-1.5 h-3.5 w-3.5" />
               {batchDeleteAccounts.isPending ? "删除中..." : "批量删除"}
             </Button>
-          </div>
-        </div>
-      )}
-
-      <div className="mb-2 md:mb-4">
-        <AccountsTable 
-          accounts={data?.accounts || []} 
-          isLoading={isLoading}
-          selectedAccounts={selectedAccounts}
-          onSelectionChange={setSelectedAccounts}
+          }
+          onClear={() => setSelectedAccounts([])}
         />
-      </div>
+      ) : null}
 
-      {data && data.total_accounts > 0 && (
-        <div className="panel-surface flex shrink-0 items-center justify-between gap-2 p-2 text-xs md:text-sm">
-            {/* 左侧：总计 + 每页 */}
+      <PageSection title="账户列表" description={resultDescription} contentClassName="space-y-4">
+        {isLoading && !data ? (
+          <DataLoadingState
+            title="正在加载账户"
+            description="账户列表、标签与刷新状态正在同步。"
+          />
+        ) : data && data.accounts.length > 0 ? (
+          <AccountsTable
+            accounts={data.accounts}
+            selectedAccounts={selectedAccounts}
+            onSelectionChange={setSelectedAccounts}
+          />
+        ) : (
+          <DataEmptyState
+            title={hasAppliedFilters ? "未找到匹配账户" : "暂无账户数据"}
+            description={
+              hasAppliedFilters
+                ? "试试清空筛选条件，或检查标签与刷新状态是否设置过窄。"
+                : "你还没有可管理的账户，可以先添加单个账户或走批量导入。"
+            }
+            action={
+              hasAppliedFilters ? (
+                <Button variant="outline" onClick={handleResetFilters}>
+                  清空筛选
+                </Button>
+              ) : (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <AddAccountDialog />
+                  <Button asChild variant="secondary">
+                    <Link href="/dashboard/accounts/batch">
+                      <PackagePlus className="mr-2 h-4 w-4" /> 批量添加
+                    </Link>
+                  </Button>
+                </div>
+              )
+            }
+          />
+        )}
+
+        {data && data.total_accounts > 0 ? (
+          <div className="flex shrink-0 items-center justify-between gap-2 rounded-xl border border-border/70 bg-[color:var(--surface-1)]/75 p-3 text-xs md:text-sm">
             <div className="flex items-center gap-2">
-                <span className="text-muted-foreground whitespace-nowrap">
-                    共 {data.total_accounts} 个
-                </span>
-                <div className="flex items-center gap-1.5">
-                    <span className="text-muted-foreground whitespace-nowrap">每页</span>
-                    <Select 
-                        value={queryParams.page_size.toString()} 
-                        onValueChange={handlePageSizeChange}
-                    >
-                        <SelectTrigger className="w-[60px] md:w-[70px] h-7 md:h-8 text-xs md:text-sm">
-                            <SelectValue placeholder="10" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="10">10</SelectItem>
-                            <SelectItem value="20">20</SelectItem>
-                            <SelectItem value="50">50</SelectItem>
-                            <SelectItem value="100">100</SelectItem>
-                            <SelectItem value="1000">1000</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
+              <span className="text-muted-foreground whitespace-nowrap">共 {data.total_accounts} 个</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground whitespace-nowrap">每页</span>
+                <Select value={queryParams.page_size.toString()} onValueChange={handlePageSizeChange}>
+                  <SelectTrigger className="w-[72px]" size="sm">
+                    <SelectValue placeholder="10" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="1000">1000</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            {/* 中间：翻页按钮 */}
             <div className="flex items-center gap-1">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 w-7 md:h-8 md:w-8 p-0"
-                    onClick={() => handlePageChange(Math.max(1, page - 1))}
-                    disabled={page === 1 || isLoading}
-                >
-                    <ChevronLeft className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                </Button>
-                
-                <div className="flex items-center justify-center min-w-[70px] md:min-w-[80px] text-xs md:text-sm">
-                    <span>{page} / {data.total_pages}</span>
-                </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => handlePageChange(Math.max(1, page - 1))}
+                disabled={page === 1 || isLoading}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
 
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 w-7 md:h-8 md:w-8 p-0"
-                    onClick={() => handlePageChange(Math.min(data.total_pages, page + 1))}
-                    disabled={page === data.total_pages || isLoading}
-                >
-                    <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                </Button>
+              <div className="flex min-w-[80px] items-center justify-center text-sm">
+                <span>{page} / {data.total_pages}</span>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => handlePageChange(Math.min(data.total_pages, page + 1))}
+                disabled={page === data.total_pages || isLoading}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
 
-            {/* 右侧：跳转（桌面端） */}
-            <div className="hidden sm:flex items-center gap-2">
-                <Input
-                    className="h-7 md:h-8 w-[50px] md:w-[60px] text-center px-1 text-xs md:text-sm"
-                    placeholder="页码"
-                    type="number"
-                    min={1}
-                    max={data.total_pages}
-                    value={jumpPage}
-                    onChange={(e) => setJumpPage(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            handleJumpPage();
-                        }
-                    }}
-                />
-                <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-7 md:h-8 px-2 text-xs md:text-sm"
-                    onClick={handleJumpPage}
-                    disabled={!jumpPage}
-                >
-                    跳转
-                </Button>
+            <div className="hidden items-center gap-2 sm:flex">
+              <Input
+                className="h-8 w-[64px] px-2 text-center text-sm"
+                placeholder="页码"
+                type="number"
+                min={1}
+                max={data.total_pages}
+                value={jumpPage}
+                onChange={(event) => setJumpPage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    handleJumpPage();
+                  }
+                }}
+              />
+              <Button variant="ghost" size="sm" className="h-8 px-2" onClick={handleJumpPage} disabled={!jumpPage}>
+                跳转
+              </Button>
             </div>
-        </div>
-      )}
+          </div>
+        ) : null}
+      </PageSection>
     </div>
   );
 }

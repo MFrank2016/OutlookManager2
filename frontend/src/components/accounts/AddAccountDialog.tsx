@@ -8,6 +8,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -64,11 +65,11 @@ export function AddAccountDialog() {
       <DialogTrigger asChild>
         <Button><Plus className="mr-2 h-4 w-4" /> 添加账户</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>添加新账户</DialogTitle>
           <DialogDescription>
-            输入 Outlook 账户的 OAuth2 凭据。
+            录入 Outlook OAuth2 凭据与默认标签，创建后可直接进入邮件工作区管理。
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -121,17 +122,24 @@ export function AddAccountDialog() {
                   <FormControl>
                     <Input placeholder="vip, work" {...field} />
                   </FormControl>
+                  <p className="text-xs text-[color:var(--text-faint)]">
+                    支持多个标签，使用英文逗号分隔。
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={addAccount.isPending}>
-              {addAccount.isPending ? "添加中..." : "添加账户"}
-            </Button>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                取消
+              </Button>
+              <Button type="submit" disabled={addAccount.isPending}>
+                {addAccount.isPending ? "添加中..." : "确认添加"}
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
   );
 }
-
