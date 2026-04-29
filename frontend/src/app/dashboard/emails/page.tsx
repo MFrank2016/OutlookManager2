@@ -405,6 +405,7 @@ function EmailsPageContent() {
       <PageHeader
         title="邮件工作区"
         description="围绕账户、筛选、验证码与正文详情的一站式邮件处理面板。"
+        className="pb-0 md:pb-0 border-b-0"
       />
 
       <EmailToolbar
@@ -438,7 +439,7 @@ function EmailsPageContent() {
         onOpenClearFolder={() => setClearInboxOpen(true)}
       />
 
-      <div className="grid min-h-[72dvh] gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(360px,0.92fr)]">
+      <div className="grid min-h-[72dvh] gap-4 xl:grid-cols-[minmax(320px,0.82fr)_minmax(460px,1.18fr)]">
         <div className="panel-surface p-3 md:p-4">
           {!selectedAccount ? (
             <DataEmptyState

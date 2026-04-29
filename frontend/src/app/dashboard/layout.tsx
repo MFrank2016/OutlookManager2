@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,9 @@ export default function DashboardLayout({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
   const { isAuthenticated, fetchUser } = useAuthStore();
+  const hideDesktopTopbar = pathname.startsWith("/dashboard/emails");
 
   useEffect(() => {
     const storedToken = localStorage.getItem("auth_token");
@@ -62,7 +64,12 @@ export default function DashboardLayout({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-b border-border/70 bg-[color:var(--surface-0)]/88 backdrop-blur-xl">
+        <header
+          className={cn(
+            "border-b border-border/70 bg-[color:var(--surface-0)]/88 backdrop-blur-xl",
+            hideDesktopTopbar && "md:hidden"
+          )}
+        >
           <div className="flex h-16 items-center justify-between px-3 md:px-6">
             <div className="flex items-center gap-2 md:gap-3">
               <Button
