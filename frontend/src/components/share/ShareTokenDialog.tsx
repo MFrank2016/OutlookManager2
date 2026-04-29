@@ -235,7 +235,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>{isEditing ? "编辑分享链接" : `创建分享链接 - ${emailAccount}`}</DialogTitle>
           <DialogDescription>
@@ -366,7 +366,7 @@ export function ShareTokenDialog({ open, onOpenChange, emailAccount, tokenToEdit
                 </div>
 
                 <DialogFooter>
-                    <Button type="button" variant="outline" onClick={handleClose}>取消</Button>
+                    <Button type="button" variant="ghost" onClick={handleClose}>取消</Button>
                     <Button type="submit" disabled={isSubmitting}>
                         {isSubmitting ? "保存" : (isEditing ? "更新" : "生成链接")}
                     </Button>

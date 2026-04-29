@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -59,9 +59,12 @@ export function SendEmailDialog({ account }: { account: string | null }) {
                     <span className="text-xs md:text-sm">撰写</span>
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[640px]">
                 <DialogHeader>
                     <DialogTitle>发送邮件 ({account})</DialogTitle>
+                    <DialogDescription>
+                        从当前账户直接发送邮件，适合验证链路、回复测试或临时通知。
+                    </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -104,15 +107,17 @@ export function SendEmailDialog({ account }: { account: string | null }) {
                                 </FormItem>
                             )}
                         />
-                        <div className="flex justify-end">
+                        <DialogFooter>
+                            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                                取消
+                            </Button>
                             <Button type="submit" disabled={sendEmail.isPending}>
                                 {sendEmail.isPending ? "发送中..." : "发送邮件"}
                             </Button>
-                        </div>
+                        </DialogFooter>
                     </form>
                 </Form>
             </DialogContent>
         </Dialog>
     );
 }
-

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { Email } from "@/types";
 import { toast } from "sonner";
@@ -105,6 +105,7 @@ export function useEmails(params: EmailsParams) {
             return requestPromise;
         },
         enabled: !!params.account,
+        placeholderData: keepPreviousData,
         // 防止重复请求的配置
         staleTime: 15 * 1000,
         refetchOnMount: false, // 挂载时不自动重新请求
