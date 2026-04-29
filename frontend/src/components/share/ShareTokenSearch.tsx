@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
@@ -23,9 +24,9 @@ export const ShareTokenSearch = memo(function ShareTokenSearch({
   isLoading = false,
 }: ShareTokenSearchProps) {
   return (
-    <div className="panel-surface flex flex-col gap-2 p-2 md:p-4">
-      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2">
-        <div className="relative flex-1">
+    <FilterToolbar
+      leading={
+        <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="搜索账户..."
@@ -41,7 +42,9 @@ export const ShareTokenSearch = memo(function ShareTokenSearch({
             }}
           />
         </div>
-        <div className="relative flex-1">
+      }
+      center={
+        <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="搜索Token..."
@@ -57,6 +60,8 @@ export const ShareTokenSearch = memo(function ShareTokenSearch({
             }}
           />
         </div>
+      }
+      trailing={
         <Button 
           onClick={onSearch}
           disabled={isLoading}
@@ -67,7 +72,7 @@ export const ShareTokenSearch = memo(function ShareTokenSearch({
           <Search className="mr-2 h-4 w-4" />
           查询
         </Button>
-      </div>
-    </div>
+      }
+    />
   );
 });

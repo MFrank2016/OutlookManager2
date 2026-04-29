@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DataEmptyState } from "@/components/ui/data-empty-state";
 import { Trash, Copy, Edit, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow, format } from "date-fns";
@@ -54,7 +55,7 @@ export const ShareTokenTable = memo(function ShareTokenTable({
     <div className="panel-surface overflow-hidden rounded-md">
       <Table>
         <TableHeader>
-          <TableRow className="bg-slate-50">
+          <TableRow>
             <TableHead className="w-[50px]">
               <Checkbox
                 checked={tokens && tokens.length > 0 && selectedTokens.size === tokens.length}
@@ -73,8 +74,12 @@ export const ShareTokenTable = memo(function ShareTokenTable({
         <TableBody>
           {!tokens || tokens.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8} className="text-center text-muted-foreground h-24">
-                暂无分享链接
+              <TableCell colSpan={8} className="p-0">
+                <DataEmptyState
+                  title="暂无分享链接"
+                  description="创建新的分享链接后，列表会在这里展示有效期、筛选规则与状态。"
+                  className="min-h-[220px] rounded-none border-0"
+                />
               </TableCell>
             </TableRow>
           ) : (
@@ -90,21 +95,21 @@ export const ShareTokenTable = memo(function ShareTokenTable({
                     />
                   </TableCell>
                   <TableCell 
-                    className="font-medium cursor-pointer select-none hover:bg-gray-50"
+                    className="font-medium cursor-pointer select-none hover:bg-[color:var(--surface-2)]/70"
                     onDoubleClick={() => handleDoubleClickCopy(token.email_account_id, "账户")}
                     title="双击复制账户"
                   >
                     {token.email_account_id}
                   </TableCell>
                   <TableCell 
-                    className="font-mono text-sm cursor-pointer select-none hover:bg-gray-50"
+                    className="font-mono text-sm cursor-pointer select-none hover:bg-[color:var(--surface-2)]/70"
                     onDoubleClick={() => handleDoubleClickCopy(token.token, "Token")}
                     title="双击复制Token"
                   >
                     {token.token}
                   </TableCell>
                   <TableCell 
-                    className="cursor-pointer select-none hover:bg-gray-50"
+                    className="cursor-pointer select-none hover:bg-[color:var(--surface-2)]/70"
                     onDoubleClick={() => {
                       const expiryText = token.expiry_time 
                         ? format(new Date(token.expiry_time), "yyyy-MM-dd HH:mm")
@@ -125,7 +130,7 @@ export const ShareTokenTable = memo(function ShareTokenTable({
                     )}
                   </TableCell>
                   <TableCell 
-                    className="cursor-pointer select-none hover:bg-gray-50"
+                    className="cursor-pointer select-none hover:bg-[color:var(--surface-2)]/70"
                     onDoubleClick={() => {
                       const filterText = [
                         `开始: ${format(new Date(token.start_time), "yyyy-MM-dd HH:mm")}`,
@@ -145,7 +150,7 @@ export const ShareTokenTable = memo(function ShareTokenTable({
                     </div>
                   </TableCell>
                   <TableCell 
-                    className="text-muted-foreground text-sm cursor-pointer select-none hover:bg-gray-50"
+                    className="text-muted-foreground text-sm cursor-pointer select-none hover:bg-[color:var(--surface-2)]/70"
                     onDoubleClick={() => handleDoubleClickCopy(format(new Date(token.created_at), "yyyy-MM-dd HH:mm"), "创建时间")}
                     title="双击复制创建时间"
                   >

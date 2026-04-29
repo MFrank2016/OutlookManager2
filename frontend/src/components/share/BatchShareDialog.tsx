@@ -168,11 +168,11 @@ export function BatchShareDialog({ open, onOpenChange, onSuccess }: BatchShareDi
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>批量创建分享链接</DialogTitle>
           <DialogDescription>
-            输入多个邮箱账号（每行一个或逗号分隔），统一设置分享参数。
+            输入多个邮箱账号（每行一个或逗号分隔），统一生成分享链接并查看成功 / 失败结果。
           </DialogDescription>
         </DialogHeader>
 
@@ -286,7 +286,7 @@ export function BatchShareDialog({ open, onOpenChange, onSuccess }: BatchShareDi
               </div>
 
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={handleClose}>
+                <Button type="button" variant="ghost" onClick={handleClose}>
                   取消
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
@@ -377,7 +377,7 @@ export function BatchShareDialog({ open, onOpenChange, onSuccess }: BatchShareDi
             </div>
 
             <DialogFooter>
-              <Button onClick={handleClose}>完成</Button>
+              <Button variant="ghost" onClick={handleClose}>完成</Button>
             </DialogFooter>
           </div>
         )}
@@ -385,4 +385,3 @@ export function BatchShareDialog({ open, onOpenChange, onSuccess }: BatchShareDi
     </Dialog>
   );
 }
-

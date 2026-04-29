@@ -165,11 +165,11 @@ export function BatchCopyDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>批量复制</DialogTitle>
           <DialogDescription>
-            配置复制选项，将选中的数据复制到剪贴板
+            选择字段、分隔符与数据范围，将分享信息批量复制到剪贴板。
           </DialogDescription>
         </DialogHeader>
 
@@ -256,7 +256,7 @@ export function BatchCopyDialog({
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={handleClose}>
+          <Button type="button" variant="ghost" onClick={handleClose}>
             取消
           </Button>
           <Button type="button" onClick={handleCopy}>
@@ -267,4 +267,3 @@ export function BatchCopyDialog({
     </Dialog>
   );
 }
-

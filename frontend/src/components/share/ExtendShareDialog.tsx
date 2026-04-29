@@ -146,7 +146,7 @@ export function ExtendShareDialog({ open, onOpenChange, token, onSuccess }: Exte
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>延期分享码</DialogTitle>
           <DialogDescription>
@@ -245,7 +245,7 @@ export function ExtendShareDialog({ open, onOpenChange, token, onSuccess }: Exte
             )}
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleClose}>
+              <Button type="button" variant="ghost" onClick={handleClose}>
                 取消
               </Button>
               <Button type="submit" disabled={isSubmitting}>
