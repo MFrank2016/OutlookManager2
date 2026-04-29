@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import "./globals.css";
+
+import { Toaster } from "@/components/ui/sonner";
 import QueryProvider from "@/providers/QueryProvider";
 import ThemeProvider from "@/providers/ThemeProvider";
-import { Toaster } from "@/components/ui/sonner";
+
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Outlook Manager",
@@ -16,8 +18,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <body className="theme-console font-sans min-h-screen selection:bg-primary/35 selection:text-foreground">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <body className="theme-console">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
           <QueryProvider>
             {children}
             <Toaster position="top-right" />

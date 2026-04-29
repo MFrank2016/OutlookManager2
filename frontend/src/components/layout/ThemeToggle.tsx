@@ -1,9 +1,12 @@
 "use client";
 
 import { Moon, Sun } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { getNextTheme, getThemeToggleLabel } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 
 interface ThemeToggleProps {
   compact?: boolean;
@@ -11,11 +14,20 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ compact = false, className }: ThemeToggleProps) {
-  const { setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const nextThemeLabel = mounted ? getThemeToggleLabel(resolvedTheme) : "切换主题";
 
   const handleToggleTheme = () => {
-    const isDark = document.documentElement.classList.contains("dark");
-    setTheme(isDark ? "light" : "dark");
+    if (!mounted) {
+      return;
+    }
+    setTheme(getNextTheme(resolvedTheme));
   };
 
   return (
@@ -28,11 +40,12 @@ export function ThemeToggle({ compact = false, className }: ThemeToggleProps) {
         compact ? "h-9 w-9" : "h-9 px-3",
         className
       )}
-      title="切换明亮/暗黑模式"
-      aria-label="切换明亮或暗黑模式"
+      title={nextThemeLabel}
+      aria-label={nextThemeLabel}
+      disabled={!mounted}
     >
-      <Sun className="h-4 w-4 transition-all dark:scale-75 dark:rotate-90 dark:opacity-0" />
-      <Moon className="absolute h-4 w-4 scale-75 -rotate-90 opacity-0 transition-all dark:scale-100 dark:rotate-0 dark:opacity-100" />
+      <Sun className="h-4 w-4 transition-all motion-reduce:transition-none dark:scale-75 dark:rotate-90 dark:opacity-0 motion-reduce:dark:scale-100 motion-reduce:dark:rotate-0" />
+      <Moon className="absolute h-4 w-4 scale-75 -rotate-90 opacity-0 transition-all motion-reduce:transition-none dark:scale-100 dark:rotate-0 dark:opacity-100 motion-reduce:scale-100 motion-reduce:rotate-0" />
       {!compact && <span className="text-xs font-medium">主题</span>}
     </Button>
   );

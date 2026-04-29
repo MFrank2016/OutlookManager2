@@ -81,9 +81,9 @@
   --surface-1: oklch(0.995 0.004 252);
   --surface-2: oklch(0.95 0.01 252);
   --surface-3: oklch(0.9 0.016 252);
-  --surface-soft: oklch(0.965 0.01 252 / 86%);
   --text-soft: oklch(0.34 0.014 252);
   --text-faint: oklch(0.5 0.012 252);
+  --panel: color-mix(in oklch, var(--surface-1) 84%, white 16%);
   --brand: oklch(0.58 0.16 242);
   --brand-soft: oklch(0.65 0.08 230 / 28%);
   --ok: oklch(0.62 0.15 150);
@@ -93,7 +93,6 @@
   --shadow-pop: 0 16px 36px oklch(0.48 0.02 252 / 18%);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .dark {
@@ -132,9 +131,9 @@
   --surface-1: oklch(0.21 0.018 252);
   --surface-2: oklch(0.245 0.02 252);
   --surface-3: oklch(0.3 0.028 252);
-  --surface-soft: oklch(0.22 0.018 252 / 78%);
   --text-soft: oklch(0.82 0.01 252);
   --text-faint: oklch(0.72 0.01 252);
+  --panel: color-mix(in oklch, var(--surface-1) 88%, black 12%);
   --brand: oklch(0.73 0.16 242);
   --brand-soft: oklch(0.74 0.11 224 / 35%);
   --ok: oklch(0.73 0.14 150);
@@ -142,22 +141,22 @@
   --danger: oklch(0.69 0.19 24);
   --shadow-soft: 0 8px 28px oklch(0.03 0.01 252 / 40%);
   --shadow-pop: 0 14px 40px oklch(0.04 0.015 252 / 55%);
-  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
-  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   html,
   body {
     height: 100%;
   }
+
   body {
     @apply bg-background text-foreground antialiased;
     position: relative;
+    font-family: var(--font-sans);
     background-color: var(--surface-0);
     background-image:
       radial-gradient(1200px 700px at 8% -5%, color-mix(in oklch, var(--brand) 24%, transparent), transparent 58%),
@@ -167,9 +166,11 @@
     color-scheme: light;
     font-feature-settings: "calt" 1, "ss01" 1;
   }
+
   .dark body {
     color-scheme: dark;
   }
+
   body::before {
     content: "";
     position: fixed;
@@ -180,13 +181,53 @@
     background-size: 3px 3px;
     mix-blend-mode: soft-light;
   }
+
   a {
     color: color-mix(in oklch, var(--brand) 84%, white 16%);
     transition: color 180ms var(--ease-out-quart);
   }
+
   a:hover {
     color: color-mix(in oklch, var(--brand) 95%, white 5%);
   }
+}
+
+@layer components {
+  .theme-console {
+    --panel-border: color-mix(in oklch, var(--border) 82%, transparent);
+    --panel-hover: color-mix(in oklch, var(--surface-3) 72%, var(--surface-2) 28%);
+  }
+
+  .theme-console [data-slot="card"],
+  .theme-console [data-slot="table-container"],
+  .theme-console [data-slot="popover-content"],
+  .theme-console [data-slot="dialog-content"] {
+    background-color: var(--panel);
+    border-color: var(--panel-border);
+  }
+
+  .theme-console [data-slot="button"][data-variant="outline"],
+  .theme-console [data-slot="input"],
+  .theme-console [data-slot="textarea"],
+  .theme-console [data-slot="select-trigger"] {
+    background-color: color-mix(in oklch, var(--surface-2) 76%, transparent);
+    border-color: var(--panel-border);
+    color: var(--foreground);
+  }
+
+  .theme-console [data-slot="input"]::placeholder,
+  .theme-console [data-slot="textarea"]::placeholder {
+    color: var(--text-faint);
+  }
+
+  .theme-console [data-slot="table"] thead {
+    background-color: color-mix(in oklch, var(--surface-2) 72%, var(--surface-1) 28%);
+  }
+
+  .theme-console [data-slot="table-row"]:hover {
+    background-color: var(--panel-hover);
+  }
+
 }
 
 @layer utilities {
@@ -198,7 +239,7 @@
     background: linear-gradient(
       180deg,
       color-mix(in oklch, var(--surface-2) 78%, var(--surface-1) 22%),
-      var(--surface-1)
+      var(--panel)
     );
     border: 1px solid color-mix(in oklch, var(--border) 78%, white 22%);
     box-shadow: var(--shadow-soft);
@@ -238,180 +279,26 @@
   }
 }
 
-@keyframes pulse-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 color-mix(in oklch, var(--brand) 34%, transparent);
-  }
-  50% {
-    box-shadow: 0 0 0 8px color-mix(in oklch, var(--brand) 0%, transparent);
-  }
-}
-
-/* 全局兼容层：将历史浅色类名映射到深色控制台主题 */
-.dark body.theme-console .bg-white {
-  background-color: var(--surface-1) !important;
-}
-.dark body.theme-console .bg-gray-50,
-.dark body.theme-console .bg-slate-50,
-.dark body.theme-console .bg-gray-100,
-.dark body.theme-console .bg-slate-100 {
-  background-color: color-mix(in oklch, var(--surface-2) 72%, var(--surface-1) 28%) !important;
-}
-.dark body.theme-console .bg-gray-900,
-.dark body.theme-console .bg-slate-900 {
-  background-color: color-mix(in oklch, var(--surface-0) 72%, black 28%) !important;
-}
-.dark body.theme-console .bg-gray-900\/95 {
-  background-color: color-mix(in oklch, var(--surface-0) 88%, black 12%) !important;
-}
-
-.dark body.theme-console .text-white {
-  color: var(--foreground) !important;
-}
-.dark body.theme-console .text-gray-900,
-.dark body.theme-console .text-slate-900,
-.dark body.theme-console .text-gray-800,
-.dark body.theme-console .text-slate-800,
-.dark body.theme-console .text-gray-700,
-.dark body.theme-console .text-slate-700 {
-  color: var(--foreground) !important;
-}
-.dark body.theme-console .text-gray-600,
-.dark body.theme-console .text-slate-600,
-.dark body.theme-console .text-gray-500,
-.dark body.theme-console .text-slate-500,
-.dark body.theme-console .text-gray-400,
-.dark body.theme-console .text-slate-400,
-.dark body.theme-console .text-gray-300,
-.dark body.theme-console .text-slate-300 {
-  color: var(--text-faint) !important;
-}
-
-.dark body.theme-console .border,
-.dark body.theme-console .border-gray-200,
-.dark body.theme-console .border-gray-100,
-.dark body.theme-console .border-slate-200,
-.dark body.theme-console .border-slate-800,
-.dark body.theme-console .border-gray-300 {
-  border-color: color-mix(in oklch, var(--border) 76%, white 24%) !important;
-}
-.dark body.theme-console .border-blue-200 {
-  border-color: color-mix(in oklch, var(--brand) 55%, var(--border) 45%) !important;
-}
-.dark body.theme-console .border-red-300 {
-  border-color: color-mix(in oklch, var(--danger) 60%, var(--border) 40%) !important;
-}
-.dark body.theme-console .border-green-200 {
-  border-color: color-mix(in oklch, var(--ok) 56%, var(--border) 44%) !important;
-}
-.dark body.theme-console .border-yellow-200,
-.dark body.theme-console .border-amber-200,
-.dark body.theme-console .border-amber-300 {
-  border-color: color-mix(in oklch, var(--warn) 60%, var(--border) 40%) !important;
-}
-
-.dark body.theme-console .hover\:bg-gray-50:hover,
-.dark body.theme-console .hover\:bg-slate-50:hover,
-.dark body.theme-console .hover\:bg-gray-100:hover,
-.dark body.theme-console .hover\:bg-slate-100:hover {
-  background-color: color-mix(in oklch, var(--surface-3) 70%, var(--surface-2) 30%) !important;
-}
-.dark body.theme-console .hover\:bg-blue-50:hover,
-.dark body.theme-console .hover\:bg-blue-50\/50:hover {
-  background-color: color-mix(in oklch, var(--brand-soft) 52%, var(--surface-2) 48%) !important;
-}
-.dark body.theme-console .hover\:bg-red-50:hover {
-  background-color: color-mix(in oklch, var(--danger) 18%, var(--surface-2) 82%) !important;
-}
-.dark body.theme-console .hover\:bg-amber-50:hover,
-.dark body.theme-console .hover\:bg-green-100:hover {
-  background-color: color-mix(in oklch, var(--warn) 18%, var(--surface-2) 82%) !important;
-}
-.dark body.theme-console .hover\:text-white:hover {
-  color: var(--foreground) !important;
-}
-
-.dark body.theme-console .bg-blue-600,
-.dark body.theme-console .bg-blue-500 {
-  background-color: color-mix(in oklch, var(--brand) 82%, oklch(0.52 0.14 238) 18%) !important;
-}
-.dark body.theme-console .text-blue-900,
-.dark body.theme-console .text-blue-800,
-.dark body.theme-console .text-blue-700,
-.dark body.theme-console .text-blue-600,
-.dark body.theme-console .text-blue-500,
-.dark body.theme-console .text-indigo-600 {
-  color: color-mix(in oklch, var(--brand) 88%, white 12%) !important;
-}
-.dark body.theme-console .text-green-800,
-.dark body.theme-console .text-green-700,
-.dark body.theme-console .text-green-600 {
-  color: color-mix(in oklch, var(--ok) 84%, white 16%) !important;
-}
-.dark body.theme-console .text-red-700,
-.dark body.theme-console .text-red-600 {
-  color: color-mix(in oklch, var(--danger) 82%, white 18%) !important;
-}
-.dark body.theme-console .text-yellow-700,
-.dark body.theme-console .text-yellow-600,
-.dark body.theme-console .text-amber-700,
-.dark body.theme-console .text-amber-600,
-.dark body.theme-console .text-orange-700,
-.dark body.theme-console .text-orange-600 {
-  color: color-mix(in oklch, var(--warn) 86%, white 14%) !important;
-}
-
-.dark body.theme-console .bg-blue-50,
-.dark body.theme-console .bg-blue-100 {
-  background-color: color-mix(in oklch, var(--brand) 14%, var(--surface-2) 86%) !important;
-}
-.dark body.theme-console .bg-green-50,
-.dark body.theme-console .bg-green-100 {
-  background-color: color-mix(in oklch, var(--ok) 14%, var(--surface-2) 86%) !important;
-}
-.dark body.theme-console .bg-red-50 {
-  background-color: color-mix(in oklch, var(--danger) 15%, var(--surface-2) 85%) !important;
-}
-.dark body.theme-console .bg-yellow-50,
-.dark body.theme-console .bg-amber-50 {
-  background-color: color-mix(in oklch, var(--warn) 16%, var(--surface-2) 84%) !important;
-}
-.dark body.theme-console .bg-gray-900 {
-  color: var(--foreground) !important;
-}
-
-.dark body.theme-console .shadow-sm {
-  box-shadow: var(--shadow-soft) !important;
-}
-.dark body.theme-console .hover\:shadow-md:hover,
-.dark body.theme-console .hover\:shadow-lg:hover {
-  box-shadow: var(--shadow-pop) !important;
-}
-
-.dark body.theme-console [data-slot="table-container"] {
-  border-radius: calc(var(--radius) + 0.05rem);
-}
-.dark body.theme-console [data-slot="table"] thead {
-  background-color: color-mix(in oklch, var(--surface-2) 72%, var(--surface-1) 28%);
-}
-
 * {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklch, var(--surface-3) 74%, white 26%) transparent;
 }
+
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
+
 *::-webkit-scrollbar-track {
   background: transparent;
 }
+
 *::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: color-mix(in oklch, var(--surface-3) 80%, white 20%);
   border: 2px solid transparent;
 }
+
 *::-webkit-scrollbar-thumb:hover {
   background: color-mix(in oklch, var(--brand) 42%, var(--surface-3) 58%);
 }
