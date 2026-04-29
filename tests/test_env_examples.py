@@ -75,3 +75,10 @@ def test_compose_docs_reference_helper_script():
     assert "./scripts/compose-up.sh" in root_readme
     assert "./scripts/compose-up.sh" in docker_readme
     assert "docker compose --env-file .env.compose.local up -d --build" in docker_readme
+
+
+def test_docker_readme_mentions_helper_advanced_flags():
+    text = Path("README_DOCKER.md").read_text(encoding="utf-8")
+
+    assert "./scripts/compose-up.sh --no-build" in text
+    assert "./scripts/compose-up.sh --logs-on-fail" in text

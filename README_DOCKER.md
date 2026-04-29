@@ -18,6 +18,18 @@
 ```
 
 这个脚本适合“快速启动 + 基础验活”。
+如果镜像已经 build 过、你只想日常重拉容器，可以用：
+
+```bash
+./scripts/compose-up.sh --no-build
+```
+
+如果你正在快速排障，希望探活失败时直接补服务日志摘要，可以用：
+
+```bash
+./scripts/compose-up.sh --logs-on-fail
+```
+
 如果你要做更细粒度的运维操作，继续使用下面这些 raw compose 命令。
 
 ## 常用运维命令
