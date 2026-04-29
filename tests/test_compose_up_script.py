@@ -215,3 +215,47 @@ def test_compose_up_reads_required_env_keys_without_sourcing_whole_file(tmp_path
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_compose_up_logs_on_fail_emits_service_logs(tmp_path):
+    repo = _make_fake_repo(tmp_path)
+    (repo / ".env.compose.local").write_text(
+        "PORT=8000\nFRONTEND_PORT=3000\nPOSTGRES_PORT=55432\n",
+        encoding="utf-8",
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    calls_log = tmp_path / "calls.log"
+
+    _write_executable(
+        bin_dir / "docker",
+        f'''#!/bin/sh
+echo docker "$@" >> "{calls_log}"
+exit 0
+''',
+    )
+    _write_executable(
+        bin_dir / "curl",
+        f'''#!/bin/sh
+echo curl "$@" >> "{calls_log}"
+exit 22
+''',
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+
+    result = subprocess.run(
+        ["bash", "scripts/compose-up.sh", "--logs-on-fail"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        env=env,
+    )
+
+    calls = calls_log.read_text(encoding="utf-8")
+    assert result.returncode != 0
+    assert "logs --tail=40 outlook-email-api" in calls
+    assert "logs --tail=40 outlook-email-frontend" in calls
+    assert "logs --tail=40 postgresql" in calls

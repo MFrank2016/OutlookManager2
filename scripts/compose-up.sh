@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENV_FILE="$REPO_ROOT/.env.compose.local"
 USE_BUILD=1
+LOGS_ON_FAIL=0
 
 require_command() {
   local command_name="$1"
@@ -48,6 +49,13 @@ wait_for_url() {
   done
 
   echo "探活失败: ${service_name} (${url})" >&2
+
+  if (( LOGS_ON_FAIL )); then
+    docker compose logs --tail=40 outlook-email-api || true
+    docker compose logs --tail=40 outlook-email-frontend || true
+    docker compose logs --tail=40 postgresql || true
+  fi
+
   return 1
 }
 
@@ -58,6 +66,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-build)
       USE_BUILD=0
+      shift
+      ;;
+    --logs-on-fail)
+      LOGS_ON_FAIL=1
       shift
       ;;
     *)
