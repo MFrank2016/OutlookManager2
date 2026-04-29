@@ -1,17 +1,19 @@
 "use client";
 
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageSection } from "@/components/layout/PageSection";
+
 export default function ApiDocsPage() {
   return (
-    <div className="page-enter flex h-full w-full flex-col">
-      <h1 className="mb-4 text-2xl font-bold tracking-tight">API Documentation</h1>
-      <div className="panel-surface flex-1 overflow-hidden rounded-md border-0 p-1">
-        {/* Use the backend's /docs URL which serves Swagger UI */}
-        <iframe 
-          src="/docs" 
-          className="h-full w-full rounded-sm border-none bg-white"
-          title="API Documentation"
-        />
-      </div>
+    <div className="page-enter flex h-full min-h-[70dvh] flex-col gap-3 md:gap-4">
+      <PageHeader
+        title="API 文档"
+        description="内嵌 Swagger UI，便于快速查看接口定义与调试参数。"
+      />
+
+      <PageSection className="flex-1" contentClassName="h-full min-h-[56dvh]">
+        <iframe src="/docs" className="h-full w-full rounded-md border-none bg-white" title="API Documentation" />
+      </PageSection>
     </div>
   );
 }

@@ -1,22 +1,26 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api from "@/lib/api";
-import { Button } from "@/components/ui/button";
-import { Loader2, Plus, CopyCheck, Users, XCircle, Trash } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CopyCheck, Loader2, Plus, Trash, Users, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
-import { BatchShareDialog } from "@/components/share/BatchShareDialog";
+
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PageIntro } from "@/components/layout/PageIntro";
+import { PageSection } from "@/components/layout/PageSection";
 import { BatchCopyDialog } from "@/components/share/BatchCopyDialog";
+import { BatchShareDialog } from "@/components/share/BatchShareDialog";
 import { ExtendShareDialog } from "@/components/share/ExtendShareDialog";
-import { ShareTokenTable } from "@/components/share/ShareTokenTable";
+import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
 import { ShareTokenSearch } from "@/components/share/ShareTokenSearch";
-import { ShareToken, Account } from "@/types";
+import { ShareTokenTable } from "@/components/share/ShareTokenTable";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useConfigs } from "@/hooks/useAdmin";
+import api from "@/lib/api";
 import { getShareDomainFromConfigs } from "@/lib/shareUtils";
+import { Account, ShareToken } from "@/types";
 
 export default function ShareManagementPage() {
   const queryClient = useQueryClient();
@@ -30,11 +34,11 @@ export default function ShareManagementPage() {
   const [extendToken, setExtendToken] = useState<ShareToken | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<string>("");
   const [selectedTokens, setSelectedTokens] = useState<Set<number>>(new Set());
-  
+
   // 本地查询条件状态（用于输入，不立即触发查询）
   const [localAccountSearch, setLocalAccountSearch] = useState("");
   const [localTokenSearch, setLocalTokenSearch] = useState("");
-  
+
   // 实际查询条件状态（用于真正发起查询）
   const [accountSearch, setAccountSearch] = useState<string | undefined>(undefined);
   const [tokenSearch, setTokenSearch] = useState<string | undefined>(undefined);
@@ -42,9 +46,9 @@ export default function ShareManagementPage() {
   // 获取账户列表（使用现有的hook）
   const { data: accountsResponse } = useAccounts({
     page: 1,
-    page_size: 100
+    page_size: 100,
   });
-  
+
   const accountsData = accountsResponse?.accounts || [];
 
   // 获取系统配置（用于分享页域名）
@@ -63,9 +67,9 @@ export default function ShareManagementPage() {
       }
       const res = await api.get<ShareToken[]>("/share/tokens", { params });
       return res.data;
-    }
+    },
   });
-  
+
   // 处理查询按钮点击
   const handleSearch = () => {
     setAccountSearch(localAccountSearch.trim() || undefined);
@@ -82,7 +86,7 @@ export default function ShareManagementPage() {
     },
     onError: (error: { response?: { data?: { detail?: string } } }) => {
       toast.error(error.response?.data?.detail || "删除失败");
-    }
+    },
   });
 
   const batchDeactivate = useMutation({
@@ -96,7 +100,7 @@ export default function ShareManagementPage() {
     },
     onError: (error: { response?: { data?: { detail?: string } } }) => {
       toast.error(error.response?.data?.detail || "批量失效失败");
-    }
+    },
   });
 
   const batchDelete = useMutation({
@@ -110,7 +114,7 @@ export default function ShareManagementPage() {
     },
     onError: (error: { response?: { data?: { detail?: string } } }) => {
       toast.error(error.response?.data?.detail || "批量删除失败");
-    }
+    },
   });
 
   // 处理表格选择
@@ -132,102 +136,119 @@ export default function ShareManagementPage() {
     }
   };
 
-  return (
-    <div className="page-enter space-y-3 px-0 md:space-y-6 md:px-4">
-      <div className="panel-surface flex flex-col gap-2 p-3 md:flex-row md:items-center md:justify-between md:gap-0 md:p-4">
-        <h1 className="hidden md:block text-2xl font-bold tracking-tight">分享管理</h1>
-        <div className="flex gap-1.5 md:gap-2 flex-wrap md:flex-nowrap w-full md:w-auto">
-          {accountsData && accountsData.length > 0 && (
-            <>
-              <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-                <SelectTrigger className="w-full md:w-[200px]">
-                  <SelectValue placeholder="选择邮箱账户" />
-                </SelectTrigger>
-                <SelectContent>
-                  {accountsData.map((account: Account, index: number) => (
-                    <SelectItem key={account.email_id || `account-${index}`} value={account.email_id}>
-                      {account.email_id}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                onClick={() => {
-                  if (!selectedAccount) {
-                    toast.error("请先选择邮箱账户");
-                    return;
-                  }
-                  setIsCreateDialogOpen(true);
-                }}
-                className="gap-2 text-xs md:text-sm"
-                size="sm"
-              >
-                <Plus className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                <span className="hidden sm:inline">创建分享</span>
-                <span className="sm:hidden">创建</span>
-              </Button>
-              <Button
-                onClick={() => setIsBatchShareDialogOpen(true)}
-                variant="outline"
-                className="gap-2 text-xs md:text-sm"
-                size="sm"
-              >
-                <Users className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                <span className="hidden sm:inline">批量分享</span>
-                <span className="sm:hidden">分享</span>
-              </Button>
-              {tokens && tokens.length > 0 && (
-                <>
-                  <Button
-                    onClick={() => setIsBatchCopyDialogOpen(true)}
-                    variant="outline"
-                    className="gap-2 text-xs md:text-sm"
-                    size="sm"
-                  >
-                    <CopyCheck className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                    <span className="hidden sm:inline">批量复制</span>
-                    <span className="sm:hidden">复制</span>
-                  </Button>
-                  {selectedTokens.size > 0 && (
-                    <>
-                      <Button
-                        onClick={() => {
-                          if (window.confirm(`确定要将选中的 ${selectedTokens.size} 个分享码设置为失效吗？`)) {
-                            batchDeactivate.mutate(Array.from(selectedTokens));
-                          }
-                        }}
-                        variant="outline"
-                        className="gap-2 text-orange-600 hover:text-orange-700 text-xs md:text-sm"
-                        size="sm"
-                      >
-                        <XCircle className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                        <span className="hidden sm:inline">批量失效 ({selectedTokens.size})</span>
-                        <span className="sm:hidden">失效 ({selectedTokens.size})</span>
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          if (window.confirm(`确定要删除选中的 ${selectedTokens.size} 个分享码吗？此操作不可恢复！`)) {
-                            batchDelete.mutate(Array.from(selectedTokens));
-                          }
-                        }}
-                        variant="outline"
-                        className="gap-2 text-red-600 hover:text-red-700 text-xs md:text-sm"
-                        size="sm"
-                      >
-                        <Trash className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                        <span className="hidden sm:inline">批量删除 ({selectedTokens.size})</span>
-                        <span className="sm:hidden">删除 ({selectedTokens.size})</span>
-                      </Button>
-                    </>
-                  )}
-                </>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+  const hasAccounts = accountsData.length > 0;
+  const selectedCount = selectedTokens.size;
 
-      {/* 查询区域 */}
+  return (
+    <div className="page-enter space-y-3 md:space-y-4">
+      <PageHeader
+        title="分享管理"
+        description="统一管理分享链接、筛选规则与批量操作。"
+      />
+
+      <PageIntro description="快速查看当前页关键上下文。">
+        <div className="grid gap-2 text-xs text-[color:var(--text-soft)] sm:grid-cols-3">
+          <div className="rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-2">
+            账户数量：<span className="font-semibold text-foreground">{accountsData.length}</span>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-2">
+            当前分享码：<span className="font-semibold text-foreground">{tokens?.length ?? 0}</span>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-2">
+            已选记录：<span className="font-semibold text-foreground">{selectedCount}</span>
+          </div>
+        </div>
+      </PageIntro>
+
+      <PageSection
+        title="主操作"
+        description="选择邮箱后创建或批量处理分享码。"
+        contentClassName="space-y-3"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+            <SelectTrigger className="w-full sm:w-[240px]">
+              <SelectValue placeholder="选择邮箱账户" />
+            </SelectTrigger>
+            <SelectContent>
+              {accountsData.map((account: Account, index: number) => (
+                <SelectItem key={account.email_id || `account-${index}`} value={account.email_id}>
+                  {account.email_id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            onClick={() => {
+              if (!selectedAccount) {
+                toast.error("请先选择邮箱账户");
+                return;
+              }
+              setIsCreateDialogOpen(true);
+            }}
+            className="gap-2"
+            size="sm"
+            disabled={!hasAccounts}
+          >
+            <Plus className="h-4 w-4" />
+            创建分享
+          </Button>
+
+          <Button
+            onClick={() => setIsBatchShareDialogOpen(true)}
+            variant="outline"
+            className="gap-2"
+            size="sm"
+            disabled={!hasAccounts}
+          >
+            <Users className="h-4 w-4" />
+            批量分享
+          </Button>
+
+          <Button
+            onClick={() => setIsBatchCopyDialogOpen(true)}
+            variant="outline"
+            className="gap-2"
+            size="sm"
+            disabled={!tokens || tokens.length === 0}
+          >
+            <CopyCheck className="h-4 w-4" />
+            批量复制
+          </Button>
+
+          <Button
+            onClick={() => {
+              if (window.confirm(`确定要将选中的 ${selectedCount} 个分享码设置为失效吗？`)) {
+                batchDeactivate.mutate(Array.from(selectedTokens));
+              }
+            }}
+            variant="outline"
+            className="gap-2 text-orange-600 hover:text-orange-700"
+            size="sm"
+            disabled={selectedCount === 0}
+          >
+            <XCircle className="h-4 w-4" />
+            批量失效 ({selectedCount})
+          </Button>
+
+          <Button
+            onClick={() => {
+              if (window.confirm(`确定要删除选中的 ${selectedCount} 个分享码吗？此操作不可恢复！`)) {
+                batchDelete.mutate(Array.from(selectedTokens));
+              }
+            }}
+            variant="outline"
+            className="gap-2 text-red-600 hover:text-red-700"
+            size="sm"
+            disabled={selectedCount === 0}
+          >
+            <Trash className="h-4 w-4" />
+            批量删除 ({selectedCount})
+          </Button>
+        </div>
+      </PageSection>
+
       <ShareTokenSearch
         accountSearch={localAccountSearch}
         tokenSearch={localTokenSearch}
@@ -238,7 +259,7 @@ export default function ShareManagementPage() {
       />
 
       {isLoading ? (
-        <div className="flex justify-center p-8">
+        <div className="panel-surface flex justify-center p-8">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       ) : (
@@ -263,8 +284,8 @@ export default function ShareManagementPage() {
       <ShareTokenDialog
         open={isEditDialogOpen}
         onOpenChange={(open) => {
-            setIsEditDialogOpen(open);
-            if (!open) setEditToken(null);
+          setIsEditDialogOpen(open);
+          if (!open) setEditToken(null);
         }}
         tokenToEdit={editToken || undefined}
         onSuccess={() => {
@@ -272,12 +293,12 @@ export default function ShareManagementPage() {
           setEditToken(null);
         }}
       />
-      
+
       <ShareTokenDialog
         open={isCreateDialogOpen}
         onOpenChange={(open) => {
-            setIsCreateDialogOpen(open);
-            if (!open) setSelectedAccount("");
+          setIsCreateDialogOpen(open);
+          if (!open) setSelectedAccount("");
         }}
         emailAccount={selectedAccount}
         onSuccess={() => {
