@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import html
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import database as db
 from email_utils import extract_email_address
@@ -26,6 +26,8 @@ KEYWORD_HINTS = [
     "确认码",
     "code",
 ]
+MATCHER_SOURCE_TYPES = {"sender", "subject", "body"}
+EXTRACTOR_SOURCE_TYPES = {"subject", "body"}
 
 
 def list_verification_rules(enabled_only: bool = False) -> List[Dict[str, Any]]:
@@ -33,12 +35,12 @@ def list_verification_rules(enabled_only: bool = False) -> List[Dict[str, Any]]:
 
 
 def create_verification_rule(data: Dict[str, Any]) -> Dict[str, Any]:
-    payload = _normalize_rule_payload(data, require_extract_pattern=True)
+    payload = _normalize_rule_payload(data, require_extractors=True)
     return db.create_verification_rule(payload)
 
 
 def update_verification_rule(rule_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
-    payload = _normalize_rule_payload(data, require_extract_pattern=True)
+    payload = _normalize_rule_payload(data, require_extractors=True)
     updated = db.update_verification_rule(rule_id, payload)
     if not updated:
         raise ValueError(f"rule {rule_id} not found")
@@ -104,83 +106,164 @@ def detect_verification_code_with_rules(
         if not evaluation["matched"]:
             continue
 
-        code = _extract_code(rule, context)
+        code, resolved_code_source, extractor_attempts = _extract_code_from_rule(rule, context)
+        evaluation["extractor_attempts"] = extractor_attempts
         if not code:
             evaluation["matched"] = False
             evaluation["reason"] = "规则命中但未提取到验证码"
             continue
 
-        result = {
-            "code": code,
-            "matched_rule": rule,
-            "matched_via": "rule",
-            "source": source,
-            "page_source": page_source,
-            "rule_evaluations": evaluations,
-            "matched_sender": context["from_email"],
-            "matched_subject": context["subject"],
-            "matched_body_excerpt": _build_excerpt(context["combined_text"], code),
-        }
+        evaluation["reason"] = "规则命中并提取成功"
+        result = _build_result(
+            code=code,
+            matched_rule=rule,
+            matched_via="rule",
+            source=source,
+            page_source=page_source,
+            rule_evaluations=evaluations,
+            matched_matchers=evaluation["matched_matchers"],
+            extractor_attempts=extractor_attempts,
+            resolved_code_source=resolved_code_source,
+            context=context,
+        )
         if persist_record:
             _record_success(email_account, message_id, result)
         return result
 
     fallback = detect_verification_code("", context["combined_text"])
+    debug_evaluation = _latest_debug_evaluation(evaluations)
     if fallback:
-        result = {
-            "code": _normalize_candidate_code(fallback["code"]),
-            "matched_rule": None,
-            "matched_via": "fallback",
-            "source": source,
-            "page_source": page_source,
-            "rule_evaluations": evaluations,
-            "matched_sender": context["from_email"],
-            "matched_subject": context["subject"],
-            "matched_body_excerpt": fallback.get("context") or _build_excerpt(context["combined_text"], fallback["code"]),
-        }
+        result = _build_result(
+            code=_normalize_candidate_code(fallback["code"]),
+            matched_rule=None,
+            matched_via="fallback",
+            source=source,
+            page_source=page_source,
+            rule_evaluations=evaluations,
+            matched_matchers=debug_evaluation.get("matched_matchers", []),
+            extractor_attempts=debug_evaluation.get("extractor_attempts", []),
+            resolved_code_source=None,
+            context=context,
+            excerpt_override=fallback.get("context") or _build_excerpt(context["combined_text"], fallback["code"]),
+        )
         if persist_record:
             _record_success(email_account, message_id, result)
         return result
 
-    return {
-        "code": None,
-        "matched_rule": None,
-        "matched_via": None,
-        "source": source,
-        "page_source": page_source,
-        "rule_evaluations": evaluations,
-        "matched_sender": context["from_email"],
-        "matched_subject": context["subject"],
-        "matched_body_excerpt": "",
-    }
+    return _build_result(
+        code=None,
+        matched_rule=None,
+        matched_via=None,
+        source=source,
+        page_source=page_source,
+        rule_evaluations=evaluations,
+        matched_matchers=debug_evaluation.get("matched_matchers", []),
+        extractor_attempts=debug_evaluation.get("extractor_attempts", []),
+        resolved_code_source=None,
+        context=context,
+    )
 
 
-def _normalize_rule_payload(data: Dict[str, Any], require_extract_pattern: bool) -> Dict[str, Any]:
+def _normalize_rule_payload(data: Dict[str, Any], require_extractors: bool) -> Dict[str, Any]:
     payload = {
         "name": (data.get("name") or "").strip(),
         "scope_type": (data.get("scope_type") or "global").strip().lower(),
-        "match_mode": (data.get("match_mode") or "and").strip().lower(),
+        "match_mode": (data.get("match_mode") or "or").strip().lower(),
         "priority": int(data.get("priority", 0)),
         "enabled": bool(data.get("enabled", True)),
-        "sender_pattern": _clean_optional_text(data.get("sender_pattern")),
-        "subject_pattern": _clean_optional_text(data.get("subject_pattern")),
-        "body_pattern": _clean_optional_text(data.get("body_pattern")),
-        "extract_pattern": _clean_optional_text(data.get("extract_pattern")),
         "is_regex": bool(data.get("is_regex", True)),
         "description": _clean_optional_text(data.get("description")),
     }
+    payload["matchers"] = _normalize_matchers(data)
+    payload["extractors"] = _normalize_extractors(data)
+
     if payload["scope_type"] not in {"targeted", "global"}:
         raise ValueError("scope_type 必须是 targeted 或 global")
     if payload["match_mode"] not in {"and", "or"}:
         raise ValueError("match_mode 必须是 and 或 or")
-    if require_extract_pattern and not payload["extract_pattern"]:
-        raise ValueError("extract_pattern 不能为空")
+    if require_extractors and not payload["extractors"]:
+        raise ValueError("至少需要 1 条 extractor")
+
     if payload["is_regex"]:
-        for field_name in ("sender_pattern", "subject_pattern", "body_pattern", "extract_pattern"):
-            pattern = payload.get(field_name)
-            if pattern:
-                re.compile(pattern, re.IGNORECASE)
+        for matcher in payload["matchers"]:
+            re.compile(matcher["keyword"], re.IGNORECASE)
+        for extractor in payload["extractors"]:
+            re.compile(extractor["extract_pattern"], re.IGNORECASE)
     return payload
+
+
+def _normalize_matchers(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    raw_matchers = data.get("matchers")
+    if raw_matchers is None:
+        raw_matchers = []
+        for source_type in ("sender", "subject", "body"):
+            keyword = _clean_optional_text(data.get(f"{source_type}_pattern"))
+            if keyword:
+                raw_matchers.append(
+                    {
+                        "source_type": source_type,
+                        "keyword": keyword,
+                        "sort_order": len(raw_matchers) + 1,
+                    }
+                )
+
+    normalized: List[Dict[str, Any]] = []
+    for index, matcher in enumerate(raw_matchers, start=1):
+        source_type = str(matcher.get("source_type") or "").strip().lower()
+        if source_type not in MATCHER_SOURCE_TYPES:
+            raise ValueError("matcher.source_type 必须是 sender / subject / body")
+        keyword = _clean_optional_text(matcher.get("keyword"))
+        if not keyword:
+            raise ValueError("matcher.keyword 不能为空")
+        normalized.append(
+            {
+                "source_type": source_type,
+                "keyword": keyword,
+                "sort_order": _normalize_sort_order(matcher.get("sort_order"), index),
+            }
+        )
+
+    normalized.sort(key=lambda item: (item["sort_order"], item["source_type"]))
+    return normalized
+
+
+def _normalize_extractors(data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    raw_extractors = data.get("extractors")
+    if raw_extractors is None:
+        pattern = _clean_optional_text(data.get("extract_pattern"))
+        raw_extractors = []
+        if pattern:
+            raw_extractors = [
+                {"source_type": "subject", "extract_pattern": pattern, "sort_order": 1},
+                {"source_type": "body", "extract_pattern": pattern, "sort_order": 2},
+            ]
+
+    normalized: List[Dict[str, Any]] = []
+    for index, extractor in enumerate(raw_extractors, start=1):
+        source_type = str(extractor.get("source_type") or "").strip().lower()
+        if source_type not in EXTRACTOR_SOURCE_TYPES:
+            raise ValueError("extractor.source_type 必须是 subject / body")
+        extract_pattern = _clean_optional_text(extractor.get("extract_pattern"))
+        if not extract_pattern:
+            raise ValueError("extractor.extract_pattern 不能为空")
+        normalized.append(
+            {
+                "source_type": source_type,
+                "extract_pattern": extract_pattern,
+                "sort_order": _normalize_sort_order(extractor.get("sort_order"), index),
+            }
+        )
+
+    normalized.sort(key=lambda item: (item["sort_order"], item["source_type"]))
+    return normalized
+
+
+def _normalize_sort_order(value: Any, fallback: int) -> int:
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        normalized = fallback
+    return normalized if normalized > 0 else fallback
 
 
 def _load_rules(rule_id: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -225,73 +308,125 @@ def _build_email_context(
 
 
 def _evaluate_rule(rule: Dict[str, Any], context: Dict[str, str]) -> Dict[str, Any]:
-    checks = {
-        "sender": _pattern_match(rule.get("sender_pattern"), context["from_email"], bool(rule.get("is_regex", True))),
-        "subject": _pattern_match(rule.get("subject_pattern"), context["subject"], bool(rule.get("is_regex", True))),
-        "body": _pattern_match(rule.get("body_pattern"), context["body_text"], bool(rule.get("is_regex", True))),
-    }
-    active_checks = [value for value in checks.values() if value["configured"]]
-    if not active_checks:
-        matched = True
-        reason = "未配置过滤条件，默认参与提取"
-    elif str(rule.get("match_mode", "and")).lower() == "or":
-        matched = any(value["matched"] for value in active_checks)
-        reason = "OR 命中" if matched else "OR 未命中"
-    else:
-        matched = all(value["matched"] for value in active_checks)
-        reason = "AND 命中" if matched else "AND 未命中"
+    matchers = sorted(
+        rule.get("matchers", []),
+        key=lambda item: (int(item.get("sort_order", 0)), int(item.get("id", 0))),
+    )
+    if not matchers:
+        return {
+            "rule_id": rule.get("id"),
+            "rule_name": rule.get("name"),
+            "matched": True,
+            "reason": "未配置 matcher，默认进入提取阶段",
+            "matcher_results": [],
+            "matched_matchers": [],
+            "extractor_attempts": [],
+        }
 
+    matcher_results: List[Dict[str, Any]] = []
+    matched_matchers: List[Dict[str, Any]] = []
+    for matcher in matchers:
+        source_text = _resolve_context_value(context, str(matcher.get("source_type", "body")))
+        outcome = _keyword_match(
+            pattern=str(matcher.get("keyword", "")),
+            text=source_text,
+            is_regex=bool(rule.get("is_regex", True)),
+        )
+        matcher_result = {
+            "id": matcher.get("id"),
+            "source_type": matcher.get("source_type"),
+            "keyword": matcher.get("keyword"),
+            "sort_order": matcher.get("sort_order"),
+            "matched": outcome["matched"],
+            "configured": True,
+        }
+        matcher_results.append(matcher_result)
+        if outcome["matched"]:
+            matched_matchers.append(
+                {
+                    "id": matcher.get("id"),
+                    "source_type": matcher.get("source_type"),
+                    "keyword": matcher.get("keyword"),
+                    "sort_order": matcher.get("sort_order"),
+                }
+            )
+
+    matched = bool(matched_matchers)
     return {
         "rule_id": rule.get("id"),
         "rule_name": rule.get("name"),
         "matched": matched,
-        "reason": reason,
-        "checks": checks,
+        "reason": "任意 matcher 命中" if matched else "未命中任何 matcher",
+        "matcher_results": matcher_results,
+        "matched_matchers": matched_matchers,
+        "extractor_attempts": [],
     }
 
 
-def _pattern_match(pattern: Optional[str], text: str, is_regex: bool) -> Dict[str, Any]:
-    if not pattern:
-        return {"configured": False, "matched": False, "pattern": pattern}
+def _keyword_match(pattern: str, text: str, is_regex: bool) -> Dict[str, Any]:
     haystack = text or ""
     if is_regex:
         match = re.search(pattern, haystack, re.IGNORECASE)
-        return {
-            "configured": True,
-            "matched": bool(match),
-            "pattern": pattern,
-        }
-
-    matched = pattern.lower() in haystack.lower()
-    return {"configured": True, "matched": matched, "pattern": pattern}
+        return {"matched": bool(match), "pattern": pattern}
+    return {"matched": pattern.lower() in haystack.lower(), "pattern": pattern}
 
 
-def _extract_code(rule: Dict[str, Any], context: Dict[str, str]) -> Optional[str]:
-    pattern = rule.get("extract_pattern") or ""
-    if not pattern:
+def _extract_code_from_rule(
+    rule: Dict[str, Any],
+    context: Dict[str, str],
+) -> Tuple[Optional[str], Optional[str], List[Dict[str, Any]]]:
+    extractors = sorted(
+        rule.get("extractors", []),
+        key=lambda item: (int(item.get("sort_order", 0)), int(item.get("id", 0))),
+    )
+    attempts: List[Dict[str, Any]] = []
+    for extractor in extractors:
+        source_type = str(extractor.get("source_type", "body"))
+        source_text = _resolve_context_value(context, source_type)
+        code = _extract_from_text(
+            pattern=str(extractor.get("extract_pattern", "")),
+            text=source_text,
+            is_regex=bool(rule.get("is_regex", True)),
+        )
+        attempts.append(
+            {
+                "id": extractor.get("id"),
+                "source_type": source_type,
+                "extract_pattern": extractor.get("extract_pattern"),
+                "sort_order": extractor.get("sort_order"),
+                "matched": bool(code),
+                "code": code,
+            }
+        )
+        if code:
+            return code, source_type, attempts
+    return None, None, attempts
+
+
+def _extract_from_text(pattern: str, text: str, is_regex: bool) -> Optional[str]:
+    if not pattern or not text:
         return None
 
-    search_spaces = [context["subject"], context["body_text"], context["combined_text"]]
-    candidates: List[Dict[str, Any]] = []
-    for text in search_spaces:
-        if not text:
-            continue
-        for match in re.finditer(pattern, text, re.IGNORECASE):
-            candidate = _extract_match_value(match)
-            candidate = _normalize_candidate_code(candidate)
-            if not candidate:
-                continue
-            candidates.append(
-                {
-                    "code": candidate,
-                    "score": _score_candidate(text, match.start(), candidate),
-                    "position": match.start(),
-                }
-            )
+    if not is_regex:
+        position = text.lower().find(pattern.lower())
+        if position == -1:
+            return None
+        return _normalize_candidate_code(text[position : position + len(pattern)])
 
+    candidates: List[Dict[str, Any]] = []
+    for match in re.finditer(pattern, text, re.IGNORECASE):
+        candidate = _normalize_candidate_code(_extract_match_value(match))
+        if not candidate:
+            continue
+        candidates.append(
+            {
+                "code": candidate,
+                "score": _score_candidate(text, match.start(), candidate),
+                "position": match.start(),
+            }
+        )
     if not candidates:
         return None
-
     candidates.sort(key=lambda item: (-item["score"], item["position"]))
     return candidates[0]["code"]
 
@@ -323,6 +458,60 @@ def _score_candidate(text: str, position: int, code: str) -> int:
     if len(code) == 6:
         score += 10
     return score
+
+
+def _build_result(
+    *,
+    code: Optional[str],
+    matched_rule: Optional[Dict[str, Any]],
+    matched_via: Optional[str],
+    source: str,
+    page_source: str,
+    rule_evaluations: List[Dict[str, Any]],
+    matched_matchers: List[Dict[str, Any]],
+    extractor_attempts: List[Dict[str, Any]],
+    resolved_code_source: Optional[str],
+    context: Dict[str, str],
+    excerpt_override: Optional[str] = None,
+) -> Dict[str, Any]:
+    excerpt = excerpt_override
+    if excerpt is None:
+        excerpt = _build_excerpt(
+            _resolve_context_value(context, resolved_code_source or "body"),
+            code or "",
+        )
+        if not excerpt:
+            excerpt = _build_excerpt(context["combined_text"], code or "")
+
+    return {
+        "code": code,
+        "matched_rule": matched_rule,
+        "matched_via": matched_via,
+        "source": source,
+        "page_source": page_source,
+        "rule_evaluations": rule_evaluations,
+        "matched_matchers": matched_matchers,
+        "extractor_attempts": extractor_attempts,
+        "resolved_code_source": resolved_code_source,
+        "matched_sender": context["from_email"],
+        "matched_subject": context["subject"],
+        "matched_body_excerpt": excerpt,
+    }
+
+
+def _latest_debug_evaluation(evaluations: List[Dict[str, Any]]) -> Dict[str, Any]:
+    for evaluation in reversed(evaluations):
+        if evaluation.get("matched_matchers") or evaluation.get("extractor_attempts"):
+            return evaluation
+    return evaluations[-1] if evaluations else {}
+
+
+def _resolve_context_value(context: Dict[str, str], source_type: str) -> str:
+    if source_type == "sender":
+        return context["from_email"]
+    if source_type == "subject":
+        return context["subject"]
+    return context["body_text"]
 
 
 def _record_success(email_account: str, message_id: str, result: Dict[str, Any]) -> None:

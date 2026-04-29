@@ -14,9 +14,29 @@ from verification_rule_service import (
 def _clear_rule_tables() -> None:
     with db.get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM verification_detection_records")
-        cursor.execute("DELETE FROM verification_rules")
+        for table_name in (
+            "verification_detection_records",
+            "verification_rule_matchers",
+            "verification_rule_extractors",
+            "verification_rules",
+        ):
+            cursor.execute(f"DELETE FROM {table_name}")
         conn.commit()
+
+
+def _rule_payload(*, name: str, priority: int, matchers: list[dict], extractors: list[dict], **extra):
+    payload = {
+        "name": name,
+        "scope_type": extra.pop("scope_type", "global"),
+        "match_mode": extra.pop("match_mode", "or"),
+        "priority": priority,
+        "enabled": extra.pop("enabled", True),
+        "matchers": matchers,
+        "extractors": extractors,
+        "description": extra.pop("description", None),
+    }
+    payload.update(extra)
+    return payload
 
 
 def setup_function():
@@ -29,31 +49,29 @@ def teardown_function():
 
 def test_targeted_rule_precedes_global_rule_and_records_success():
     targeted = create_verification_rule(
-        {
-            "name": "Microsoft 定向规则",
-            "scope_type": "targeted",
-            "match_mode": "and",
-            "priority": 100,
-            "enabled": True,
-            "sender_pattern": "microsoft",
-            "subject_pattern": "security code",
-            "body_pattern": "security code",
-            "extract_pattern": r"security code\.\s*(\d{6})",
-            "is_regex": True,
-            "description": "只匹配微软验证码",
-        }
+        _rule_payload(
+            name="Microsoft 定向规则",
+            scope_type="targeted",
+            match_mode="or",
+            priority=100,
+            description="只匹配微软验证码",
+            matchers=[
+                {"source_type": "sender", "keyword": "microsoft", "sort_order": 1},
+                {"source_type": "subject", "keyword": "security code", "sort_order": 2},
+            ],
+            extractors=[
+                {"source_type": "subject", "extract_pattern": r"(\d{6})", "sort_order": 1},
+                {"source_type": "body", "extract_pattern": r"(\d{6})", "sort_order": 2},
+            ],
+        )
     )
     create_verification_rule(
-        {
-            "name": "通用验证码规则",
-            "scope_type": "global",
-            "match_mode": "or",
-            "priority": 10,
-            "enabled": True,
-            "body_pattern": "code",
-            "extract_pattern": r"(\d{4,8})",
-            "is_regex": True,
-        }
+        _rule_payload(
+            name="通用验证码规则",
+            priority=10,
+            matchers=[{"source_type": "body", "keyword": "code", "sort_order": 1}],
+            extractors=[{"source_type": "body", "extract_pattern": r"(\d{4,8})", "sort_order": 1}],
+        )
     )
 
     result = detect_verification_code_with_rules(
@@ -70,6 +88,7 @@ def test_targeted_rule_precedes_global_rule_and_records_success():
     assert result["code"] == "654321"
     assert result["matched_rule"]["id"] == targeted["id"]
     assert result["matched_rule"]["scope_type"] == "targeted"
+    assert result["resolved_code_source"] == "body"
 
     with db.get_db_connection() as conn:
         cursor = conn.cursor()
@@ -83,41 +102,81 @@ def test_targeted_rule_precedes_global_rule_and_records_success():
         assert row["page_source"] == "detail"
 
 
-def test_rule_match_mode_or_works():
+def test_any_matcher_hit_enters_extractor_pipeline():
     rule = create_verification_rule(
-        {
-            "name": "OR 规则",
-            "scope_type": "global",
-            "match_mode": "or",
-            "priority": 20,
-            "enabled": True,
-            "sender_pattern": "github",
-            "subject_pattern": "login",
-            "body_pattern": "temporary code",
-            "extract_pattern": r"(\d{6})",
-            "is_regex": True,
-        }
+        _rule_payload(
+            name="GitHub OTP",
+            priority=10,
+            matchers=[
+                {"source_type": "sender", "keyword": "github", "sort_order": 1},
+                {"source_type": "body", "keyword": "temporary code", "sort_order": 2},
+            ],
+            extractors=[
+                {"source_type": "subject", "extract_pattern": r"(\d{6})", "sort_order": 1},
+                {"source_type": "body", "extract_pattern": r"(\d{6})", "sort_order": 2},
+            ],
+        )
     )
 
     result = detect_verification_code_with_rules(
-        email_account="user@example.com",
+        email_account="demo@example.com",
         message_id="msg-2",
-        from_email="noreply@example.com",
-        subject="No match in subject",
+        from_email="noreply@github.com",
+        subject="login notice",
         body_plain="Your temporary code is 112233",
         persist_record=False,
     )
 
     assert result["code"] == "112233"
     assert result["matched_rule"]["id"] == rule["id"]
+    assert result["resolved_code_source"] == "body"
+    assert [item["source_type"] for item in result["matched_matchers"]] == ["sender", "body"]
+    assert [item["source_type"] for item in result["extractor_attempts"]] == ["subject", "body"]
 
 
-def test_fallback_detector_runs_when_no_rule_matches():
+def test_subject_extractor_precedes_body_extractor():
+    rule = create_verification_rule(
+        _rule_payload(
+            name="主题优先规则",
+            priority=20,
+            matchers=[{"source_type": "sender", "keyword": "contoso", "sort_order": 1}],
+            extractors=[
+                {"source_type": "subject", "extract_pattern": r"(\d{6})", "sort_order": 1},
+                {"source_type": "body", "extract_pattern": r"(\d{6})", "sort_order": 2},
+            ],
+        )
+    )
+
     result = detect_verification_code_with_rules(
-        email_account="user@example.com",
-        message_id="msg-3",
-        from_email="random@example.com",
-        subject="Verification message",
+        email_account="subject@example.com",
+        message_id="msg-subject",
+        from_email="login@contoso.com",
+        subject="Verification 246810",
+        body_plain="Use code 135790 if prompted",
+        persist_record=False,
+    )
+
+    assert result["code"] == "246810"
+    assert result["matched_rule"]["id"] == rule["id"]
+    assert result["resolved_code_source"] == "subject"
+    assert result["extractor_attempts"][0]["source_type"] == "subject"
+
+
+def test_matcher_hit_but_extractors_fail_then_fallback_runs():
+    create_verification_rule(
+        _rule_payload(
+            name="Apple subject only",
+            priority=30,
+            matchers=[{"source_type": "sender", "keyword": "apple", "sort_order": 1}],
+            extractors=[{"source_type": "subject", "extract_pattern": r"(\d{6})", "sort_order": 1}],
+        )
+    )
+
+    result = detect_verification_code_with_rules(
+        email_account="fallback@example.com",
+        message_id="msg-fallback",
+        from_email="appleid@apple.com",
+        subject="Security alert",
         body_plain="Your OTP is 778899",
         persist_record=False,
     )
@@ -125,50 +184,25 @@ def test_fallback_detector_runs_when_no_rule_matches():
     assert result["code"] == "778899"
     assert result["matched_rule"] is None
     assert result["matched_via"] == "fallback"
-
-
-def test_can_extract_code_directly_from_subject():
-    rule = create_verification_rule(
-        {
-            "name": "主题验证码规则",
-            "scope_type": "targeted",
-            "match_mode": "and",
-            "priority": 70,
-            "enabled": True,
-            "subject_pattern": "verification",
-            "extract_pattern": r"(\d{6})",
-            "is_regex": True,
-        }
-    )
-
-    result = detect_verification_code_with_rules(
-        email_account="subject@example.com",
-        message_id="msg-subject",
-        from_email="noreply@example.com",
-        subject="Verification 246810",
-        body_plain="",
-        body_html="",
-        persist_record=False,
-    )
-
-    assert result["code"] == "246810"
-    assert result["matched_rule"]["id"] == rule["id"]
-    assert result["matched_subject"] == "Verification 246810"
+    assert [item["source_type"] for item in result["rule_evaluations"][0]["matched_matchers"]] == ["sender"]
+    assert result["rule_evaluations"][0]["extractor_attempts"][0]["source_type"] == "subject"
 
 
 def test_can_test_rule_against_cached_email_detail():
     rule = create_verification_rule(
-        {
-            "name": "主题命中规则",
-            "scope_type": "targeted",
-            "match_mode": "and",
-            "priority": 50,
-            "enabled": True,
-            "sender_pattern": "apple",
-            "subject_pattern": "verification",
-            "extract_pattern": r"(\d{6})",
-            "is_regex": True,
-        }
+        _rule_payload(
+            name="主题命中规则",
+            scope_type="targeted",
+            priority=50,
+            matchers=[
+                {"source_type": "sender", "keyword": "apple", "sort_order": 1},
+                {"source_type": "subject", "keyword": "verification", "sort_order": 2},
+            ],
+            extractors=[
+                {"source_type": "subject", "extract_pattern": r"(\d{6})", "sort_order": 1},
+                {"source_type": "body", "extract_pattern": r"(\d{6})", "sort_order": 2},
+            ],
+        )
     )
 
     db.cache_email_detail(
@@ -195,20 +229,17 @@ def test_can_test_rule_against_cached_email_detail():
     assert result["matched_rule"]["id"] == rule["id"]
     assert result["source"] == "test"
     assert result["page_source"] == "admin-test"
+    assert result["resolved_code_source"] == "body"
 
 
 def test_rule_crud_roundtrip():
     created = create_verification_rule(
-        {
-            "name": "CRUD 规则",
-            "scope_type": "global",
-            "match_mode": "and",
-            "priority": 1,
-            "enabled": True,
-            "body_pattern": "otp",
-            "extract_pattern": r"(\d{6})",
-            "is_regex": True,
-        }
+        _rule_payload(
+            name="CRUD 规则",
+            priority=1,
+            matchers=[{"source_type": "body", "keyword": "otp", "sort_order": 1}],
+            extractors=[{"source_type": "body", "extract_pattern": r"(\d{6})", "sort_order": 1}],
+        )
     )
 
     listed = list_verification_rules()
