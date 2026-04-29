@@ -8,3 +8,4 @@ logs/
 *.log
 msOauth2api/
 .worktrees/
+.playwright-cli/
