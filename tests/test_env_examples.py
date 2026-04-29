@@ -21,3 +21,15 @@ def test_root_readme_mentions_both_env_modes():
 
     assert ".env.compose.example" in readme_text
     assert ".env.remote-db.example" in readme_text
+
+
+def test_root_readme_promotes_compose_first_and_advanced_mode_handoff():
+    readme_text = Path("README.md").read_text(encoding="utf-8")
+
+    assert "## 推荐路径：先用本地 Docker Compose 栈跑起来" in readme_text
+    assert "## 高级模式：远程 PostgreSQL / 只跑后端" in readme_text
+    assert "docker compose --env-file .env.compose.local up -d --build" in readme_text
+    assert "docs/LOCAL_DEVELOPMENT.md" in readme_text
+    assert readme_text.index("## 推荐路径：先用本地 Docker Compose 栈跑起来") < readme_text.index(
+        "## 高级模式：远程 PostgreSQL / 只跑后端"
+    )

@@ -1,18 +1,14 @@
 # Outlook 邮件管理系统
 
-基于 **FastAPI + Next.js** 的 Outlook 邮件管理系统，当前仓库有两种常用启动方式：
+基于 **FastAPI + Next.js** 的 Outlook 邮件管理系统。
 
-1. **本地 Docker Compose 栈**
-   API、Frontend、PostgreSQL 一起起，适合本地联调和日常使用。
-2. **直接运行 Python + 远程 PostgreSQL**
-   适合你已经有现成远程数据库，只想单独启动后端服务。
+如果你只是想先把仓库跑起来，**先走本地 Docker Compose 栈**。
+远程 PostgreSQL / 只跑后端属于高级模式，放到后面单独说明。
 
-> **最重要的一点：不要混用两套配置。**
-> 本地 compose 模式用 `.env.compose.example`；远程数据库模式用 `.env.remote-db.example`。
+## 推荐路径：先用本地 Docker Compose 栈跑起来
 
-## 方式一：本地 Docker Compose 栈
-
-推荐日常优先使用这套。
+这是默认主路径。
+适合本地联调、日常使用、以及第一次接手仓库时快速确认服务面。
 
 ### 1. 准备配置文件
 
@@ -53,43 +49,37 @@ docker compose --env-file .env.compose.local up -d --build
 docker compose down
 ```
 
-## 方式二：直接运行 Python + 远程 PostgreSQL
+## 高级模式：远程 PostgreSQL / 只跑后端
 
-这套只启动后端，不起本地 PostgreSQL 容器。
+只有在下面这些场景再走这条路：
 
-### 1. 准备配置文件
+- 你已经有现成远程 PostgreSQL
+- 你只想单独启动 Python 后端
+- 你明确知道自己不需要本地 PostgreSQL 容器
 
-```bash
-cp .env.remote-db.example .env
-```
+高级模式入口文档：
 
-然后把下面这些值改成你的远程库：
+- `docs/LOCAL_DEVELOPMENT.md`
 
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASSWORD`
+高级模式使用的配置模板是：
 
-### 2. 安装依赖并启动
+- `.env.remote-db.example`
 
-```bash
-pip install -r requirements.txt
-python main.py
-```
+## 两种模式不要混用
 
-### 3. 验证服务
+- 本地 compose 模式：`.env.compose.example` → `.env.compose.local`
+- 远程 PostgreSQL 模式：`.env.remote-db.example` → `.env`
 
-```bash
-curl http://127.0.0.1:8000/healthz
-```
+最常见问题不是服务本身坏了，而是把两套配置交叉复制了。
 
-## 为什么之前会出现数据库密码串用
+## FAQ
 
-因为仓库里曾经只有一套 `.env` 语义，很容易出现：
+### 为什么之前会出现数据库密码串用
 
-- **主机走本地 compose**：`DB_HOST=postgresql`
-- **密码却还是远程库那套**
+因为仓库早期只有一套 `.env` 语义，容易出现：
+
+- 主机走本地 compose：`DB_HOST=postgresql`
+- 密码却还是远程库那套
 
 现在已经拆成两套示例文件：
 
@@ -100,5 +90,5 @@ curl http://127.0.0.1:8000/healthz
 
 ## 相关文档
 
-- `README_DOCKER.md`：本地 compose 栈常用命令
-- `docs/LOCAL_DEVELOPMENT.md`：远程 PostgreSQL 模式详细说明
+- `README_DOCKER.md`：本地 compose 栈运维命令
+- `docs/LOCAL_DEVELOPMENT.md`：远程 PostgreSQL / 只跑后端高级模式
