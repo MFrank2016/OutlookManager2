@@ -2,6 +2,9 @@
 
 本文档说明如何在本地使用 `python main.py` 启动后端服务，并连接到远程 PostgreSQL 数据库。
 
+> 这份文档只适用于 **远程 PostgreSQL 模式**。
+> 如果你要本地把 API / Frontend / PostgreSQL 一起起，请改看仓库根目录 `README.md` 里的 Docker Compose 方案。
+
 ## 前置要求
 
 1. Python 3.8+
@@ -21,7 +24,7 @@ pip install -r requirements.txt
 复制示例配置文件：
 
 ```bash
-cp .env.example .env
+cp .env.remote-db.example .env
 ```
 
 ### 3. 配置数据库连接
@@ -33,11 +36,11 @@ cp .env.example .env
 DB_TYPE=postgresql
 
 # 远程PostgreSQL连接配置
-DB_HOST=192.168.1.100          # 远程服务器IP地址
+DB_HOST=your-postgres-host      # 远程服务器IP地址或域名
 DB_PORT=5432                   # PostgreSQL端口（默认5432）
 DB_NAME=outlook_manager         # 数据库名
 DB_USER=outlook_user           # 数据库用户名
-DB_PASSWORD=your_password_here # 数据库密码
+DB_PASSWORD=your_remote_password_here
 
 # 连接池配置（可选）
 DB_POOL_SIZE=5
@@ -125,25 +128,21 @@ DB_TYPE=sqlite
 ```bash
 # .env 文件
 DB_TYPE=postgresql
-DB_HOST=192.168.1.100
+DB_HOST=your-postgres-host
 DB_PORT=5432
 DB_NAME=outlook_manager
 DB_USER=outlook_user
-DB_PASSWORD=your_password
+DB_PASSWORD=your_remote_password_here
 ```
 
-#### 使用 Docker 中的 PostgreSQL（本地）
+#### 本地 Docker Compose 栈
 
-如果 PostgreSQL 在 Docker 中运行，且端口已映射到主机：
+如果你要连接本仓库自带的 Docker Compose PostgreSQL，**不要沿用这份 `.env`**。
+请使用仓库根目录 `README.md` 里的 compose 模式：
 
 ```bash
-# .env 文件
-DB_TYPE=postgresql
-DB_HOST=localhost          # 使用 localhost
-DB_PORT=5432
-DB_NAME=outlook_manager
-DB_USER=outlook_user
-DB_PASSWORD=your_password
+cp .env.compose.example .env.compose.local
+docker compose --env-file .env.compose.local up -d --build
 ```
 
 ## 常见问题
@@ -189,7 +188,7 @@ DB_PASSWORD=your_password
 
 1. **不要提交 `.env` 文件到 Git**
    - `.env` 文件已添加到 `.gitignore`
-   - 使用 `.env.example` 作为模板
+   - 远程数据库模式使用 `.env.remote-db.example` 作为模板
 
 2. **使用强密码**
    - PostgreSQL 密码应足够复杂
@@ -208,4 +207,3 @@ DB_PASSWORD=your_password
 - [PostgreSQL 部署指南](POSTGRESQL_DEPLOYMENT.md)
 - [Docker 部署指南](../DOCKER_UPDATE_GUIDE.md)
 - [项目 README](../README.md)
-
