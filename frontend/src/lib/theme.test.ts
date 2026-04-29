@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { getNextTheme, getThemeToggleLabel } from "./theme.ts";
+import { getNextTheme, getThemeToggleLabel } from "./theme";
 
 test("getNextTheme: dark -> light", () => {
   assert.equal(getNextTheme("dark"), "light");

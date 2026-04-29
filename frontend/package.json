@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test --experimental-strip-types src/lib/theme.test.ts"
+    "test": "node --import ./scripts/register-ts-resolver.mjs --test --experimental-strip-types src/lib/theme.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
