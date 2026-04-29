@@ -68,6 +68,8 @@ function Button({
   ...props
 }: ButtonProps) {
   const Comp = asChild ? Slot : "button"
+  const resolvedVariant = variant ?? "default"
+  const resolvedSize = size ?? "default"
   const lastRunRef = useRef<number>(0)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const onClickRef = useRef(onClick)
@@ -129,7 +131,9 @@ function Button({
   return (
     <Comp
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      data-variant={resolvedVariant}
+      data-size={resolvedSize}
+      className={cn(buttonVariants({ variant: resolvedVariant, size: resolvedSize, className }))}
       onClick={handleClick}
       type={type}
       disabled={disabled}
