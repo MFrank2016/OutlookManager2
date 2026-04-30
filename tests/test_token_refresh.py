@@ -1,150 +1,298 @@
-#!/usr/bin/env python3
-"""
-Token刷新测试脚本
+from __future__ import annotations
 
-用于测试Microsoft OAuth2 Token刷新机制
-验证响应是否返回新的 access_token 和 refresh_token
-"""
-
+import importlib
 import json
-import httpx
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
+import pytest
+from fastapi import HTTPException
 
-# OAuth2配置
-TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
-OAUTH_SCOPE = "https://outlook.office.com/IMAP.AccessAsUser.All offline_access"
-ACCOUNTS_FILE = "accounts.json"
+import oauth_service
+from microsoft_access.token_broker import TokenBroker
+from models import AccountCredentials
 
 
-async def test_token_refresh():
-    """测试Token刷新功能"""
-    
-    # 读取第一个账户的凭证
-    try:
-        accounts_path = Path(ACCOUNTS_FILE)
-        if not accounts_path.exists():
-            print(f"❌ 错误: 未找到 {ACCOUNTS_FILE} 文件")
-            return
-        
-        with open(accounts_path, 'r', encoding='utf-8') as f:
-            accounts = json.load(f)
-        
-        if not accounts:
-            print("❌ 错误: accounts.json 中没有账户")
-            return
-        
-        # 获取第一个账户
-        email_id = list(accounts.keys())[0]
-        account_data = accounts[email_id]
-        
-        print(f"📧 测试账户: {email_id}")
-        print(f"🔑 Client ID: {account_data['client_id']}")
-        print(f"🔄 Refresh Token: {account_data['refresh_token'][:50]}...")
-        print("\n" + "="*60)
-        
-        # 构建Token刷新请求
-        token_request_data = {
-            'client_id': account_data['client_id'],
-            'grant_type': 'refresh_token',
-            'refresh_token': account_data['refresh_token'],
-            'scope': OAUTH_SCOPE
+@dataclass
+class FakeResponse:
+    status_code: int
+    payload: dict
+
+    def json(self) -> dict:
+        return self.payload
+
+    @property
+    def text(self) -> str:
+        return str(self.payload)
+
+
+class FakeAsyncClient:
+    def __init__(self, responses: list[FakeResponse], request_log: list[dict]):
+        self._responses = responses
+        self._request_log = request_log
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def post(self, _url: str, data: dict):
+        self._request_log.append(data)
+        if not self._responses:
+            raise AssertionError("no fake response left")
+        return self._responses.pop(0)
+
+
+class FakeDB:
+    def __init__(self):
+        self.account_updates: list[tuple[str, dict]] = []
+        self.access_token_updates: list[tuple[str, str | None, str | None]] = []
+
+    def update_account(self, email: str, **kwargs) -> bool:
+        self.account_updates.append((email, kwargs))
+        return True
+
+    def update_account_access_token(
+        self, email: str, access_token: str | None, expires_at: str | None
+    ) -> bool:
+        self.access_token_updates.append((email, access_token, expires_at))
+        return True
+
+
+class FakeCache:
+    def __init__(self):
+        self.storage = {}
+
+    def get_access_token_cache_key(self, email: str):
+        return ("access_token", email)
+
+    def set_cached_access_token(
+        self, email: str, access_token: str, expires_at: str | None = None
+    ) -> None:
+        self.storage[self.get_access_token_cache_key(email)] = {
+            "access_token": access_token,
+            "expires_at": expires_at,
         }
-        
-        print("🚀 发送Token刷新请求...")
-        
-        # 发送请求
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(TOKEN_URL, data=token_request_data)
-            
-            print(f"📡 响应状态码: {response.status_code}")
-            print("\n" + "="*60)
-            
-            if response.status_code == 200:
-                token_data = response.json()
-                
-                print("✅ Token刷新成功！\n")
-                
-                # 检查返回的字段
-                has_access_token = 'access_token' in token_data
-                has_refresh_token = 'refresh_token' in token_data
-                has_expires_in = 'expires_in' in token_data
-                
-                print(f"📦 响应包含 access_token: {'✅' if has_access_token else '❌'}")
-                print(f"📦 响应包含 refresh_token: {'✅' if has_refresh_token else '❌'}")
-                print(f"📦 响应包含 expires_in: {'✅' if has_expires_in else '❌'}")
-                
-                print("\n" + "="*60)
-                print("📄 完整响应数据:")
-                print("="*60)
-                
-                # 打印完整的JSON响应（格式化）
-                print(json.dumps(token_data, indent=2, ensure_ascii=False))
-                
-                print("\n" + "="*60)
-                print("📄 响应字段详情 (敏感信息部分隐藏):")
-                print("="*60)
-                
-                # 打印响应（敏感信息截断）
-                for key, value in token_data.items():
-                    if key in ['access_token', 'refresh_token']:
-                        print(f"{key}: {value[:50]}... (长度: {len(value)})")
-                    else:
-                        print(f"{key}: {value}")
-                
-                # 验证结果
-                print("\n" + "="*60)
-                if has_access_token and has_refresh_token:
-                    print("🎉 测试结果: 成功")
-                    print("   - 新的 access_token 已获取")
-                    print("   - 新的 refresh_token 已获取")
-                    print("   - 可以更新到 accounts.json")
-                    
-                    # 显示是否需要更新
-                    if token_data['refresh_token'] != account_data['refresh_token']:
-                        print("\n⚠️  注意: refresh_token 已更改，建议更新到 accounts.json")
-                    else:
-                        print("\nℹ️  refresh_token 未改变")
-                else:
-                    print("⚠️  测试结果: 部分成功")
-                    print("   - 缺少某些必要字段")
-                
-            else:
-                print(f"❌ Token刷新失败")
-                print(f"错误信息: {response.text}")
-                
-                try:
-                    error_data = response.json()
-                    print("\n错误详情:")
-                    print(json.dumps(error_data, indent=2, ensure_ascii=False))
-                except:
-                    pass
-    
-    except FileNotFoundError as e:
-        print(f"❌ 文件错误: {e}")
-    except json.JSONDecodeError as e:
-        print(f"❌ JSON解析错误: {e}")
-    except httpx.HTTPStatusError as e:
-        print(f"❌ HTTP错误: {e}")
-    except httpx.RequestError as e:
-        print(f"❌ 请求错误: {e}")
-    except Exception as e:
-        print(f"❌ 未知错误: {e}")
-        import traceback
-        traceback.print_exc()
+
+    def clear_cached_access_token(self, email: str) -> None:
+        self.storage.pop(self.get_access_token_cache_key(email), None)
 
 
-if __name__ == "__main__":
-    import asyncio
-    
-    print("="*60)
-    print("🔬 Microsoft OAuth2 Token 刷新测试")
-    print("="*60)
-    print()
-    
-    asyncio.run(test_token_refresh())
-    
-    print("\n" + "="*60)
-    print("测试完成")
-    print("="*60)
+class RaisingBroker:
+    def __init__(self, exc: Exception):
+        self.exc = exc
 
+    async def fetch_access_token(self, *_args, **_kwargs):
+        raise self.exc
+
+    async def get_cached_access_token(self, *_args, **_kwargs):
+        raise self.exc
+
+    async def refresh_access_token(self, *_args, **_kwargs):
+        raise self.exc
+
+    async def clear_cached_access_token(self, *_args, **_kwargs):
+        raise self.exc
+
+
+@pytest.fixture
+def fixed_now() -> datetime:
+    return datetime(2026, 4, 30, 1, 2, 3, tzinfo=timezone.utc)
+
+
+@pytest.fixture
+def credentials() -> AccountCredentials:
+    return AccountCredentials(
+        email="refresh-test@example.com",
+        refresh_token="refresh-token",
+        client_id="client-id",
+        api_method="imap",
+        strategy_mode="auto",
+    )
+
+
+def test_token_refresh_module_is_not_live_only_anymore():
+    conftest = importlib.import_module("conftest")
+
+    assert "test_token_refresh.py" not in conftest.LIVE_TEST_FILES
+
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_returns_new_tokens_and_expiry(
+    credentials: AccountCredentials, fixed_now: datetime
+):
+    request_log: list[dict] = []
+    broker = TokenBroker(
+        db_module=FakeDB(),
+        cache_module=FakeCache(),
+        http_client_factory=lambda timeout=30.0: FakeAsyncClient(
+            [
+                FakeResponse(
+                    200,
+                    {
+                        "access_token": "new-access-token",
+                        "refresh_token": "new-refresh-token",
+                        "expires_in": 1800,
+                    },
+                )
+            ],
+            request_log,
+        ),
+        now_fn=lambda: fixed_now,
+    )
+
+    result = await broker.refresh_access_token(credentials)
+
+    assert result["success"] is True
+    assert result["new_access_token"] == "new-access-token"
+    assert result["new_refresh_token"] == "new-refresh-token"
+    assert result["access_token_expires_at"] == "2026-04-30T01:32:03+00:00"
+    assert request_log == [
+        {
+            "client_id": "client-id",
+            "grant_type": "refresh_token",
+            "refresh_token": "refresh-token",
+            "scope": "https://outlook.office.com/IMAP.AccessAsUser.All offline_access",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_refresh_access_token_reuses_existing_refresh_token_when_missing(
+    credentials: AccountCredentials, fixed_now: datetime
+):
+    broker = TokenBroker(
+        db_module=FakeDB(),
+        cache_module=FakeCache(),
+        http_client_factory=lambda timeout=30.0: FakeAsyncClient(
+            [
+                FakeResponse(
+                    200,
+                    {
+                        "access_token": "new-access-token",
+                        "expires_in": 1800,
+                    },
+                )
+            ],
+            [],
+        ),
+        now_fn=lambda: fixed_now,
+    )
+
+    result = await broker.refresh_access_token(credentials)
+
+    assert result["success"] is True
+    assert result["new_refresh_token"] == "refresh-token"
+
+
+@pytest.mark.asyncio
+async def test_oauth_service_get_access_token_wraps_request_error(monkeypatch):
+    request = httpx.Request("POST", "https://login.microsoftonline.com")
+    monkeypatch.setattr(
+        oauth_service,
+        "_token_broker",
+        RaisingBroker(httpx.RequestError("boom", request=request)),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await oauth_service.get_access_token(
+            AccountCredentials(
+                email="facade@example.com",
+                refresh_token="rt",
+                client_id="cid",
+            )
+        )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "Network error during token acquisition"
+
+
+@pytest.mark.asyncio
+async def test_oauth_service_get_cached_access_token_wraps_request_error(monkeypatch):
+    request = httpx.Request("POST", "https://login.microsoftonline.com")
+    monkeypatch.setattr(
+        oauth_service,
+        "_token_broker",
+        RaisingBroker(httpx.RequestError("boom", request=request)),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await oauth_service.get_cached_access_token(
+            AccountCredentials(
+                email="facade@example.com",
+                refresh_token="rt",
+                client_id="cid",
+            )
+        )
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "Network error during token acquisition"
+
+
+@pytest.mark.asyncio
+async def test_oauth_service_refresh_account_token_wraps_request_error(monkeypatch):
+    request = httpx.Request("POST", "https://login.microsoftonline.com")
+    monkeypatch.setattr(
+        oauth_service,
+        "_token_broker",
+        RaisingBroker(httpx.RequestError("boom", request=request)),
+    )
+
+    result = await oauth_service.refresh_account_token(
+        AccountCredentials(
+            email="facade@example.com",
+            refresh_token="rt",
+            client_id="cid",
+        )
+    )
+
+    assert result == {
+        "success": False,
+        "error": "Network error refreshing token: boom",
+    }
+
+
+@pytest.mark.asyncio
+async def test_oauth_service_clear_cached_access_token_returns_false_on_unexpected_error(
+    monkeypatch,
+):
+    monkeypatch.setattr(oauth_service, "_token_broker", RaisingBroker(RuntimeError("boom")))
+
+    result = await oauth_service.clear_cached_access_token("facade@example.com")
+
+    assert result is False
+
+
+async def run_live_token_refresh_smoke(accounts_file: str = "accounts.json") -> None:
+    """手动 live smoke helper，不参与默认 pytest。"""
+    token_url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
+    oauth_scope = "https://outlook.office.com/IMAP.AccessAsUser.All offline_access"
+    accounts_path = Path(accounts_file)
+    if not accounts_path.exists():
+        raise FileNotFoundError(f"未找到 {accounts_file}")
+
+    accounts = json.loads(accounts_path.read_text(encoding="utf-8"))
+    if not accounts:
+        raise ValueError("accounts.json 中没有账户")
+
+    email_id = next(iter(accounts))
+    account_data = accounts[email_id]
+    token_request_data = {
+        "client_id": account_data["client_id"],
+        "grant_type": "refresh_token",
+        "refresh_token": account_data["refresh_token"],
+        "scope": oauth_scope,
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(token_url, data=token_request_data)
+        response.raise_for_status()
+        payload = response.json()
+
+    if "access_token" not in payload:
+        raise RuntimeError("响应缺少 access_token")
+
+    print(json.dumps({"email": email_id, "keys": sorted(payload.keys())}, ensure_ascii=False))

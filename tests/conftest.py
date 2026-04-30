@@ -19,7 +19,6 @@ os.environ["DB_FILE"] = str(TEST_DB_FILE)
 LIVE_TEST_FILES = {
     "test_admin_panel_apis.py",
     "test_new_features.py",
-    "test_token_refresh.py",
 }
 
 BENCHMARK_TEST_FILES = {
