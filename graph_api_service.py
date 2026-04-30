@@ -5,6 +5,8 @@ Microsoft Graph API 服务模块
 """
 
 import asyncio
+import base64
+import json
 import re
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
@@ -12,12 +14,13 @@ from typing import Optional, List, Dict, Any
 import httpx
 from fastapi import HTTPException
 
-from config import GRAPH_API_BASE_URL, GRAPH_API_SCOPE, TOKEN_URL
+from config import GRAPH_API_BASE_URL, GRAPH_API_SCOPE
 from models import AccountCredentials, EmailItem, EmailDetailsResponse
 from verification_rule_service import detect_verification_code_with_rules
 import database as db
 import cache_service
 from logger_config import logger
+from microsoft_access import TokenBroker
 
 
 async def get_graph_access_token(credentials: AccountCredentials) -> str:
@@ -78,61 +81,244 @@ async def get_graph_access_token(credentials: AccountCredentials) -> str:
 
 async def check_graph_api_availability(credentials: AccountCredentials) -> Dict[str, Any]:
     """
-    检测账户是否支持 Graph API（是否有 Mail.ReadWrite 权限）
+    检测账户 Graph mail 能力（provider 级原语，不写入账户状态）
     
     Args:
         credentials: 账户凭证信息
         
     Returns:
-        dict: {
-            'available': bool,
-            'access_token': str (if available),
-            'scope': str (if available)
-        }
+        dict:
+        - available: Optional[bool]，兼容字段；True/False 仅在能力已确认时返回，unknown 返回 None
+        - mail_scope_granted: Optional[bool]，是否确认存在任一 Graph mail 能力
+        - graph_available / graph_read_available / graph_write_available / graph_send_available
+        - availability_status: mail_scope_confirmed / confirmed_unavailable / insufficient_evidence / probe_error
+        - scope / evidence / access_token
     """
-    token_request_data = {
-        "client_id": credentials.client_id,
-        "grant_type": "refresh_token",
-        "refresh_token": credentials.refresh_token,
-        "scope": GRAPH_API_SCOPE,
-    }
-    
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(TOKEN_URL, data=token_request_data)
-            response.raise_for_status()
-            
-            token_data = response.json()
-            access_token = token_data.get("access_token")
-            scope = token_data.get("scope", "")
-            
-            # 检查是否包含 Mail.ReadWrite 或 Mail.Read 权限（参考 mail-all.js 的实现）
-            # mail-all.js 中检查: data.scope.indexOf('https://graph.microsoft.com/Mail.ReadWrite') != -1
-            has_mail_permission = (
-                "Mail.ReadWrite" in scope or 
-                "Mail.Read" in scope or
-                "https://graph.microsoft.com/Mail.ReadWrite" in scope or
-                "https://graph.microsoft.com/Mail.Read" in scope
-            )
-            
-            logger.info(
-                f"Graph API availability check for {credentials.email}: "
-                f"available={has_mail_permission}, scope={scope}"
-            )
-            
-            return {
-                "available": has_mail_permission,
-                "access_token": access_token if has_mail_permission else None,
-                "scope": scope
-            }
-            
+        broker = TokenBroker()
+        result = await broker.fetch_access_token(
+            credentials,
+            persist=False,
+            requested_provider="graph",
+        )
+        capability = _detect_graph_mail_capability(result.access_token)
+        mail_scope_granted = capability["mail_scope_granted"]
+        evidence = capability["evidence"]
+        claims_scope = capability.get("scope", "")
+        availability_status = _derive_availability_status(mail_scope_granted, evidence)
+
+        logger.info(
+            f"Graph API availability check for {credentials.email}: "
+            f"available={mail_scope_granted}, status={availability_status}, "
+            f"evidence={evidence}, scope={claims_scope or GRAPH_API_SCOPE}"
+        )
+        return {
+            "available": mail_scope_granted,
+            "access_token": result.access_token,
+            "scope": claims_scope,
+            "mail_scope_granted": mail_scope_granted,
+            "graph_available": capability["graph_available"],
+            "graph_read_available": capability["graph_read_available"],
+            "graph_write_available": capability["graph_write_available"],
+            "graph_send_available": capability["graph_send_available"],
+            "availability_status": availability_status,
+            "evidence": evidence,
+        }
     except Exception as e:
         logger.warning(f"Graph API availability check failed for {credentials.email}: {e}")
         return {
-            "available": False,
+            "available": None,
             "access_token": None,
-            "scope": ""
+            "scope": "",
+            "mail_scope_granted": None,
+            "graph_available": None,
+            "graph_read_available": None,
+            "graph_write_available": None,
+            "graph_send_available": None,
+            "availability_status": "probe_error",
+            "evidence": "probe_error",
+            "error_category": "probe_error",
+            "error": str(e),
         }
+
+
+def probe_supports_graph_read(probe_result: Dict[str, Any]) -> bool:
+    return get_graph_read_probe_state(probe_result) == "available"
+
+
+def probe_confirms_graph_read_unavailable(probe_result: Dict[str, Any]) -> bool:
+    return get_graph_read_probe_state(probe_result) == "unavailable"
+
+
+def get_graph_read_probe_state(probe_result: Dict[str, Any]) -> str:
+    graph_read_available = probe_result.get("graph_read_available")
+    if graph_read_available is not None:
+        return "available" if graph_read_available is True else "unavailable"
+
+    availability_status = probe_result.get("availability_status")
+    if availability_status in {"probe_error", "insufficient_evidence"}:
+        return "unknown"
+
+    scope = probe_result.get("scope", "")
+    if _scope_has_graph_read_capability(scope):
+        return "available"
+
+    mail_scope_granted = probe_result.get("mail_scope_granted")
+    if mail_scope_granted is False:
+        return "unavailable"
+
+    available = probe_result.get("available")
+    if available is True:
+        return "available"
+    if available is False:
+        return "unavailable"
+    return "unknown"
+
+
+def _detect_graph_mail_capability(access_token: str) -> Dict[str, Any]:
+    claims = _decode_jwt_claims_without_verification(access_token)
+    if not claims:
+        return {
+            "mail_scope_granted": None,
+            "graph_available": None,
+            "graph_read_available": None,
+            "graph_write_available": None,
+            "graph_send_available": None,
+            "scope": "",
+            "evidence": "token_only",
+        }
+
+    scope = _extract_mail_scope_from_claims(claims)
+    capabilities = _build_graph_capability_flags(scope)
+    if _scope_has_graph_mail_capability(scope):
+        return {
+            "mail_scope_granted": True,
+            **capabilities,
+            "scope": scope,
+            "evidence": "jwt_claims",
+        }
+
+    if scope:
+        return {
+            "mail_scope_granted": False,
+            **capabilities,
+            "scope": scope,
+            "evidence": "jwt_claims",
+        }
+
+    return {
+        "mail_scope_granted": None,
+        "graph_available": None,
+        "graph_read_available": None,
+        "graph_write_available": None,
+        "graph_send_available": None,
+        "scope": "",
+        "evidence": "token_only",
+    }
+
+
+def _decode_jwt_claims_without_verification(access_token: str) -> Optional[Dict[str, Any]]:
+    try:
+        parts = access_token.split(".")
+        if len(parts) != 3:
+            return None
+        payload = parts[1]
+        padding = "=" * (-len(payload) % 4)
+        decoded = base64.urlsafe_b64decode(payload + padding)
+        return json.loads(decoded.decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _extract_mail_scope_from_claims(claims: Dict[str, Any]) -> str:
+    scope_tokens: List[str] = []
+    scp = claims.get("scp")
+    if isinstance(scp, str) and scp.strip():
+        scope_tokens.extend(token.strip() for token in scp.split() if token.strip())
+
+    roles = claims.get("roles")
+    if isinstance(roles, list):
+        scope_tokens.extend(
+            role.strip()
+            for role in roles
+            if isinstance(role, str) and role.strip()
+        )
+
+    return " ".join(scope_tokens)
+
+
+def _scope_has_graph_mail_capability(scope: str) -> bool:
+    if not scope:
+        return False
+    tokens = {token.strip() for token in scope.split() if token.strip()}
+    allowed = {
+        "Mail.Read",
+        "Mail.ReadWrite",
+        "Mail.Send",
+        "https://graph.microsoft.com/Mail.Read",
+        "https://graph.microsoft.com/Mail.ReadWrite",
+        "https://graph.microsoft.com/Mail.Send",
+    }
+    return bool(tokens & allowed)
+
+
+def _scope_has_graph_read_capability(scope: str) -> bool:
+    if not scope:
+        return False
+    tokens = {token.strip() for token in scope.split() if token.strip()}
+    allowed = {
+        "Mail.Read",
+        "Mail.ReadWrite",
+        "https://graph.microsoft.com/Mail.Read",
+        "https://graph.microsoft.com/Mail.ReadWrite",
+    }
+    return bool(tokens & allowed)
+
+
+def _build_graph_capability_flags(scope: str) -> Dict[str, bool]:
+    tokens = {token.strip() for token in scope.split() if token.strip()}
+    read_available = bool(
+        {
+            "Mail.Read",
+            "Mail.ReadWrite",
+            "https://graph.microsoft.com/Mail.Read",
+            "https://graph.microsoft.com/Mail.ReadWrite",
+        }
+        & tokens
+    )
+    write_available = bool(
+        {
+            "Mail.ReadWrite",
+            "https://graph.microsoft.com/Mail.ReadWrite",
+        }
+        & tokens
+    )
+    send_available = bool(
+        {
+            "Mail.Send",
+            "https://graph.microsoft.com/Mail.Send",
+        }
+        & tokens
+    )
+    return {
+        "graph_available": read_available or write_available or send_available,
+        "graph_read_available": read_available,
+        "graph_write_available": write_available,
+        "graph_send_available": send_available,
+    }
+
+
+def _derive_availability_status(
+    mail_scope_granted: Optional[bool],
+    evidence: str,
+) -> str:
+    if mail_scope_granted is True:
+        return "mail_scope_confirmed"
+    if mail_scope_granted is False:
+        return "confirmed_unavailable"
+    if evidence == "probe_error":
+        return "probe_error"
+    return "insufficient_evidence"
 
 
 async def list_emails_graph(

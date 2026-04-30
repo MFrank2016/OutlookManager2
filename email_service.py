@@ -117,6 +117,41 @@ def _build_body_preview_from_detail(detail: Dict[str, Any]) -> Optional[str]:
     return compact[:180] if compact else None
 
 
+def _should_use_graph_api_for_read_probe(probe_result: Dict[str, Any]) -> bool:
+    from graph_api_service import probe_supports_graph_read
+
+    return probe_supports_graph_read(probe_result)
+
+
+def _resolve_graph_read_probe_choice(
+    *,
+    email: str,
+    probe_result: Dict[str, Any],
+    db_module=db,
+) -> bool:
+    from graph_api_service import (
+        get_graph_read_probe_state,
+        probe_confirms_graph_read_unavailable,
+        probe_supports_graph_read,
+    )
+
+    if probe_supports_graph_read(probe_result):
+        db_module.update_account(email, api_method="graph_api")
+        logger.info(f"[API选择] 账户: {email}, 已更新数据库 api_method 为 graph_api")
+        return True
+
+    if probe_confirms_graph_read_unavailable(probe_result):
+        db_module.update_account(email, api_method="imap")
+        logger.info(f"[API选择] 账户: {email}, 已更新数据库 api_method 为 imap")
+        return False
+
+    logger.info(
+        f"[API选择] 账户: {email}, Graph 读能力状态为 "
+        f"{get_graph_read_probe_state(probe_result)}，本次回退 IMAP 且不持久化 api_method"
+    )
+    return False
+
+
 def _enrich_paginated_items_from_cached_details(
     email_items: list[EmailItem],
     details_by_id: Dict[str, Dict[str, Any]],
@@ -254,23 +289,19 @@ async def list_emails(
             from graph_api_service import check_graph_api_availability
             logger.info(f"[API选择] 账户: {credentials.email}, api_method 未设置，正在检测 Graph API 支持...")
             graph_result = await check_graph_api_availability(credentials)
-            if graph_result.get("available", False):
-                use_graph_api = True
+            use_graph_api = _should_use_graph_api_for_read_probe(graph_result)
+            if use_graph_api:
                 logger.info(f"[API选择] 账户: {credentials.email}, Graph API 可用，优先使用 Graph API")
-                # 可选：更新数据库中的 api_method，避免下次重复检测
-                try:
-                    db.update_account(credentials.email, api_method="graph_api")
-                    logger.info(f"[API选择] 账户: {credentials.email}, 已更新数据库 api_method 为 graph_api")
-                except Exception as update_error:
-                    logger.warning(f"[API选择] 账户: {credentials.email}, 更新 api_method 失败: {update_error}")
             else:
-                logger.info(f"[API选择] 账户: {credentials.email}, Graph API 不可用，使用 IMAP")
-                # 可选：更新数据库中的 api_method
-                try:
-                    db.update_account(credentials.email, api_method="imap")
-                    logger.info(f"[API选择] 账户: {credentials.email}, 已更新数据库 api_method 为 imap")
-                except Exception as update_error:
-                    logger.warning(f"[API选择] 账户: {credentials.email}, 更新 api_method 失败: {update_error}")
+                logger.info(f"[API选择] 账户: {credentials.email}, Graph 读路径不可确认，使用 IMAP")
+            try:
+                _resolve_graph_read_probe_choice(
+                    email=credentials.email,
+                    probe_result=graph_result,
+                    db_module=db,
+                )
+            except Exception as update_error:
+                logger.warning(f"[API选择] 账户: {credentials.email}, 更新 api_method 失败: {update_error}")
         except Exception as e:
             logger.warning(f"[API选择] 账户: {credentials.email}, Graph API 检测失败: {e}，使用 IMAP")
             use_graph_api = False

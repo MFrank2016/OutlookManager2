@@ -91,21 +91,31 @@ async def detect_and_update_api_method(credentials: AccountCredentials) -> str:
     Returns:
         str: 检测到的 API 方法 ('graph_api' 或 'imap')
     """
-    from graph_api_service import check_graph_api_availability
+    from graph_api_service import (
+        check_graph_api_availability,
+        probe_confirms_graph_read_unavailable,
+        probe_supports_graph_read,
+    )
 
     try:
         result = await check_graph_api_availability(credentials)
 
-        if result["available"]:
+        if probe_supports_graph_read(result):
             db.update_account(credentials.email, api_method="graph_api")
             logger.info(f"Detected and set Graph API for {credentials.email}")
             return "graph_api"
 
-        db.update_account(credentials.email, api_method="imap")
-        logger.info(f"Graph API not available for {credentials.email}, using IMAP")
+        if probe_confirms_graph_read_unavailable(result):
+            db.update_account(credentials.email, api_method="imap")
+            logger.info(f"Graph read capability unavailable for {credentials.email}, using IMAP")
+            return "imap"
+
+        logger.info(
+            f"Graph read capability unknown for {credentials.email}, "
+            "temporarily using IMAP without persisting api_method"
+        )
         return "imap"
 
     except Exception as exc:
         logger.error(f"Error detecting API method for {credentials.email}: {exc}")
-        db.update_account(credentials.email, api_method="imap")
         return "imap"

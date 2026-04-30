@@ -401,6 +401,10 @@ class AccountDAO(BaseDAO):
             if success:
                 logger.info(f"Updated account: {email}")
             return success
+
+    def update_capability_snapshot(self, email: str, snapshot: Dict[str, Any]) -> bool:
+        """更新账户 capability 快照。"""
+        return self.update_account(email, capability_snapshot_json=snapshot)
     
     def delete_account(self, email: str) -> bool:
         """
