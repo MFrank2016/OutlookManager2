@@ -138,6 +138,75 @@ class MailGateway:
         self._record_successful_provider(credentials, provider_name)
         return response
 
+    async def delete_message(
+        self,
+        credentials: AccountCredentials,
+        message_id: str,
+        *,
+        strategy_mode: str | None = None,
+        override_provider: str | None = None,
+    ) -> bool:
+        provider_order = await self.resolve_provider_order(
+            credentials,
+            strategy_mode=strategy_mode,
+            override_provider=override_provider,
+        )
+        provider_name = provider_order[0]
+        provider = self._provider_for(provider_name)
+        response = await provider.delete_message(credentials, message_id)
+        self._record_successful_provider(credentials, provider_name)
+        return response
+
+    async def delete_messages_batch(
+        self,
+        credentials: AccountCredentials,
+        *,
+        folder: str,
+        strategy_mode: str | None = None,
+        override_provider: str | None = None,
+    ) -> dict[str, Any]:
+        provider_order = await self.resolve_provider_order(
+            credentials,
+            strategy_mode=strategy_mode,
+            override_provider=override_provider,
+        )
+        provider_name = provider_order[0]
+        provider = self._provider_for(provider_name)
+        response = await provider.delete_messages_batch(
+            credentials,
+            folder=folder,
+        )
+        self._record_successful_provider(credentials, provider_name)
+        return response
+
+    async def send_message(
+        self,
+        credentials: AccountCredentials,
+        *,
+        to: str,
+        subject: str,
+        body_text: str | None = None,
+        body_html: str | None = None,
+        strategy_mode: str | None = None,
+        override_provider: str | None = None,
+    ) -> str:
+        provider_order = await self.resolve_provider_order(
+            credentials,
+            strategy_mode=strategy_mode,
+            override_provider=override_provider,
+        )
+        provider_name = provider_order[0]
+        provider = self._provider_for(provider_name)
+        response = await provider.send_message(
+            credentials,
+            to=to,
+            subject=subject,
+            body_text=body_text,
+            body_html=body_html,
+        )
+        self._record_successful_provider(credentials, provider_name)
+        return response
+
     async def resolve_provider_order(
         self,
         credentials: AccountCredentials,

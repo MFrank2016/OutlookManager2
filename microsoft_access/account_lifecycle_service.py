@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 import database as db
@@ -41,6 +41,83 @@ class AccountLifecycleService:
         self.account_dao = account_dao or AccountDAO()
         self.db = db_module
         self.now_fn = now_fn or (lambda: datetime.now(timezone.utc))
+
+    async def register_account(self, credentials: AccountCredentials) -> Dict[str, Any]:
+        token_result = await self.token_broker.fetch_access_token(
+            credentials,
+            persist=True,
+            strategy_mode=getattr(credentials, "strategy_mode", None),
+        )
+
+        current_time = datetime.now().isoformat()
+        next_refresh = datetime.now() + timedelta(days=7)
+        if getattr(token_result, "refresh_token", None):
+            credentials.refresh_token = token_result.refresh_token
+        credentials.last_refresh_time = current_time
+        credentials.next_refresh_time = next_refresh.isoformat()
+        credentials.refresh_status = "success"
+        credentials.refresh_error = None
+
+        provider_hint = self._normalize_provider_name(
+            getattr(token_result, "provider_hint", None)
+        )
+        if provider_hint is not None:
+            credentials.api_method = provider_hint
+            credentials.last_provider_used = provider_hint
+
+        from account_service import save_account_credentials
+
+        await save_account_credentials(credentials.email, credentials)
+        return {
+            "email_id": credentials.email,
+            "message": "Account verified and saved successfully.",
+        }
+
+    async def refresh_account_token(self, email: str) -> Dict[str, Any]:
+        credentials = await self.account_loader(email)
+        result = await self.token_broker.refresh_access_token(
+            credentials,
+            persist=True,
+            strategy_mode=getattr(credentials, "strategy_mode", None),
+        )
+
+        from account_service import save_account_credentials
+
+        if result["success"]:
+            current_time = datetime.now().isoformat()
+            next_refresh = datetime.now() + timedelta(days=7)
+            credentials.refresh_token = result["new_refresh_token"]
+            credentials.last_refresh_time = current_time
+            credentials.next_refresh_time = next_refresh.isoformat()
+            credentials.refresh_status = "success"
+            credentials.refresh_error = None
+            await save_account_credentials(email, credentials)
+            return {
+                "success": True,
+                "email_id": email,
+                "message": f"Token refreshed successfully at {current_time}",
+            }
+
+        credentials.refresh_status = "failed"
+        credentials.refresh_error = result.get("error", "Unknown error")
+        await save_account_credentials(email, credentials)
+        return {
+            "success": False,
+            "email_id": email,
+            "error": result.get("error", "Unknown error"),
+        }
+
+    async def detect_api_method(self, email: str) -> Dict[str, Any]:
+        await self.detect_capability(email, persist=True)
+        credentials = await self.account_loader(email)
+        provider_order = await self.mail_gateway.resolve_provider_order(
+            credentials,
+            strategy_mode=getattr(credentials, "strategy_mode", None),
+            override_provider=None,
+        )
+        api_method = provider_order[0] if provider_order else "imap"
+        self.db.update_account(email, api_method=api_method)
+        return {"email_id": email, "api_method": api_method}
 
     async def probe_account(
         self,

@@ -10,7 +10,7 @@ import concurrent.futures
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 import database as db
@@ -31,8 +31,12 @@ from models import (
     EmailDetailsResponse,
     AccountCredentials
 )
-import email_service
-from account_service import get_account_credentials
+from account_service import (
+    get_account_credentials,
+    get_mail_gateway_for_request,
+    get_message_detail_via_gateway,
+    list_messages_with_body_via_gateway,
+)
 from rate_limiter import check_share_token_rate_limit
 from logger_config import logger
 
@@ -580,6 +584,7 @@ async def get_share_token_info(
     }
 
 async def _fetch_emails_with_body_for_share(
+    request: Request,
     email_account: str,
     max_emails: int,
     filter_start: str,
@@ -589,8 +594,8 @@ async def _fetch_emails_with_body_for_share(
     timeout_seconds: int = 30
 ) -> List[Dict[str, Any]]:
     """
-    为分享页获取带body的邮件列表（使用线程池）
-    直接调用包含body的接口，避免多次API调用
+    为分享页获取带 body 的邮件列表。
+    本阶段保留分享页自身过滤语义，但 provider 选路统一复用 MailGateway。
     
     Args:
         email_account: 邮箱账户
@@ -608,65 +613,38 @@ async def _fetch_emails_with_body_for_share(
         f"max_emails={max_emails}, filter_start={filter_start}, filter_end={filter_end}, "
         f"subject_filter={subject_filter}, sender_filter={sender_filter}"
     )
-    def _sync_fetch():
-        """同步获取邮件（在线程池中执行）"""
-        try:
-            # 使用 Graph API 直接获取包含body的邮件列表
-            from graph_api_service import list_emails_with_body_graph
-            from account_service import get_account_credentials
-            import asyncio
-            
-            # 创建新的事件循环（因为在线程中）
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                # 在事件循环中获取账户凭证（异步函数）
-                credentials = loop.run_until_complete(
-                    get_account_credentials(email_account)
-                )
-                if not credentials:
-                    logger.error(f"Account credentials not found for {email_account}")
-                    return []
-                
-                # 获取邮件列表
-                emails_with_body = loop.run_until_complete(
-                    list_emails_with_body_graph(
-                        credentials=credentials,
-                        folder="all",
-                        max_count=max_emails,
-                        sender_search=sender_filter,
-                        subject_search=subject_filter,
-                        sort_by="date",
-                        sort_order="desc",
-                        start_time=filter_start,
-                        end_time=filter_end
-                    )
-                )
-                
-                return emails_with_body
-            finally:
-                loop.close()
-        except Exception as e:
-            logger.error(f"Error fetching emails for share: {e}")
-            return []
-    
-    # 在线程池中执行
-    loop = asyncio.get_event_loop()
+
     try:
-        result = await asyncio.wait_for(
-            loop.run_in_executor(share_query_executor, _sync_fetch),
-            timeout=timeout_seconds
+        credentials = await get_account_credentials(email_account)
+        mail_gateway = get_mail_gateway_for_request(request)
+        return await asyncio.wait_for(
+            list_messages_with_body_via_gateway(
+                mail_gateway,
+                credentials,
+                folder="all",
+                page_size=max_emails,
+                sender_search=sender_filter,
+                subject_search=subject_filter,
+                start_time=filter_start,
+                end_time=filter_end,
+            ),
+            timeout=timeout_seconds,
         )
-        return result
     except asyncio.TimeoutError:
         logger.error(
             f"[分享页] 获取邮件列表超时: email_account={email_account}, "
             f"timeout={timeout_seconds}s"
         )
         return []
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching emails for share: {e}")
+        return []
 
 @router.get("/{token}/emails", response_model=EmailListResponse)
 async def public_list_emails(
+    request: Request,
     token: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=50),
@@ -703,6 +681,7 @@ async def public_list_emails(
     # 缓存未命中，直接查询微软接口
     logger.info(f"[分享页缓存未命中] Token: {token}, 直接从微软接口获取...")
     emails_with_body = await _fetch_emails_with_body_for_share(
+        request=request,
         email_account=email_account,
         max_emails=max_emails,
         filter_start=filter_start,
@@ -727,7 +706,12 @@ async def public_list_emails(
             fetch_time_ms=int((time.time() - start_time) * 1000)
         )
         # 将空结果也缓存，避免频繁查询
-        cache_service.set_cached_share_email_list(token, page, page_size, empty_response.dict())
+        cache_service.set_cached_share_email_list(
+            token,
+            page,
+            page_size,
+            empty_response.model_dump() if hasattr(empty_response, "model_dump") else empty_response.dict(),
+        )
         return empty_response
     
     # 转换为EmailItem格式
@@ -792,7 +776,12 @@ async def public_list_emails(
     
     # 存入内存缓存（10秒TTL）
     try:
-        cache_service.set_cached_share_email_list(token, page, page_size, response.dict())
+        cache_service.set_cached_share_email_list(
+            token,
+            page,
+            page_size,
+            response.model_dump() if hasattr(response, "model_dump") else response.dict(),
+        )
         logger.info(f"[分享页缓存已设置] Token: {token}, Page: {page}, 邮件数: {len(paginated_emails)}, 耗时: {fetch_time_ms}ms")
     except Exception as e:
         logger.warning(f"Failed to cache share email list: {e}")
@@ -801,6 +790,7 @@ async def public_list_emails(
 
 @router.get("/{token}/emails/{message_id}", response_model=EmailDetailsResponse)
 async def public_get_email_detail(
+    request: Request,
     token: str,
     message_id: str,
     token_data: dict = Depends(get_valid_share_token)
@@ -819,11 +809,19 @@ async def public_get_email_detail(
         logger.info(f"Email detail not found in cache for {message_id}, fetching from remote...")
         # 获取账户凭证
         credentials = await get_account_credentials(email_account)
+        mail_gateway = get_mail_gateway_for_request(request)
         
         # 从远程获取邮件详情（会自动保存到数据库）
         try:
-            detail = await email_service.get_email_details(credentials, message_id)
-            cached_detail = detail.dict()
+            detail = await get_message_detail_via_gateway(
+                mail_gateway,
+                credentials,
+                message_id,
+            )
+            if hasattr(detail, "model_dump"):
+                cached_detail = detail.model_dump()
+            else:
+                cached_detail = detail.model_dump() if hasattr(detail, "model_dump") else detail.dict()
             logger.info(f"Successfully fetched and cached email detail for {message_id}")
         except HTTPException:
             # 重新抛出HTTP异常

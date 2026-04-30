@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from fastapi import HTTPException
+
 from models import AccountCredentials, EmailDetailsResponse, EmailListResponse
 
 
@@ -50,4 +52,37 @@ async def get_message_detail(
         _imap_credentials(credentials),
         message_id,
         skip_cache=skip_cache,
+    )
+
+
+async def delete_message(
+    credentials: AccountCredentials,
+    message_id: str,
+) -> bool:
+    from email_service import delete_email
+
+    return await delete_email(_imap_credentials(credentials), message_id)
+
+
+async def delete_messages_batch(
+    credentials: AccountCredentials,
+    *,
+    folder: str,
+) -> dict:
+    from email_service import delete_emails_batch
+
+    return await delete_emails_batch(_imap_credentials(credentials), folder)
+
+
+async def send_message(
+    credentials: AccountCredentials,
+    *,
+    to: str,
+    subject: str,
+    body_text: str | None = None,
+    body_html: str | None = None,
+) -> str:
+    raise HTTPException(
+        status_code=400,
+        detail="Sending email is only supported via Graph API. Please enable Graph API for this account.",
     )

@@ -1,13 +1,13 @@
 """
 账户服务模块
 
-提供账户凭证管理、账户列表查询等服务
+提供账户凭证管理、账户列表查询，以及 v1 路由到统一服务层的适配辅助函数。
 """
 
 from typing import Optional, Any
 from datetime import datetime
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 import database as db
 from models import (
@@ -18,6 +18,9 @@ from models import (
     normalize_strategy_mode,
 )
 from logger_config import logger
+
+
+_default_account_lifecycle_service: Any = None
 
 
 def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
@@ -191,6 +194,206 @@ async def save_account_credentials(
     except Exception as e:
         logger.error(f"Error saving account credentials: {e}")
         raise HTTPException(status_code=500, detail="Failed to save account")
+
+
+def get_account_lifecycle_service_for_request(request: Request) -> Any:
+    """从 app.state 读取统一 lifecycle service；没有注入时懒加载默认实例。"""
+    service = getattr(request.app.state, "v2_account_lifecycle_service", None)
+    if service is not None:
+        return service
+
+    global _default_account_lifecycle_service
+    if _default_account_lifecycle_service is None:
+        from microsoft_access.account_lifecycle_service import AccountLifecycleService
+
+        _default_account_lifecycle_service = AccountLifecycleService()
+    return _default_account_lifecycle_service
+
+
+def get_mail_gateway_for_request(request: Request) -> Any:
+    """从 app.state 读取统一 MailGateway；没有注入时回退默认实例。"""
+    service = getattr(request.app.state, "v2_mail_gateway", None)
+    if service is not None:
+        return service
+
+    from microsoft_access.mail_gateway import default_mail_gateway
+
+    return default_mail_gateway
+
+
+def _model_to_dict(model: Any) -> dict[str, Any]:
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    if hasattr(model, "dict"):
+        return model.dict()
+    if isinstance(model, dict):
+        return dict(model)
+    return {}
+
+
+async def register_account_via_lifecycle(
+    lifecycle_service: Any,
+    credentials: AccountCredentials,
+) -> dict[str, Any]:
+    """v1 POST /accounts 适配到统一 lifecycle service。"""
+    return await lifecycle_service.register_account(credentials)
+
+
+async def refresh_account_token_via_lifecycle(
+    lifecycle_service: Any,
+    email_id: str,
+) -> dict[str, Any]:
+    """v1 refresh-token 适配到统一 lifecycle service。"""
+    return await lifecycle_service.refresh_account_token(email_id)
+
+
+async def detect_api_method_via_lifecycle(
+    lifecycle_service: Any,
+    email_id: str,
+) -> dict[str, Any]:
+    """v1 detect-api-method 适配到统一 lifecycle service。"""
+    return await lifecycle_service.detect_api_method(email_id)
+
+
+async def list_messages_via_gateway(
+    mail_gateway: Any,
+    credentials: AccountCredentials,
+    *,
+    folder: str,
+    page: int,
+    page_size: int,
+    refresh: bool = False,
+    sender_search: Optional[str] = None,
+    subject_search: Optional[str] = None,
+    sort_by: str = "date",
+    sort_order: str = "desc",
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+):
+    list_method = getattr(mail_gateway, "list_messages", None)
+    if not callable(list_method):
+        raise AttributeError("MailGateway.list_messages is required for unified read path")
+
+    return await list_method(
+        credentials,
+        folder=folder,
+        page=page,
+        page_size=page_size,
+        strategy_mode=credentials.strategy_mode,
+        override_provider=None,
+        skip_cache=refresh,
+        sender_search=sender_search,
+        subject_search=subject_search,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+
+async def get_message_detail_via_gateway(
+    mail_gateway: Any,
+    credentials: AccountCredentials,
+    message_id: str,
+):
+    detail_method = getattr(mail_gateway, "get_message_detail", None)
+    if not callable(detail_method):
+        raise AttributeError(
+            "MailGateway.get_message_detail is required for unified read path"
+        )
+
+    return await detail_method(
+        credentials,
+        message_id,
+        strategy_mode=credentials.strategy_mode,
+        override_provider=None,
+        skip_cache=False,
+    )
+
+
+async def delete_message_via_gateway(
+    mail_gateway: Any,
+    credentials: AccountCredentials,
+    message_id: str,
+) -> bool:
+    return await mail_gateway.delete_message(
+        credentials,
+        message_id,
+        strategy_mode=credentials.strategy_mode,
+        override_provider=None,
+    )
+
+
+async def delete_messages_batch_via_gateway(
+    mail_gateway: Any,
+    credentials: AccountCredentials,
+    folder: str,
+) -> dict[str, Any]:
+    return await mail_gateway.delete_messages_batch(
+        credentials,
+        folder=folder,
+        strategy_mode=credentials.strategy_mode,
+        override_provider=None,
+    )
+
+
+async def send_message_via_gateway(
+    mail_gateway: Any,
+    credentials: AccountCredentials,
+    *,
+    to: str,
+    subject: str,
+    body_text: Optional[str] = None,
+    body_html: Optional[str] = None,
+) -> str:
+    return await mail_gateway.send_message(
+        credentials,
+        to=to,
+        subject=subject,
+        body_text=body_text,
+        body_html=body_html,
+        strategy_mode=credentials.strategy_mode,
+        override_provider=None,
+    )
+
+
+async def list_messages_with_body_via_gateway(
+    mail_gateway: Any,
+    credentials: AccountCredentials,
+    *,
+    folder: str,
+    page_size: int,
+    sender_search: Optional[str] = None,
+    subject_search: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    response = await list_messages_via_gateway(
+        mail_gateway,
+        credentials,
+        folder=folder,
+        page=1,
+        page_size=page_size,
+        refresh=False,
+        sender_search=sender_search,
+        subject_search=subject_search,
+        sort_by="date",
+        sort_order="desc",
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    emails_with_body: list[dict[str, Any]] = []
+    for item in response.emails:
+        detail = await get_message_detail_via_gateway(
+            mail_gateway,
+            credentials,
+            item.message_id,
+        )
+        merged = _model_to_dict(item)
+        merged.update(_model_to_dict(detail))
+        emails_with_body.append(merged)
+    return emails_with_body
 
 
 async def get_all_accounts(

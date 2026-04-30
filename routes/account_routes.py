@@ -10,11 +10,18 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, BackgroundTasks, Request
 
 import auth
 import database as db
-from account_service import get_account_credentials, save_account_credentials
+from account_service import (
+    detect_api_method_via_lifecycle,
+    get_account_credentials,
+    get_account_lifecycle_service_for_request,
+    refresh_account_token_via_lifecycle,
+    register_account_via_lifecycle,
+    save_account_credentials,
+)
 from models import (
     AccountCredentials,
     AccountInfo,
@@ -229,28 +236,17 @@ async def get_accounts(
 
 @router.post("", response_model=AccountResponse)
 async def register_account(
-    credentials: AccountCredentials, admin: dict = Depends(auth.get_current_admin)
+    credentials: AccountCredentials,
+    request: Request,
+    admin: dict = Depends(auth.get_current_admin),
 ):
     """注册或更新邮箱账户"""
     try:
-        # 验证凭证有效性并获取access token
-        await get_access_token(credentials)
-
-        # 更新凭证的刷新时间和状态
-        current_time = datetime.now().isoformat()
-        next_refresh = datetime.now() + timedelta(days=7)  # refresh token 过期时间改为 7 天
-        
-        credentials.last_refresh_time = current_time
-        credentials.next_refresh_time = next_refresh.isoformat()
-        credentials.refresh_status = "success"
-        credentials.refresh_error = None
-
-        # 保存凭证（包含access token和刷新时间）
-        await save_account_credentials(credentials.email, credentials)
-
+        lifecycle_service = get_account_lifecycle_service_for_request(request)
+        result = await register_account_via_lifecycle(lifecycle_service, credentials)
         return AccountResponse(
-            email_id=credentials.email,
-            message="Account verified and saved successfully.",
+            email_id=result["email_id"],
+            message=result["message"],
         )
 
     except HTTPException:
@@ -415,46 +411,25 @@ async def batch_delete_accounts(
 
 @router.post("/{email_id}/refresh-token", response_model=AccountResponse)
 async def manual_refresh_token(
-    email_id: str, admin: dict = Depends(auth.get_current_admin)
+    email_id: str,
+    request: Request,
+    admin: dict = Depends(auth.get_current_admin),
 ):
     """手动刷新指定账户的token"""
     try:
-        # 获取账户凭证
-        credentials = await get_account_credentials(email_id)
-
-        # 调用刷新函数
-        result = await refresh_account_token(credentials)
-
+        lifecycle_service = get_account_lifecycle_service_for_request(request)
+        result = await refresh_account_token_via_lifecycle(lifecycle_service, email_id)
         if result["success"]:
-            # 更新凭证对象
-            current_time = datetime.now().isoformat()
-            next_refresh = datetime.now() + timedelta(days=7)  # refresh token 过期时间改为 7 天
-
-            credentials.refresh_token = result["new_refresh_token"]
-            credentials.last_refresh_time = current_time
-            credentials.next_refresh_time = next_refresh.isoformat()
-            credentials.refresh_status = "success"
-            credentials.refresh_error = None
-
-            # 保存更新后的凭证
-            await save_account_credentials(email_id, credentials)
-
             logger.info(f"Token refreshed for {email_id} by {admin['username']}")
-
             return AccountResponse(
                 email_id=email_id,
-                message=f"Token refreshed successfully at {current_time}",
+                message=result["message"],
             )
-        else:
-            # 更新失败状态
-            credentials.refresh_status = "failed"
-            credentials.refresh_error = result.get("error", "Unknown error")
-            await save_account_credentials(email_id, credentials)
 
-            raise HTTPException(
-                status_code=500,
-                detail=f"Token refresh failed: {result.get('error', 'Unknown error')}",
-            )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Token refresh failed: {result.get('error', 'Unknown error')}",
+        )
 
     except HTTPException:
         raise
@@ -629,25 +604,23 @@ async def batch_refresh_tokens(
 
 @router.post("/{email_id}/detect-api-method", response_model=AccountResponse)
 async def detect_api_method_route(
-    email_id: str, admin: dict = Depends(auth.get_current_admin)
+    email_id: str,
+    request: Request,
+    admin: dict = Depends(auth.get_current_admin),
 ):
     """检测并更新账户的API方法（Graph API 或 IMAP）"""
-    from oauth_service import detect_and_update_api_method
-    
     try:
-        # 获取账户凭证
-        credentials = await get_account_credentials(email_id)
-        
-        # 检测API方法
-        api_method = await detect_and_update_api_method(credentials)
-        
-        logger.info(f"Detected API method for {email_id}: {api_method} by {admin['username']}")
-        
+        lifecycle_service = get_account_lifecycle_service_for_request(request)
+        result = await detect_api_method_via_lifecycle(lifecycle_service, email_id)
+        api_method = result["api_method"]
+        logger.info(
+            f"Detected API method for {email_id}: {api_method} by {admin['username']}"
+        )
         return AccountResponse(
             email_id=email_id,
-            message=f"API method detected and updated to: {api_method}"
+            message=f"API method detected and updated to: {api_method}",
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
