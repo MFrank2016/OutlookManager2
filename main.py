@@ -662,6 +662,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# 允许测试或调用方按需注入 v2 service / gateway，未注入时路由会回退到默认实现
+app.state.v2_account_lifecycle_service = None
+app.state.v2_account_loader = None
+app.state.v2_mail_gateway = None
+
 # 添加请求日志中间件
 @app.middleware("http")
 async def log_requests(request: Request, call_next):

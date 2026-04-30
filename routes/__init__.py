@@ -7,6 +7,7 @@
 from fastapi import APIRouter
 
 from . import auth_routes, account_routes, email_routes, cache_routes, share_routes
+from .v2 import v2_router
 
 # 创建主路由器
 main_router = APIRouter()
@@ -17,4 +18,5 @@ main_router.include_router(account_routes.router)
 main_router.include_router(email_routes.router)
 main_router.include_router(cache_routes.router)
 main_router.include_router(share_routes.router)
+main_router.include_router(v2_router)
 

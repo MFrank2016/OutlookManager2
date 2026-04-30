@@ -10,7 +10,13 @@ from datetime import datetime
 from fastapi import HTTPException
 
 import database as db
-from models import AccountCredentials, AccountInfo, AccountListResponse
+from models import (
+    AccountCredentials,
+    AccountInfo,
+    AccountListResponse,
+    StrategyMode,
+    normalize_strategy_mode,
+)
 from logger_config import logger
 
 
@@ -28,6 +34,27 @@ def _get_explicit_model_fields(model: Any) -> set[str]:
     if hasattr(model, "__fields_set__"):
         return set(model.__fields_set__)
     return set()
+
+
+def _serialize_strategy_mode(value: Any) -> str:
+    """统一把 StrategyMode / 字符串转换成可持久化文本。"""
+    if isinstance(value, StrategyMode):
+        return value.value
+    if isinstance(value, str) and value:
+        return value
+    return StrategyMode.AUTO.value
+
+
+def _normalize_strategy_mode_from_db(value: Any, *, email_id: str) -> StrategyMode:
+    """数据库读路径宽容归一化 strategy_mode，非法值回落到 auto。"""
+    serialized_value = _serialize_strategy_mode(value)
+    try:
+        return normalize_strategy_mode(serialized_value)
+    except Exception:
+        logger.warning(
+            f"Account {email_id} has invalid strategy_mode={serialized_value!r}; fallback to auto"
+        )
+        return StrategyMode.AUTO
 
 
 async def get_account_credentials(email_id: str) -> AccountCredentials:
@@ -74,7 +101,10 @@ async def get_account_credentials(email_id: str) -> AccountCredentials:
             refresh_status=account.get("refresh_status", "pending"),
             refresh_error=account.get("refresh_error"),
             api_method=account.get("api_method", "imap"),
-            strategy_mode=account.get("strategy_mode", "auto"),
+            strategy_mode=_normalize_strategy_mode_from_db(
+                account.get("strategy_mode"),
+                email_id=email_id,
+            ),
             lifecycle_state=account.get("lifecycle_state", "new"),
             last_provider_used=account.get("last_provider_used"),
             capability_snapshot_json=account.get("capability_snapshot_json"),
@@ -123,6 +153,11 @@ async def save_account_credentials(
                 if field_name in explicit_fields:
                     update_payload[field_name] = getattr(credentials, field_name)
 
+            if "strategy_mode" in update_payload:
+                update_payload["strategy_mode"] = _serialize_strategy_mode(
+                    update_payload["strategy_mode"]
+                )
+
             # 更新现有账户
             db.update_account(email_id, **update_payload)
         else:
@@ -133,7 +168,9 @@ async def save_account_credentials(
                 client_id=credentials.client_id,
                 tags=credentials.tags if hasattr(credentials, "tags") else [],
                 api_method=credentials.api_method if hasattr(credentials, "api_method") else "imap",
-                strategy_mode=credentials.strategy_mode if hasattr(credentials, "strategy_mode") else "auto",
+                strategy_mode=_serialize_strategy_mode(
+                    credentials.strategy_mode if hasattr(credentials, "strategy_mode") else "auto"
+                ),
                 lifecycle_state=credentials.lifecycle_state if hasattr(credentials, "lifecycle_state") else "new",
                 last_provider_used=credentials.last_provider_used if hasattr(credentials, "last_provider_used") else None,
                 capability_snapshot_json=credentials.capability_snapshot_json if hasattr(credentials, "capability_snapshot_json") else None,
@@ -194,7 +231,10 @@ async def get_all_accounts(
                 next_refresh_time=_serialize_datetime(account_data.get("next_refresh_time")),
                 refresh_status=account_data.get("refresh_status", "pending"),
                 api_method=account_data.get("api_method", "imap"),
-                strategy_mode=account_data.get("strategy_mode", "auto"),
+                strategy_mode=_normalize_strategy_mode_from_db(
+                    account_data.get("strategy_mode"),
+                    email_id=account_data["email"],
+                ),
                 lifecycle_state=account_data.get("lifecycle_state", "new"),
                 last_provider_used=account_data.get("last_provider_used"),
                 capability_snapshot_json=account_data.get("capability_snapshot_json"),

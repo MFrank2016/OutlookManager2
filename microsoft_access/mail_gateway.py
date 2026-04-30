@@ -8,7 +8,12 @@ import httpx
 from fastapi import HTTPException
 
 from logger_config import logger
-from models import AccountCredentials, EmailDetailsResponse, EmailListResponse
+from models import (
+    AccountCredentials,
+    EmailDetailsResponse,
+    EmailListResponse,
+    normalize_strategy_mode,
+)
 from microsoft_access.providers import graph_provider, imap_provider
 
 
@@ -58,7 +63,7 @@ class MailGateway:
         end_time: str | None = None,
     ) -> EmailListResponse:
         last_error: Exception | None = None
-        provider_order = await self._resolve_provider_order(
+        provider_order = await self.resolve_provider_order(
             credentials,
             strategy_mode=strategy_mode,
             override_provider=override_provider,
@@ -118,7 +123,7 @@ class MailGateway:
         override_provider: str | None = None,
         skip_cache: bool = False,
     ) -> EmailDetailsResponse:
-        provider_order = await self._resolve_provider_order(
+        provider_order = await self.resolve_provider_order(
             credentials,
             strategy_mode=strategy_mode,
             override_provider=override_provider,
@@ -133,7 +138,7 @@ class MailGateway:
         self._record_successful_provider(credentials, provider_name)
         return response
 
-    async def _resolve_provider_order(
+    async def resolve_provider_order(
         self,
         credentials: AccountCredentials,
         *,
@@ -144,7 +149,7 @@ class MailGateway:
         if explicit_provider is not None:
             return [explicit_provider]
 
-        strategy = (strategy_mode or credentials.strategy_mode or "auto").strip().lower()
+        strategy = normalize_strategy_mode(strategy_mode or credentials.strategy_mode).value
         if strategy == "graph_only":
             return ["graph_api"]
         if strategy == "imap_only":

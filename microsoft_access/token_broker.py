@@ -11,7 +11,7 @@ import cache_service
 import database as db
 from config import GRAPH_API_SCOPE, OAUTH_SCOPE, TOKEN_URL
 from logger_config import logger
-from models import AccountCredentials
+from models import AccountCredentials, normalize_strategy_mode
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ class TokenBroker:
         requested_provider: Optional[str],
         api_method: Optional[str] = None,
     ) -> ScopePlan:
-        strategy = (strategy_mode or "auto").strip().lower()
+        strategy = normalize_strategy_mode(strategy_mode).value
         explicit_provider = self._normalize_requested_provider(requested_provider)
         legacy_provider = self._normalize_stored_provider(api_method)
 

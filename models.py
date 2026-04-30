@@ -4,8 +4,32 @@
 定义系统中使用的所有Pydantic数据模型
 """
 
+from enum import Enum
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, TypeAdapter
+
+
+class StrategyMode(str, Enum):
+    """v2 邮件策略模式枚举"""
+
+    AUTO = "auto"
+    GRAPH_PREFERRED = "graph_preferred"
+    IMAP_ONLY = "imap_only"
+    GRAPH_ONLY = "graph_only"
+
+
+_STRATEGY_MODE_ADAPTER = TypeAdapter(StrategyMode)
+
+
+def normalize_strategy_mode(
+    value: StrategyMode | str | None,
+    *,
+    default: StrategyMode = StrategyMode.AUTO,
+) -> StrategyMode:
+    """统一规范 strategy_mode，空值回落到默认值，非法值直接抛校验错误。"""
+    if value in (None, ""):
+        return default
+    return _STRATEGY_MODE_ADAPTER.validate_python(value)
 
 
 class AccountCredentials(BaseModel):
@@ -20,7 +44,7 @@ class AccountCredentials(BaseModel):
     refresh_status: str = "pending"
     refresh_error: Optional[str] = None
     api_method: str = "imap"  # 'graph_api' or 'imap'
-    strategy_mode: str = "auto"
+    strategy_mode: StrategyMode = StrategyMode.AUTO
     lifecycle_state: str = "new"
     last_provider_used: Optional[str] = None
     capability_snapshot_json: Optional[str] = None
@@ -130,7 +154,7 @@ class AccountInfo(BaseModel):
     next_refresh_time: Optional[str] = None
     refresh_status: str = "pending"
     api_method: str = "imap"  # 'graph_api' or 'imap'
-    strategy_mode: str = "auto"
+    strategy_mode: StrategyMode = StrategyMode.AUTO
     lifecycle_state: str = "new"
     last_provider_used: Optional[str] = None
     capability_snapshot_json: Optional[str] = None
@@ -145,6 +169,86 @@ class AccountListResponse(BaseModel):
     page_size: int
     total_pages: int
     accounts: List[AccountInfo]
+
+
+class CapabilitySnapshotResponse(BaseModel):
+    """账户能力快照响应模型"""
+
+    graph_available: Optional[bool] = None
+    graph_read_available: Optional[bool] = None
+    graph_write_available: Optional[bool] = None
+    graph_send_available: Optional[bool] = None
+    imap_available: Optional[bool] = None
+    recommended_provider: Optional[str] = None
+    last_probe_at: Optional[str] = None
+    last_probe_source: Optional[str] = None
+    graph_probe_status: Optional[str] = None
+    graph_probe_error: Optional[str] = None
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ProviderErrorResponse(BaseModel):
+    """provider 最近错误摘要"""
+
+    code: Optional[str] = None
+    message: Optional[str] = None
+    at: Optional[str] = None
+
+
+class AccountProbeResponse(BaseModel):
+    """账户预检响应模型"""
+
+    token_ok: bool
+    capability: CapabilitySnapshotResponse
+    lifecycle_state: str
+    warnings: List[str] = Field(default_factory=list)
+
+
+class AccountHealthResponse(BaseModel):
+    """账户健康状态响应模型"""
+
+    email: str
+    strategy_mode: StrategyMode
+    lifecycle_state: str
+    capability: CapabilitySnapshotResponse
+    last_provider_used: Optional[str] = None
+    last_error: Optional[ProviderErrorResponse] = None
+
+
+class DeliveryStrategyResponse(BaseModel):
+    """邮件投递策略解释响应模型"""
+
+    email: str
+    strategy_mode: StrategyMode
+    recommended_provider: Optional[str] = None
+    resolved_provider: Optional[str] = None
+    provider_order: List[str] = Field(default_factory=list)
+    last_provider_used: Optional[str] = None
+    override_active: bool = False
+    override_provider: Optional[str] = None
+    skip_cache: bool = False
+    capability: CapabilitySnapshotResponse = Field(default_factory=CapabilitySnapshotResponse)
+
+
+class DeliveryStrategyOverrideEcho(BaseModel):
+    """投递策略 override 预览回显"""
+
+    provider: Optional[str] = None
+    strategy_mode: Optional[StrategyMode] = None
+    skip_cache: bool = False
+    ttl_seconds: Optional[int] = None
+
+
+class DeliveryStrategyOverrideResponse(BaseModel):
+    """投递策略 override 预览响应模型"""
+
+    preview_only: bool
+    persisted: bool
+    effective_for_future_requests: bool
+    message: str
+    requested_override: DeliveryStrategyOverrideEcho
+    delivery_strategy_preview: DeliveryStrategyResponse
 
 
 class UpdateTagsRequest(BaseModel):
