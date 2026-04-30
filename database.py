@@ -1211,17 +1211,97 @@ def create_verification_detection_record(data: Dict[str, Any]) -> Dict[str, Any]
 
 
 # 邮件缓存操作 - 委托给 EmailCacheDAO 和 EmailDetailCacheDAO
-def cache_emails(email_account: str, emails: List[Dict[str, Any]]) -> bool:
-    return _get_email_cache_dao().cache_emails(email_account, emails)
+def _normalize_email_cache_provider(provider: Optional[str]) -> Optional[str]:
+    if provider is None:
+        return None
+    normalized = provider.strip().lower()
+    if normalized in {"", "auto"}:
+        return None
+    if normalized in {"graph", "graph_api"}:
+        return "graph_api"
+    if normalized == "imap":
+        return "imap"
+    return normalized
 
-def get_cached_emails(email_account: str, page: int = 1, page_size: int = 100, folder: Optional[str] = None, sender_search: Optional[str] = None, subject_search: Optional[str] = None, sort_by: str = 'date', sort_order: str = 'desc', start_time: Optional[str] = None, end_time: Optional[str] = None) -> Tuple[List[Dict[str, Any]], int]:
-    return _get_email_cache_dao().get_cached_emails(email_account, page, page_size, folder, sender_search, subject_search, sort_by, sort_order, start_time, end_time)
 
-def cache_email_detail(email_account: str, email_detail: Dict[str, Any]) -> bool:
-    return _get_email_detail_cache_dao().cache_detail(email_account, email_detail)
+def _build_email_cache_namespace(email_account: str, provider: Optional[str]) -> str:
+    normalized_provider = _normalize_email_cache_provider(provider)
+    if normalized_provider is None:
+        return email_account
+    return f"{email_account}::provider::{normalized_provider}"
 
-def get_cached_email_detail(email_account: str, message_id: str) -> Optional[Dict[str, Any]]:
-    return _get_email_detail_cache_dao().get_cached_detail(email_account, message_id)
+
+def _iter_email_cache_namespaces(email_account: str, provider: Optional[str]) -> List[str]:
+    namespaced = _build_email_cache_namespace(email_account, provider)
+    if provider is not None:
+        return [namespaced]
+
+    namespaces = {
+        email_account,
+        _build_email_cache_namespace(email_account, "imap"),
+        _build_email_cache_namespace(email_account, "graph_api"),
+    }
+    return list(namespaces)
+
+
+def cache_emails(
+    email_account: str,
+    emails: List[Dict[str, Any]],
+    provider: Optional[str] = None,
+) -> bool:
+    return _get_email_cache_dao().cache_emails(
+        _build_email_cache_namespace(email_account, provider),
+        emails,
+    )
+
+
+def get_cached_emails(
+    email_account: str,
+    page: int = 1,
+    page_size: int = 100,
+    folder: Optional[str] = None,
+    sender_search: Optional[str] = None,
+    subject_search: Optional[str] = None,
+    sort_by: str = 'date',
+    sort_order: str = 'desc',
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    provider: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], int]:
+    return _get_email_cache_dao().get_cached_emails(
+        _build_email_cache_namespace(email_account, provider),
+        page,
+        page_size,
+        folder,
+        sender_search,
+        subject_search,
+        sort_by,
+        sort_order,
+        start_time,
+        end_time,
+    )
+
+
+def cache_email_detail(
+    email_account: str,
+    email_detail: Dict[str, Any],
+    provider: Optional[str] = None,
+) -> bool:
+    return _get_email_detail_cache_dao().cache_detail(
+        _build_email_cache_namespace(email_account, provider),
+        email_detail,
+    )
+
+
+def get_cached_email_detail(
+    email_account: str,
+    message_id: str,
+    provider: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    return _get_email_detail_cache_dao().get_cached_detail(
+        _build_email_cache_namespace(email_account, provider),
+        message_id,
+    )
 
 def check_cache_size() -> Dict[str, Any]:
     return _get_email_detail_cache_dao().check_cache_size()
@@ -1229,15 +1309,26 @@ def check_cache_size() -> Dict[str, Any]:
 def cleanup_lru_cache() -> Dict[str, int]:
     return _get_email_detail_cache_dao().cleanup_lru_cache()
 
-def clear_email_cache_db(email_account: str) -> bool:
-    result1 = _get_email_cache_dao().clear_by_account(email_account)
-    result2 = _get_email_detail_cache_dao().clear_by_account(email_account)
-    return result1 or result2
+def clear_email_cache_db(email_account: str, provider: Optional[str] = None) -> bool:
+    list_cleared = False
+    detail_cleared = False
+    for namespace in _iter_email_cache_namespaces(email_account, provider):
+        list_cleared = _get_email_cache_dao().clear_by_account(namespace) or list_cleared
+        detail_cleared = _get_email_detail_cache_dao().clear_by_account(namespace) or detail_cleared
+    return list_cleared or detail_cleared
 
-def delete_email_from_cache(email_account: str, message_id: str) -> bool:
-    result1 = _get_email_cache_dao().delete_email(email_account, message_id)
-    result2 = _get_email_detail_cache_dao().delete_email(email_account, message_id)
-    return result1 or result2
+
+def delete_email_from_cache(
+    email_account: str,
+    message_id: str,
+    provider: Optional[str] = None,
+) -> bool:
+    list_deleted = False
+    detail_deleted = False
+    for namespace in _iter_email_cache_namespaces(email_account, provider):
+        list_deleted = _get_email_cache_dao().delete_email(namespace, message_id) or list_deleted
+        detail_deleted = _get_email_detail_cache_dao().delete_email(namespace, message_id) or detail_deleted
+    return list_deleted or detail_deleted
 
 def get_email_count_by_account(email_account: str, folder: Optional[str] = None) -> int:
     return _get_email_cache_dao().get_count_by_account(email_account, folder)

@@ -6,7 +6,9 @@
 
 import asyncio
 import email
+import imaplib
 import re
+import ssl
 from datetime import datetime, timezone
 from itertools import groupby
 from typing import Any, Dict, Optional
@@ -40,6 +42,47 @@ IMAP_VERIFICATION_HINTS = (
     "驗證碼",
     "code",
 )
+
+class _TokenRetryNeeded(Exception):
+    """标记需要刷新 token 后重试。"""
+
+
+class _FallbackToCache(Exception):
+    """标记应回退到缓存返回。"""
+
+
+class _AuthRetryNeeded(Exception):
+    """标记需要刷新 token 后重试详情请求。"""
+
+
+RECOVERABLE_IMAP_TRANSPORT_EXCEPTIONS = (
+    ConnectionError,
+    TimeoutError,
+    EOFError,
+    ssl.SSLError,
+    imaplib.IMAP4.abort,
+)
+RECOVERABLE_IMAP_ERROR_KEYWORDS = (
+    "auth",
+    "authentication",
+    "login",
+    "credential",
+    "ssl",
+    "unexpected_eof",
+    "eof",
+    "protocol",
+    "connection",
+    "timeout",
+)
+
+
+def _is_recoverable_imap_exception(exc: Exception) -> bool:
+    if isinstance(exc, RECOVERABLE_IMAP_TRANSPORT_EXCEPTIONS):
+        return True
+    if isinstance(exc, imaplib.IMAP4.error):
+        lowered = str(exc).lower()
+        return any(keyword in lowered for keyword in RECOVERABLE_IMAP_ERROR_KEYWORDS)
+    return False
 
 
 def _format_token_info(token: str, expires_at: Optional[str] = None) -> str:
@@ -117,6 +160,15 @@ def _build_body_preview_from_detail(detail: Dict[str, Any]) -> Optional[str]:
     return compact[:180] if compact else None
 
 
+def _cache_provider_for_credentials(credentials: AccountCredentials) -> Optional[str]:
+    provider = (credentials.api_method or "").strip().lower()
+    if provider in {"graph", "graph_api"}:
+        return "graph_api"
+    if provider == "imap":
+        return "imap"
+    return None
+
+
 def _should_use_graph_api_for_read_probe(probe_result: Dict[str, Any]) -> bool:
     from graph_api_service import probe_supports_graph_read
 
@@ -166,7 +218,7 @@ def _enrich_paginated_items_from_cached_details(
             email_item.body_preview = _build_body_preview_from_detail(cached_detail)
 
 
-async def list_emails(
+async def _list_emails_direct(
     credentials: AccountCredentials,
     folder: str,
     page: int,
@@ -180,7 +232,7 @@ async def list_emails(
     end_time: Optional[str] = None
 ) -> EmailListResponse:
     """获取邮件列表 - 优化版本（支持SQLite缓存、搜索、排序）"""
-    
+    cache_provider = _cache_provider_for_credentials(credentials)
 
 
     start_time_ms = time.time()
@@ -194,6 +246,7 @@ async def list_emails(
             folder=folder,
             page=page,
             page_size=page_size,
+            provider=cache_provider,
             sender_search=sender_search,
             subject_search=subject_search,
             sort_by=sort_by,
@@ -223,6 +276,7 @@ async def list_emails(
                 page=page,
                 page_size=page_size,
                 folder=folder if folder != 'all' else None,
+                provider=cache_provider,
                 sender_search=sender_search,
                 subject_search=subject_search,
                 sort_by=sort_by,
@@ -257,6 +311,7 @@ async def list_emails(
                     page=page,
                     page_size=page_size,
                     data=response.dict(),
+                    provider=cache_provider,
                     sender_search=sender_search,
                     subject_search=subject_search,
                     sort_by=sort_by,
@@ -565,7 +620,11 @@ async def list_emails(
 
             details_by_id: Dict[str, Dict[str, Any]] = {}
             for email_item in paginated_email_items:
-                cached_detail = db.get_cached_email_detail(credentials.email, email_item.message_id)
+                cached_detail = db.get_cached_email_detail(
+                    credentials.email,
+                    email_item.message_id,
+                    provider="imap",
+                )
                 if cached_detail:
                     details_by_id[email_item.message_id] = cached_detail
             _enrich_paginated_items_from_cached_details(paginated_email_items, details_by_id)
@@ -578,7 +637,7 @@ async def list_emails(
             # 缓存到 SQLite
             try:
                 emails_to_cache = [email.dict() for email in email_items]
-                db.cache_emails(credentials.email, emails_to_cache)
+                db.cache_emails(credentials.email, emails_to_cache, provider="imap")
                 logger.info(f"Cached {len(emails_to_cache)} emails to database for {credentials.email}")
             except Exception as e:
                 logger.warning(f"Failed to cache emails to database: {e}")
@@ -607,6 +666,7 @@ async def list_emails(
                     page=page,
                     page_size=page_size,
                     data=result.dict(),
+                    provider="imap",
                     sender_search=sender_search,
                     subject_search=subject_search,
                     sort_by=sort_by,
@@ -622,6 +682,8 @@ async def list_emails(
             return result
 
         except Exception as e:
+            if not _is_recoverable_imap_exception(e):
+                raise
             logger.error(f"Error listing emails: {e}")
             if imap_client:
                 try:
@@ -643,36 +705,35 @@ async def list_emails(
                 logger.warning(f"Connection error detected for {credentials.email} (auth: {is_auth_error}, ssl: {is_ssl_error}), clearing cached token and retrying...")
                 retry_count += 1
                 # 这里需要在异步上下文中清除 token，但我们在同步函数中，所以标记需要重试
-                raise Exception("TOKEN_RETRY_NEEDED")
+                raise _TokenRetryNeeded()
             
             # 其他错误，标记为需要从缓存返回
-            raise Exception("FALLBACK_TO_CACHE")
+            raise _FallbackToCache()
 
     # 在线程池中运行同步代码，添加重试逻辑
+    should_attempt_cache_fallback = False
     try:
         return await asyncio.to_thread(_sync_list_emails)
-    except Exception as e:
-        error_str = str(e)
-        if "TOKEN_RETRY_NEEDED" in error_str:
-            # 清除缓存的 token
-            await clear_cached_access_token(credentials.email)
-            # 获取新 token
-            access_token = await get_cached_access_token(credentials)
-            # 重置重试计数
-            retry_count = 0
-            # 重试
-            logger.info(f"Retrying with fresh token for {credentials.email}")
-            try:
-                return await asyncio.to_thread(_sync_list_emails)
-            except Exception as retry_error:
-                logger.error(f"Retry failed for {credentials.email}: {retry_error}")
-                # 重试失败，尝试从缓存返回
-                pass
-        elif "FALLBACK_TO_CACHE" in error_str:
-            logger.warning(f"IMAP connection failed for {credentials.email}, attempting to return cached data")
-        else:
-            logger.error(f"Unexpected error for {credentials.email}: {e}")
-        
+    except _TokenRetryNeeded:
+        # 清除缓存的 token
+        await clear_cached_access_token(credentials.email)
+        # 获取新 token
+        access_token = await get_cached_access_token(credentials)
+        # 重置重试计数
+        retry_count = 0
+        # 重试
+        logger.info(f"Retrying with fresh token for {credentials.email}")
+        try:
+            return await asyncio.to_thread(_sync_list_emails)
+        except (_TokenRetryNeeded, _FallbackToCache) as retry_error:
+            logger.error(f"Retry failed for {credentials.email}: {retry_error}")
+            # 重试失败，尝试从缓存返回
+            should_attempt_cache_fallback = True
+    except _FallbackToCache:
+        logger.warning(f"IMAP connection failed for {credentials.email}, attempting to return cached data")
+        should_attempt_cache_fallback = True
+
+    if should_attempt_cache_fallback:
         # 尝试从缓存返回数据作为降级方案
         try:
             # 先尝试从 SQLite 缓存获取
@@ -681,6 +742,7 @@ async def list_emails(
                 page=page,
                 page_size=page_size,
                 folder=folder if folder != 'all' else None,
+                provider="imap",
                 sender_search=sender_search,
                 subject_search=subject_search,
                 sort_by=sort_by,
@@ -714,33 +776,53 @@ async def list_emails(
         )
 
 
-async def get_email_details(
-    credentials: AccountCredentials, message_id: str
+async def _get_email_details_direct(
+    credentials: AccountCredentials, message_id: str, skip_cache: bool = False
 ) -> EmailDetailsResponse:
     """获取邮件详细内容 - 优化版本（支持SQLite缓存）"""
+    cache_provider = _cache_provider_for_credentials(credentials)
     
     # 检查是否使用 Graph API
     if credentials.api_method in ["graph", "graph_api"]:
         logger.info(f"Using Graph API for email details: {credentials.email}")
         from graph_api_service import get_email_details_graph
-        return await get_email_details_graph(credentials, message_id)
+        return await get_email_details_graph(
+            credentials,
+            message_id,
+            skip_cache=skip_cache,
+        )
     
     # 优先从内存LRU缓存获取
-    cached_detail = cache_service.get_cached_email_detail(credentials.email, message_id)
-    if cached_detail:
-        logger.info(f"Returning cached email detail from LRU cache for {message_id}")
-        return EmailDetailsResponse(**cached_detail)
+    if not skip_cache:
+        cached_detail = cache_service.get_cached_email_detail(
+            credentials.email,
+            message_id,
+            provider=cache_provider,
+        )
+        if cached_detail:
+            logger.info(f"Returning cached email detail from LRU cache for {message_id}")
+            return EmailDetailsResponse(**cached_detail)
     
     # 从 SQLite 缓存获取
-    try:
-        cached_detail = db.get_cached_email_detail(credentials.email, message_id)
-        if cached_detail:
-            logger.info(f"Returning cached email detail from database for {message_id}")
-            # 缓存到内存LRU缓存
-            cache_service.set_cached_email_detail(credentials.email, message_id, cached_detail)
-            return EmailDetailsResponse(**cached_detail)
-    except Exception as e:
-        logger.warning(f"Failed to load email detail from cache: {e}")
+    if not skip_cache:
+        try:
+            cached_detail = db.get_cached_email_detail(
+                credentials.email,
+                message_id,
+                provider=cache_provider,
+            )
+            if cached_detail:
+                logger.info(f"Returning cached email detail from database for {message_id}")
+                # 缓存到内存LRU缓存
+                cache_service.set_cached_email_detail(
+                    credentials.email,
+                    message_id,
+                    cached_detail,
+                    provider=cache_provider,
+                )
+                return EmailDetailsResponse(**cached_detail)
+        except Exception as e:
+            logger.warning(f"Failed to load email detail from cache: {e}")
     
     # 解析复合message_id
     try:
@@ -827,7 +909,11 @@ async def get_email_details(
             
             # 缓存到 SQLite
             try:
-                db.cache_email_detail(credentials.email, email_detail_response.dict())
+                db.cache_email_detail(
+                    credentials.email,
+                    email_detail_response.dict(),
+                    provider="imap",
+                )
                 logger.info(f"Cached email detail to database for {message_id}")
             except Exception as e:
                 logger.warning(f"Failed to cache email detail to database: {e}")
@@ -837,7 +923,8 @@ async def get_email_details(
                 cache_service.set_cached_email_detail(
                     credentials.email, 
                     message_id, 
-                    email_detail_response.dict()
+                    email_detail_response.dict(),
+                    provider="imap",
                 )
             except Exception as e:
                 logger.warning(f"Failed to cache email detail to LRU cache: {e}")
@@ -847,6 +934,8 @@ async def get_email_details(
         except HTTPException:
             raise
         except Exception as e:
+            if not _is_recoverable_imap_exception(e):
+                raise
             logger.error(f"Error getting email details: {e}")
             if imap_client:
                 try:
@@ -861,7 +950,7 @@ async def get_email_details(
             if retry_count < max_retries and any(keyword in error_msg for keyword in ['auth', 'authentication', 'login', 'credential']):
                 logger.warning(f"Authentication error detected for {credentials.email}, clearing cached token and retrying...")
                 retry_count += 1
-                raise Exception("AUTH_RETRY_NEEDED")
+                raise _AuthRetryNeeded()
             
             raise HTTPException(
                 status_code=500, detail="Failed to retrieve email details"
@@ -870,16 +959,62 @@ async def get_email_details(
     # 在线程池中运行同步代码，添加重试逻辑
     try:
         return await asyncio.to_thread(_sync_get_email_details)
-    except Exception as e:
-        if "AUTH_RETRY_NEEDED" in str(e):
-            # 清除缓存的 token
-            await clear_cached_access_token(credentials.email)
-            # 获取新 token
-            access_token = await get_cached_access_token(credentials)
-            # 重试
-            logger.info(f"Retrying email details fetch with fresh token for {credentials.email}")
-            return await asyncio.to_thread(_sync_get_email_details)
-        raise
+    except _AuthRetryNeeded:
+        # 清除缓存的 token
+        await clear_cached_access_token(credentials.email)
+        # 获取新 token
+        access_token = await get_cached_access_token(credentials)
+        # 重试
+        logger.info(f"Retrying email details fetch with fresh token for {credentials.email}")
+        return await asyncio.to_thread(_sync_get_email_details)
+
+
+async def list_emails(
+    credentials: AccountCredentials,
+    folder: str,
+    page: int,
+    page_size: int,
+    force_refresh: bool = False,
+    sender_search: Optional[str] = None,
+    subject_search: Optional[str] = None,
+    sort_by: str = "date",
+    sort_order: str = "desc",
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None
+) -> EmailListResponse:
+    """统一邮件读路径入口，转发给 MailGateway。"""
+    from microsoft_access.mail_gateway import default_mail_gateway
+
+    return await default_mail_gateway.list_messages(
+        credentials,
+        folder=folder,
+        page=page,
+        page_size=page_size,
+        strategy_mode=credentials.strategy_mode,
+        override_provider=None,
+        skip_cache=force_refresh,
+        sender_search=sender_search,
+        subject_search=subject_search,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+
+async def get_email_details(
+    credentials: AccountCredentials, message_id: str
+) -> EmailDetailsResponse:
+    """统一邮件详情只读入口，转发给 MailGateway。"""
+    from microsoft_access.mail_gateway import default_mail_gateway
+
+    return await default_mail_gateway.get_message_detail(
+        credentials,
+        message_id,
+        strategy_mode=credentials.strategy_mode,
+        override_provider=None,
+        skip_cache=False,
+    )
 
 
 async def list_emails_via_graph_api(
@@ -907,6 +1042,7 @@ async def list_emails_via_graph_api(
             folder=folder,
             page=page,
             page_size=page_size,
+            provider="graph_api",
             sender_search=sender_search,
             subject_search=subject_search,
             sort_by=sort_by,
@@ -935,6 +1071,7 @@ async def list_emails_via_graph_api(
                 page=page,
                 page_size=page_size,
                 folder=folder if folder != 'all' else None,
+                provider="graph_api",
                 sender_search=sender_search,
                 subject_search=subject_search,
                 sort_by=sort_by,
@@ -966,6 +1103,7 @@ async def list_emails_via_graph_api(
                     page=page,
                     page_size=page_size,
                     data=response.dict(),
+                    provider="graph_api",
                     sender_search=sender_search,
                     subject_search=subject_search,
                     sort_by=sort_by,
@@ -1000,7 +1138,7 @@ async def list_emails_via_graph_api(
     # 缓存到数据库
     try:
         emails_to_cache = [email.dict() for email in email_items]
-        db.cache_emails(credentials.email, emails_to_cache)
+        db.cache_emails(credentials.email, emails_to_cache, provider="graph_api")
         logger.info(f"Cached {len(emails_to_cache)} emails to database for {credentials.email}")
     except Exception as e:
         logger.warning(f"Failed to cache emails to database: {e}")
@@ -1012,6 +1150,7 @@ async def list_emails_via_graph_api(
             folder=folder,
             page=page,
             page_size=page_size,
+            provider="graph_api",
             data=EmailListResponse(
                 email_id=credentials.email,
                 folder_view=folder,

@@ -22,6 +22,15 @@ import cache_service
 from logger_config import logger
 from microsoft_access import TokenBroker
 
+RECOVERABLE_GRAPH_PROBE_HTTP_STATUS_CODES = {408, 429, 502, 503, 504}
+RECOVERABLE_GRAPH_PROBE_HTTP_500_DETAILS = {"Network error during token acquisition"}
+RECOVERABLE_GRAPH_PROBE_EXCEPTION_TYPES = (
+    ConnectionError,
+    TimeoutError,
+    httpx.TransportError,
+    httpx.TimeoutException,
+)
+
 
 async def get_graph_access_token(credentials: AccountCredentials) -> str:
     """
@@ -124,22 +133,14 @@ async def check_graph_api_availability(credentials: AccountCredentials) -> Dict[
             "availability_status": availability_status,
             "evidence": evidence,
         }
-    except Exception as e:
-        logger.warning(f"Graph API availability check failed for {credentials.email}: {e}")
-        return {
-            "available": None,
-            "access_token": None,
-            "scope": "",
-            "mail_scope_granted": None,
-            "graph_available": None,
-            "graph_read_available": None,
-            "graph_write_available": None,
-            "graph_send_available": None,
-            "availability_status": "probe_error",
-            "evidence": "probe_error",
-            "error_category": "probe_error",
-            "error": str(e),
-        }
+    except HTTPException as exc:
+        if not _is_recoverable_graph_probe_http_exception(exc):
+            raise
+        logger.warning(f"Graph API availability check failed for {credentials.email}: {exc}")
+        return _build_graph_probe_error_result(exc)
+    except RECOVERABLE_GRAPH_PROBE_EXCEPTION_TYPES as exc:
+        logger.warning(f"Graph API availability check failed for {credentials.email}: {exc}")
+        return _build_graph_probe_error_result(exc)
 
 
 def probe_supports_graph_read(probe_result: Dict[str, Any]) -> bool:
@@ -148,6 +149,29 @@ def probe_supports_graph_read(probe_result: Dict[str, Any]) -> bool:
 
 def probe_confirms_graph_read_unavailable(probe_result: Dict[str, Any]) -> bool:
     return get_graph_read_probe_state(probe_result) == "unavailable"
+
+
+def _is_recoverable_graph_probe_http_exception(exc: HTTPException) -> bool:
+    if exc.status_code in RECOVERABLE_GRAPH_PROBE_HTTP_STATUS_CODES:
+        return True
+    return exc.status_code == 500 and str(exc.detail) in RECOVERABLE_GRAPH_PROBE_HTTP_500_DETAILS
+
+
+def _build_graph_probe_error_result(exc: Exception) -> Dict[str, Any]:
+    return {
+        "available": None,
+        "access_token": None,
+        "scope": "",
+        "mail_scope_granted": None,
+        "graph_available": None,
+        "graph_read_available": None,
+        "graph_write_available": None,
+        "graph_send_available": None,
+        "availability_status": "probe_error",
+        "evidence": "probe_error",
+        "error_category": "probe_error",
+        "error": str(exc),
+    }
 
 
 def get_graph_read_probe_state(probe_result: Dict[str, Any]) -> str:
@@ -1123,7 +1147,8 @@ async def list_emails_with_body_graph(
 
 async def get_email_details_graph(
     credentials: AccountCredentials,
-    message_id: str
+    message_id: str,
+    skip_cache: bool = False,
 ) -> EmailDetailsResponse:
     """
     使用 Graph API 获取邮件详情
@@ -1136,21 +1161,36 @@ async def get_email_details_graph(
         EmailDetailsResponse: 邮件详情
     """
     # 优先从内存LRU缓存获取
-    cached_detail = cache_service.get_cached_email_detail(credentials.email, message_id)
-    if cached_detail:
-        logger.info(f"Returning cached email detail from LRU cache for {message_id}")
-        return EmailDetailsResponse(**cached_detail)
+    if not skip_cache:
+        cached_detail = cache_service.get_cached_email_detail(
+            credentials.email,
+            message_id,
+            provider="graph_api",
+        )
+        if cached_detail:
+            logger.info(f"Returning cached email detail from LRU cache for {message_id}")
+            return EmailDetailsResponse(**cached_detail)
     
     # 从 SQLite 缓存获取
-    try:
-        cached_detail = db.get_cached_email_detail(credentials.email, message_id)
-        if cached_detail:
-            logger.info(f"Returning cached email detail from database for {message_id}")
-            # 缓存到内存LRU缓存
-            cache_service.set_cached_email_detail(credentials.email, message_id, cached_detail)
-            return EmailDetailsResponse(**cached_detail)
-    except Exception as e:
-        logger.warning(f"Failed to load email detail from cache: {e}")
+    if not skip_cache:
+        try:
+            cached_detail = db.get_cached_email_detail(
+                credentials.email,
+                message_id,
+                provider="graph_api",
+            )
+            if cached_detail:
+                logger.info(f"Returning cached email detail from database for {message_id}")
+                # 缓存到内存LRU缓存
+                cache_service.set_cached_email_detail(
+                    credentials.email,
+                    message_id,
+                    cached_detail,
+                    provider="graph_api",
+                )
+                return EmailDetailsResponse(**cached_detail)
+        except Exception as e:
+            logger.warning(f"Failed to load email detail from cache: {e}")
     
     access_token = await get_graph_access_token(credentials)
     
@@ -1253,7 +1293,11 @@ async def get_email_details_graph(
             
             # 缓存到 SQLite
             try:
-                db.cache_email_detail(credentials.email, email_detail_response.dict())
+                db.cache_email_detail(
+                    credentials.email,
+                    email_detail_response.dict(),
+                    provider="graph_api",
+                )
                 logger.info(f"Cached email detail to database for {message_id}")
             except Exception as e:
                 logger.warning(f"Failed to cache email detail to database: {e}")
@@ -1263,7 +1307,8 @@ async def get_email_details_graph(
                 cache_service.set_cached_email_detail(
                     credentials.email, 
                     message_id, 
-                    email_detail_response.dict()
+                    email_detail_response.dict(),
+                    provider="graph_api",
                 )
             except Exception as e:
                 logger.warning(f"Failed to cache email detail to LRU cache: {e}")

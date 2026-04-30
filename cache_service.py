@@ -51,11 +51,23 @@ share_email_list_cache: TTLCache = TTLCache(maxsize=SHARE_EMAIL_LIST_CACHE_SIZE,
 # 缓存键生成函数
 # ============================================================================
 
+
+def _normalize_email_cache_provider(provider: Optional[str]) -> str:
+    if not provider:
+        return "default"
+    normalized = provider.strip().lower()
+    if normalized in {"graph", "graph_api"}:
+        return "graph_api"
+    if normalized == "imap":
+        return "imap"
+    return normalized or "default"
+
 def get_email_list_cache_key(
     email: str, 
     folder: str, 
     page: int, 
     page_size: int,
+    provider: Optional[str] = None,
     sender_search: Optional[str] = None,
     subject_search: Optional[str] = None,
     sort_by: str = "date",
@@ -83,6 +95,7 @@ def get_email_list_cache_key(
     """
     return hashkey(
         "email_list",
+        _normalize_email_cache_provider(provider),
         email,
         folder,
         page,
@@ -96,7 +109,11 @@ def get_email_list_cache_key(
     )
 
 
-def get_email_detail_cache_key(email: str, message_id: str) -> Tuple:
+def get_email_detail_cache_key(
+    email: str,
+    message_id: str,
+    provider: Optional[str] = None,
+) -> Tuple:
     """
     生成邮件详情缓存键
     
@@ -107,7 +124,7 @@ def get_email_detail_cache_key(email: str, message_id: str) -> Tuple:
     Returns:
         缓存键元组
     """
-    return hashkey("email_detail", email, message_id)
+    return hashkey("email_detail", _normalize_email_cache_provider(provider), email, message_id)
 
 
 def get_access_token_cache_key(email: str) -> Tuple:
@@ -150,6 +167,7 @@ def get_cached_email_list(
     folder: str,
     page: int,
     page_size: int,
+    provider: Optional[str] = None,
     sender_search: Optional[str] = None,
     subject_search: Optional[str] = None,
     sort_by: str = "date",
@@ -180,6 +198,7 @@ def get_cached_email_list(
     if force_refresh:
         cache_key = get_email_list_cache_key(
             email, folder, page, page_size,
+            provider,
             sender_search, subject_search, sort_by, sort_order,
             start_time, end_time
         )
@@ -190,6 +209,7 @@ def get_cached_email_list(
     
     cache_key = get_email_list_cache_key(
         email, folder, page, page_size,
+        provider,
         sender_search, subject_search, sort_by, sort_order,
         start_time, end_time
     )
@@ -208,6 +228,7 @@ def set_cached_email_list(
     page: int,
     page_size: int,
     data: Dict[str, Any],
+    provider: Optional[str] = None,
     sender_search: Optional[str] = None,
     subject_search: Optional[str] = None,
     sort_by: str = "date",
@@ -233,6 +254,7 @@ def set_cached_email_list(
     """
     cache_key = get_email_list_cache_key(
         email, folder, page, page_size,
+        provider,
         sender_search, subject_search, sort_by, sort_order,
         start_time, end_time
     )
@@ -244,7 +266,11 @@ def set_cached_email_list(
 # 邮件详情缓存操作
 # ============================================================================
 
-def get_cached_email_detail(email: str, message_id: str) -> Optional[Dict[str, Any]]:
+def get_cached_email_detail(
+    email: str,
+    message_id: str,
+    provider: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
     """
     获取缓存的邮件详情
     
@@ -255,7 +281,7 @@ def get_cached_email_detail(email: str, message_id: str) -> Optional[Dict[str, A
     Returns:
         缓存的数据或None
     """
-    cache_key = get_email_detail_cache_key(email, message_id)
+    cache_key = get_email_detail_cache_key(email, message_id, provider)
     
     if cache_key in email_detail_cache:
         cached_data = email_detail_cache[cache_key]
@@ -265,7 +291,12 @@ def get_cached_email_detail(email: str, message_id: str) -> Optional[Dict[str, A
     return None
 
 
-def set_cached_email_detail(email: str, message_id: str, data: Dict[str, Any]) -> None:
+def set_cached_email_detail(
+    email: str,
+    message_id: str,
+    data: Dict[str, Any],
+    provider: Optional[str] = None,
+) -> None:
     """
     设置邮件详情缓存
     
@@ -274,7 +305,7 @@ def set_cached_email_detail(email: str, message_id: str, data: Dict[str, Any]) -
         message_id: 邮件ID
         data: 要缓存的数据
     """
-    cache_key = get_email_detail_cache_key(email, message_id)
+    cache_key = get_email_detail_cache_key(email, message_id, provider)
     email_detail_cache[cache_key] = data
     logger.debug(f"Cache set for email detail: {email}:{message_id} (cache size: {len(email_detail_cache)})")
 
