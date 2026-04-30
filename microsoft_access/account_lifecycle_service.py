@@ -108,14 +108,8 @@ class AccountLifecycleService:
         }
 
     async def detect_api_method(self, email: str) -> Dict[str, Any]:
-        await self.detect_capability(email, persist=True)
-        credentials = await self.account_loader(email)
-        provider_order = await self.mail_gateway.resolve_provider_order(
-            credentials,
-            strategy_mode=getattr(credentials, "strategy_mode", None),
-            override_provider=None,
-        )
-        api_method = provider_order[0] if provider_order else "imap"
+        capability = await self.detect_capability(email, persist=True)
+        api_method = self._derive_api_method_from_capability(capability)
         self.db.update_account(email, api_method=api_method)
         return {"email_id": email, "api_method": api_method}
 
@@ -297,6 +291,21 @@ class AccountLifecycleService:
         if normalized == "imap":
             return "imap"
         return None
+
+    def _derive_api_method_from_capability(self, capability: Dict[str, Any]) -> str:
+        recommended_provider = self._normalize_provider_name(
+            capability.get("recommended_provider")
+        )
+        if recommended_provider is not None:
+            return recommended_provider
+
+        graph_read_available = capability.get("graph_read_available")
+        if graph_read_available is True:
+            return "graph_api"
+        if graph_read_available is False:
+            return "imap"
+
+        return "imap"
 
 
 __all__ = ["AccountLifecycleService"]

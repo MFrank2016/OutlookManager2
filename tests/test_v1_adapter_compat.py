@@ -52,6 +52,7 @@ class FakeLifecycleService:
 class FakeMailGateway:
     def __init__(self) -> None:
         self.list_calls: list[dict] = []
+        self.list_with_body_calls: list[dict] = []
         self.detail_calls: list[dict] = []
         self.delete_calls: list[dict] = []
         self.batch_delete_calls: list[dict] = []
@@ -85,6 +86,33 @@ class FakeMailGateway:
                 ),
             ],
         )
+
+    async def list_messages_with_body(self, credentials: AccountCredentials, **kwargs):
+        self.list_with_body_calls.append({"email": credentials.email, **kwargs})
+        return [
+            {
+                "message_id": "msg-1",
+                "folder": "INBOX",
+                "subject": "Your code 1",
+                "from_email": "noreply@example.com",
+                "date": "2026-04-30T00:00:00",
+                "sender_initial": "N",
+                "body_plain": "body-msg-1",
+                "body_html": "<p>body-msg-1</p>",
+                "verification_code": "123456",
+            },
+            {
+                "message_id": "msg-2",
+                "folder": "INBOX",
+                "subject": "Your code 2",
+                "from_email": "noreply@example.com",
+                "date": "2026-04-30T00:01:00",
+                "sender_initial": "N",
+                "body_plain": "body-msg-2",
+                "body_html": "<p>body-msg-2</p>",
+                "verification_code": "654321",
+            },
+        ]
 
     async def get_message_detail(self, credentials: AccountCredentials, message_id: str, **kwargs):
         self.detail_calls.append(
@@ -303,17 +331,62 @@ async def test_account_lifecycle_service_exposes_v1_public_write_methods(monkeyp
             "requested_provider": None,
         }
     ]
-    assert strategy_gateway.resolve_calls == [
-        {
-            "email": "writer@example.com",
-            "strategy_mode": "auto",
-            "override_provider": None,
-        }
-    ]
+    assert strategy_gateway.resolve_calls == []
     assert saved_credentials[0]["refresh_token"] == "rotated-refresh-token"
     assert saved_credentials[0]["api_method"] == "graph_api"
     assert saved_credentials[1]["refresh_token"] == "refreshed-token"
     assert update_calls == [{"email": "writer@example.com", "api_method": "graph_api"}]
+
+
+@pytest.mark.asyncio
+async def test_detect_api_method_uses_capability_result_instead_of_stale_api_method(monkeypatch):
+    update_calls: list[dict] = []
+
+    async def load_credentials(email: str) -> AccountCredentials:
+        return AccountCredentials(
+            email=email,
+            refresh_token="refresh-token",
+            client_id="client-id",
+            api_method="imap",
+            strategy_mode="auto",
+        )
+
+    class GraphCapableResolver:
+        async def detect_capability(self, *_args, **_kwargs):
+            return {
+                "graph_available": True,
+                "graph_read_available": True,
+                "recommended_provider": "graph_api",
+            }
+
+    class ResolveMustNotRunGateway:
+        async def resolve_provider_order(self, *_args, **_kwargs):
+            raise AssertionError("detect_api_method should not call resolve_provider_order")
+
+    class RecordingAccountDao:
+        def update_account(self, email: str, **kwargs):
+            update_calls.append({"email": email, **kwargs})
+            return True
+
+    monkeypatch.setattr(
+        "microsoft_access.account_lifecycle_service.db.update_account",
+        lambda email, **kwargs: update_calls.append({"email": email, **kwargs}) or True,
+    )
+
+    service = AccountLifecycleService(
+        capability_resolver=GraphCapableResolver(),
+        mail_gateway=ResolveMustNotRunGateway(),
+        account_loader=load_credentials,
+        account_dao=RecordingAccountDao(),
+    )
+
+    result = await service.detect_api_method("writer@example.com")
+
+    assert result == {"email_id": "writer@example.com", "api_method": "graph_api"}
+    assert update_calls == [
+        {"email": "writer@example.com", "lifecycle_state": "probed"},
+        {"email": "writer@example.com", "api_method": "graph_api"},
+    ]
 
 
 @pytest.mark.asyncio
@@ -670,6 +743,7 @@ def test_v1_email_write_routes_use_mail_gateway_public_api(monkeypatch):
 def test_share_route_uses_mail_gateway_detail_path(monkeypatch):
     cache_service.clear_share_email_cache("test-token")
     gateway = FakeMailGateway()
+    gateway.list_messages_with_body = None
     app.state.v2_mail_gateway = gateway
     monkeypatch.setattr(share_routes, "get_account_credentials", _load_credentials)
     app.dependency_overrides[share_routes.get_valid_share_token] = lambda: {
@@ -729,3 +803,51 @@ def test_share_route_uses_mail_gateway_detail_path(monkeypatch):
             "skip_cache": False,
         },
     ]
+
+
+def test_share_route_prefers_bulk_body_read_path_over_n_plus_one_detail(monkeypatch):
+    cache_service.clear_share_email_cache("test-token")
+    gateway = FakeMailGateway()
+    app.state.v2_mail_gateway = gateway
+    monkeypatch.setattr(share_routes, "get_account_credentials", _load_credentials)
+    app.dependency_overrides[share_routes.get_valid_share_token] = lambda: {
+        "email_account_id": "mailbox@example.com",
+        "start_time": "2026-04-30T00:00:00",
+        "end_time": "2026-04-30T23:59:59",
+        "subject_keyword": "code",
+        "sender_keyword": "noreply",
+        "max_emails": 2,
+        "is_active": True,
+    }
+    try:
+        with TestClient(app) as client:
+            response = client.get("/share/test-token/emails")
+    finally:
+        app.dependency_overrides.clear()
+        cache_service.clear_share_email_cache("test-token")
+        del app.state.v2_mail_gateway
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [email["body_plain"] for email in payload["emails"]] == [
+        "body-msg-1",
+        "body-msg-2",
+    ]
+    assert gateway.list_with_body_calls == [
+        {
+            "email": "mailbox@example.com",
+            "folder": "all",
+            "page": 1,
+            "page_size": 2,
+            "strategy_mode": "auto",
+            "override_provider": None,
+            "skip_cache": False,
+            "sender_search": "noreply",
+            "subject_search": "code",
+            "sort_by": "date",
+            "sort_order": "desc",
+            "start_time": "2026-04-30T00:00:00",
+            "end_time": "2026-04-30T23:59:59",
+        }
+    ]
+    assert gateway.detail_calls == []

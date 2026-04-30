@@ -368,6 +368,24 @@ async def list_messages_with_body_via_gateway(
     start_time: Optional[str] = None,
     end_time: Optional[str] = None,
 ) -> list[dict[str, Any]]:
+    list_with_body_method = getattr(mail_gateway, "list_messages_with_body", None)
+    if callable(list_with_body_method):
+        return await list_with_body_method(
+            credentials,
+            folder=folder,
+            page=1,
+            page_size=page_size,
+            strategy_mode=credentials.strategy_mode,
+            override_provider=None,
+            skip_cache=False,
+            sender_search=sender_search,
+            subject_search=subject_search,
+            sort_by="date",
+            sort_order="desc",
+            start_time=start_time,
+            end_time=end_time,
+        )
+
     response = await list_messages_via_gateway(
         mail_gateway,
         credentials,

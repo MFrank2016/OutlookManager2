@@ -226,6 +226,63 @@ async def test_mail_gateway_detail_returns_email_details_response_shape(
 
 
 @pytest.mark.asyncio
+async def test_mail_gateway_prefers_provider_bulk_body_path(credentials):
+    class BulkGraphProvider(FakeProvider):
+        async def list_messages_with_body(self, credentials: AccountCredentials, **kwargs):
+            self.calls.append(("list_with_body", {"email": credentials.email, **kwargs}))
+            return [
+                {
+                    "message_id": "INBOX-1",
+                    "subject": "Your security code",
+                    "body_plain": "Your code is 123456",
+                }
+            ]
+
+    graph_provider = BulkGraphProvider(name="graph")
+    imap_provider = FakeProvider(name="imap")
+    gateway = MailGateway(
+        graph_provider=graph_provider,
+        imap_provider=imap_provider,
+        persist_provider_hint=noop_persist_provider_hint,
+    )
+
+    response = await gateway.list_messages_with_body(
+        credentials.model_copy(update={"api_method": "graph_api", "last_provider_used": "graph_api"}),
+        folder="all",
+        page=1,
+        page_size=5,
+        override_provider="graph",
+    )
+
+    assert response == [
+        {
+            "message_id": "INBOX-1",
+            "subject": "Your security code",
+            "body_plain": "Your code is 123456",
+        }
+    ]
+    assert graph_provider.calls == [
+        (
+            "list_with_body",
+            {
+                "email": "mail-gateway@example.com",
+                "folder": "all",
+                "page": 1,
+                "page_size": 5,
+                "skip_cache": False,
+                "sender_search": None,
+                "subject_search": None,
+                "sort_by": "date",
+                "sort_order": "desc",
+                "start_time": None,
+                "end_time": None,
+            },
+        )
+    ]
+    assert imap_provider.calls == []
+
+
+@pytest.mark.asyncio
 async def test_mail_gateway_detail_keeps_graph_503_for_graph_style_message_id(
     credentials,
 ):

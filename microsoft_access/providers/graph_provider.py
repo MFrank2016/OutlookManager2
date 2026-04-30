@@ -53,6 +53,35 @@ async def get_message_detail(
     )
 
 
+async def list_messages_with_body(
+    credentials: AccountCredentials,
+    *,
+    folder: str,
+    page: int,
+    page_size: int,
+    skip_cache: bool = False,
+    sender_search: str | None = None,
+    subject_search: str | None = None,
+    sort_by: str = "date",
+    sort_order: str = "desc",
+    start_time: str | None = None,
+    end_time: str | None = None,
+) -> list[dict]:
+    from graph_api_service import list_emails_with_body_graph
+
+    return await list_emails_with_body_graph(
+        _graph_credentials(credentials),
+        folder=folder,
+        max_count=page_size,
+        sender_search=sender_search,
+        subject_search=subject_search,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+
 async def delete_message(
     credentials: AccountCredentials,
     message_id: str,

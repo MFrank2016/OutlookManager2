@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any, Callable
 
@@ -27,6 +28,7 @@ RECOVERABLE_GRAPH_PROBE_EXCEPTION_TYPES = (
     httpx.TimeoutException,
 )
 PersistProviderHint = Callable[[str, str], bool]
+DETAIL_FETCH_CONCURRENCY_LIMIT = 5
 
 
 class MailGateway:
@@ -137,6 +139,82 @@ class MailGateway:
         )
         self._record_successful_provider(credentials, provider_name)
         return response
+
+    async def list_messages_with_body(
+        self,
+        credentials: AccountCredentials,
+        *,
+        folder: str,
+        page: int,
+        page_size: int,
+        strategy_mode: str | None = None,
+        override_provider: str | None = None,
+        skip_cache: bool = False,
+        sender_search: str | None = None,
+        subject_search: str | None = None,
+        sort_by: str = "date",
+        sort_order: str = "desc",
+        start_time: str | None = None,
+        end_time: str | None = None,
+    ) -> list[dict[str, Any]]:
+        provider_order = await self.resolve_provider_order(
+            credentials,
+            strategy_mode=strategy_mode,
+            override_provider=override_provider,
+        )
+        provider_name = provider_order[0]
+        provider = self._provider_for(provider_name)
+
+        provider_bulk_method = getattr(provider, "list_messages_with_body", None)
+        if callable(provider_bulk_method):
+            response = await provider_bulk_method(
+                credentials,
+                folder=folder,
+                page=page,
+                page_size=page_size,
+                skip_cache=skip_cache,
+                sender_search=sender_search,
+                subject_search=subject_search,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                start_time=start_time,
+                end_time=end_time,
+            )
+            self._record_successful_provider(credentials, provider_name)
+            return response
+
+        list_response = await provider.list_messages(
+            credentials,
+            folder=folder,
+            page=page,
+            page_size=page_size,
+            skip_cache=skip_cache,
+            sender_search=sender_search,
+            subject_search=subject_search,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        semaphore = asyncio.Semaphore(DETAIL_FETCH_CONCURRENCY_LIMIT)
+
+        async def fetch_detail(item: Any) -> dict[str, Any]:
+            async with semaphore:
+                detail = await provider.get_message_detail(
+                    credentials,
+                    item.message_id,
+                    skip_cache=skip_cache,
+                )
+            merged = self._model_to_dict(item)
+            merged.update(self._model_to_dict(detail))
+            return merged
+
+        emails_with_body = await asyncio.gather(
+            *(fetch_detail(item) for item in list_response.emails)
+        )
+        self._record_successful_provider(credentials, provider_name)
+        return emails_with_body
 
     async def delete_message(
         self,
@@ -324,6 +402,15 @@ class MailGateway:
         if normalized == "imap":
             return "imap"
         return None
+
+    def _model_to_dict(self, model: Any) -> dict[str, Any]:
+        if hasattr(model, "model_dump"):
+            return model.model_dump()
+        if hasattr(model, "dict"):
+            return model.dict()
+        if isinstance(model, dict):
+            return dict(model)
+        return {}
 
     def _recommended_provider_from_snapshot(self, snapshot_json: str | None) -> str | None:
         if not snapshot_json:
