@@ -5,7 +5,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable, Dict, Optional
 
 import database as db
+from fastapi import HTTPException
 from dao.account_dao import AccountDAO
+from logger_config import logger
 from models import AccountCredentials, normalize_strategy_mode
 from microsoft_access.capability_resolver import CapabilityResolver
 from microsoft_access.mail_gateway import MailGateway, default_mail_gateway
@@ -29,18 +31,13 @@ class AccountLifecycleService:
         db_module: Any = db,
         now_fn: Optional[Callable[[], datetime]] = None,
     ) -> None:
-        if account_loader is None:
-            from account_service import get_account_credentials
-
-            account_loader = get_account_credentials
-
         self.token_broker = token_broker or TokenBroker()
         self.capability_resolver = capability_resolver or CapabilityResolver()
         self.mail_gateway = mail_gateway or default_mail_gateway
-        self.account_loader = account_loader
         self.account_dao = account_dao or AccountDAO()
         self.db = db_module
         self.now_fn = now_fn or (lambda: datetime.now(timezone.utc))
+        self.account_loader = account_loader or self._load_account_credentials
 
     async def register_account(self, credentials: AccountCredentials) -> Dict[str, Any]:
         token_result = await self.token_broker.fetch_access_token(
@@ -49,11 +46,11 @@ class AccountLifecycleService:
             strategy_mode=getattr(credentials, "strategy_mode", None),
         )
 
-        current_time = datetime.now().isoformat()
-        next_refresh = datetime.now() + timedelta(days=7)
+        current_time = self.now_fn()
+        next_refresh = current_time + timedelta(days=7)
         if getattr(token_result, "refresh_token", None):
             credentials.refresh_token = token_result.refresh_token
-        credentials.last_refresh_time = current_time
+        credentials.last_refresh_time = current_time.isoformat()
         credentials.next_refresh_time = next_refresh.isoformat()
         credentials.refresh_status = "success"
         credentials.refresh_error = None
@@ -61,13 +58,22 @@ class AccountLifecycleService:
         provider_hint = self._normalize_provider_name(
             getattr(token_result, "provider_hint", None)
         )
+        force_update_fields = {
+            "last_refresh_time",
+            "next_refresh_time",
+            "refresh_status",
+            "refresh_error",
+        }
         if provider_hint is not None:
             credentials.api_method = provider_hint
             credentials.last_provider_used = provider_hint
+            force_update_fields.update({"api_method", "last_provider_used"})
 
-        from account_service import save_account_credentials
-
-        await save_account_credentials(credentials.email, credentials)
+        self._persist_account_credentials(
+            credentials.email,
+            credentials,
+            force_update_fields=force_update_fields,
+        )
         return {
             "email_id": credentials.email,
             "message": "Account verified and saved successfully.",
@@ -81,26 +87,37 @@ class AccountLifecycleService:
             strategy_mode=getattr(credentials, "strategy_mode", None),
         )
 
-        from account_service import save_account_credentials
-
         if result["success"]:
-            current_time = datetime.now().isoformat()
-            next_refresh = datetime.now() + timedelta(days=7)
+            current_time = self.now_fn()
+            next_refresh = current_time + timedelta(days=7)
             credentials.refresh_token = result["new_refresh_token"]
-            credentials.last_refresh_time = current_time
+            credentials.last_refresh_time = current_time.isoformat()
             credentials.next_refresh_time = next_refresh.isoformat()
             credentials.refresh_status = "success"
             credentials.refresh_error = None
-            await save_account_credentials(email, credentials)
+            self._persist_account_credentials(
+                email,
+                credentials,
+                force_update_fields={
+                    "last_refresh_time",
+                    "next_refresh_time",
+                    "refresh_status",
+                    "refresh_error",
+                },
+            )
             return {
                 "success": True,
                 "email_id": email,
-                "message": f"Token refreshed successfully at {current_time}",
+                "message": f"Token refreshed successfully at {current_time.isoformat()}",
             }
 
         credentials.refresh_status = "failed"
         credentials.refresh_error = result.get("error", "Unknown error")
-        await save_account_credentials(email, credentials)
+        self._persist_account_credentials(
+            email,
+            credentials,
+            force_update_fields={"refresh_status", "refresh_error"},
+        )
         return {
             "success": False,
             "email_id": email,
@@ -259,6 +276,135 @@ class AccountLifecycleService:
                 return {}
             return parsed if isinstance(parsed, dict) else {}
         return {}
+
+    async def _load_account_credentials(self, email: str) -> AccountCredentials:
+        account = self.account_dao.get_by_email(email)
+        if not account:
+            raise HTTPException(status_code=404, detail=f"Account {email} not found")
+
+        required_fields = ["refresh_token", "client_id"]
+        missing_fields = [field for field in required_fields if not account.get(field)]
+        if missing_fields:
+            raise HTTPException(status_code=500, detail="Account configuration incomplete")
+
+        return AccountCredentials(
+            email=account["email"],
+            refresh_token=account["refresh_token"],
+            client_id=account["client_id"],
+            tags=account.get("tags", []),
+            last_refresh_time=account.get("last_refresh_time"),
+            next_refresh_time=account.get("next_refresh_time"),
+            refresh_status=account.get("refresh_status", "pending"),
+            refresh_error=account.get("refresh_error"),
+            api_method=account.get("api_method", "imap"),
+            strategy_mode=self._normalize_strategy_mode_from_db(
+                account.get("strategy_mode"),
+                email,
+            ),
+            lifecycle_state=account.get("lifecycle_state", "new"),
+            last_provider_used=account.get("last_provider_used"),
+            capability_snapshot_json=account.get("capability_snapshot_json"),
+            provider_health_json=account.get("provider_health_json"),
+        )
+
+    def _persist_account_credentials(
+        self,
+        email: str,
+        credentials: AccountCredentials,
+        *,
+        force_update_fields: Optional[set[str]] = None,
+    ) -> None:
+        serialized_payload = {
+            "refresh_token": credentials.refresh_token,
+            "client_id": credentials.client_id,
+            "tags": list(getattr(credentials, "tags", []) or []),
+            "last_refresh_time": credentials.last_refresh_time,
+            "next_refresh_time": credentials.next_refresh_time,
+            "refresh_status": credentials.refresh_status,
+            "refresh_error": credentials.refresh_error,
+            "api_method": self._normalize_provider_name(credentials.api_method) or "imap",
+            "strategy_mode": self._serialize_strategy_mode(credentials.strategy_mode),
+            "lifecycle_state": credentials.lifecycle_state or "new",
+            "last_provider_used": self._normalize_provider_name(
+                credentials.last_provider_used
+            ),
+            "capability_snapshot_json": credentials.capability_snapshot_json,
+            "provider_health_json": credentials.provider_health_json,
+        }
+
+        existing_account = self.account_dao.get_by_email(email)
+        if existing_account:
+            update_fields = {"refresh_token", "client_id"}
+            update_fields.update(force_update_fields or set())
+            update_fields.update(
+                field_name
+                for field_name in (
+                    "tags",
+                    "last_refresh_time",
+                    "next_refresh_time",
+                    "refresh_status",
+                    "refresh_error",
+                    "api_method",
+                    "strategy_mode",
+                    "lifecycle_state",
+                    "last_provider_used",
+                    "capability_snapshot_json",
+                    "provider_health_json",
+                )
+                if field_name in self._get_explicit_model_fields(credentials)
+            )
+            update_payload = {
+                field_name: serialized_payload[field_name]
+                for field_name in update_fields
+            }
+            self.account_dao.update_account(email, **update_payload)
+            return
+
+        self.account_dao.create(
+            email=email,
+            refresh_token=credentials.refresh_token,
+            client_id=credentials.client_id,
+            tags=serialized_payload["tags"],
+            api_method=serialized_payload["api_method"],
+            strategy_mode=serialized_payload["strategy_mode"],
+            lifecycle_state=serialized_payload["lifecycle_state"],
+            last_provider_used=serialized_payload["last_provider_used"],
+            capability_snapshot_json=serialized_payload["capability_snapshot_json"],
+            provider_health_json=serialized_payload["provider_health_json"],
+        )
+        self.account_dao.update_account(
+            email,
+            last_refresh_time=serialized_payload["last_refresh_time"],
+            next_refresh_time=serialized_payload["next_refresh_time"],
+            refresh_status=serialized_payload["refresh_status"],
+            refresh_error=serialized_payload["refresh_error"],
+        )
+
+    def _get_explicit_model_fields(self, model: Any) -> set[str]:
+        if hasattr(model, "model_fields_set"):
+            return set(model.model_fields_set)
+        if hasattr(model, "__fields_set__"):
+            return set(model.__fields_set__)
+        return set()
+
+    def _normalize_strategy_mode_from_db(self, value: Any, email: str) -> str:
+        serialized_value = "auto" if value in (None, "") else value
+        if hasattr(serialized_value, "value"):
+            serialized_value = getattr(serialized_value, "value")
+        try:
+            return self._serialize_strategy_mode(serialized_value)
+        except Exception:
+            logger.warning(
+                f"Account {email} has invalid strategy_mode={serialized_value!r}; fallback to auto"
+            )
+            return "auto"
+
+    def _serialize_strategy_mode(self, value: Any) -> str:
+        if value in (None, ""):
+            return "auto"
+        if hasattr(value, "value"):
+            return getattr(value, "value")
+        return normalize_strategy_mode(value).value
 
     def _extract_last_error(self, provider_health: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         direct_error = provider_health.get("last_error")

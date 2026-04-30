@@ -205,6 +205,26 @@ class _LifecycleTokenBroker:
         }
 
 
+class _LifecycleTokenBrokerWithoutProviderHint(_LifecycleTokenBroker):
+    async def fetch_access_token(
+        self,
+        credentials,
+        *,
+        persist: bool,
+        strategy_mode=None,
+        requested_provider=None,
+    ):
+        self.fetch_calls.append(
+            {
+                "email": credentials.email,
+                "persist": persist,
+                "strategy_mode": strategy_mode,
+                "requested_provider": requested_provider,
+            }
+        )
+        return SimpleNamespace(refresh_token="rotated-refresh-token", provider_hint=None)
+
+
 class _CapabilityResolver:
     async def detect_capability(self, *_args, **_kwargs):
         return {
@@ -261,32 +281,87 @@ class _NoReadGateway:
     pass
 
 
+class _RecordingLifecycleAccountDao:
+    def __init__(self) -> None:
+        self.records: dict[str, dict] = {}
+        self.create_calls: list[dict] = []
+        self.update_calls: list[dict] = []
+
+    def get_by_email(self, email: str):
+        return self.records.get(email)
+
+    def create(
+        self,
+        *,
+        email: str,
+        refresh_token: str,
+        client_id: str,
+        tags=None,
+        api_method: str = "imap",
+        strategy_mode: str = "auto",
+        lifecycle_state: str = "new",
+        last_provider_used=None,
+        capability_snapshot_json=None,
+        provider_health_json=None,
+    ):
+        record = {
+            "email": email,
+            "refresh_token": refresh_token,
+            "client_id": client_id,
+            "tags": list(tags or []),
+            "api_method": api_method,
+            "strategy_mode": strategy_mode,
+            "lifecycle_state": lifecycle_state,
+            "last_provider_used": last_provider_used,
+            "capability_snapshot_json": capability_snapshot_json,
+            "provider_health_json": provider_health_json,
+        }
+        self.records[email] = record
+        self.create_calls.append(record.copy())
+        return record.copy()
+
+    def update_account(self, email: str, **kwargs):
+        record = self.records.setdefault(email, {"email": email})
+        record.update(kwargs)
+        self.update_calls.append({"email": email, **kwargs})
+        return True
+
+
 @pytest.mark.asyncio
 async def test_account_lifecycle_service_exposes_v1_public_write_methods(monkeypatch):
-    saved_credentials: list[dict] = []
+    account_dao = _RecordingLifecycleAccountDao()
 
     async def load_credentials(email: str) -> AccountCredentials:
+        record = account_dao.records.get(email)
+        if record is None:
+            return AccountCredentials(
+                email=email,
+                refresh_token="refresh-token",
+                client_id="client-id",
+                api_method="imap",
+                strategy_mode="auto",
+            )
         return AccountCredentials(
             email=email,
-            refresh_token="refresh-token",
-            client_id="client-id",
-            api_method="imap",
-            strategy_mode="auto",
-        )
-
-    async def fake_save_account_credentials(email_id: str, credentials: AccountCredentials):
-        saved_credentials.append(
-            {
-                "email_id": email_id,
-                "refresh_token": credentials.refresh_token,
-                "api_method": credentials.api_method,
-                "last_provider_used": credentials.last_provider_used,
-                "refresh_status": credentials.refresh_status,
-            }
+            refresh_token=record["refresh_token"],
+            client_id=record["client_id"],
+            api_method=record.get("api_method", "imap"),
+            strategy_mode=record.get("strategy_mode", "auto"),
+            lifecycle_state=record.get("lifecycle_state", "new"),
+            last_provider_used=record.get("last_provider_used"),
+            last_refresh_time=record.get("last_refresh_time"),
+            next_refresh_time=record.get("next_refresh_time"),
+            refresh_status=record.get("refresh_status", "pending"),
+            refresh_error=record.get("refresh_error"),
+            capability_snapshot_json=record.get("capability_snapshot_json"),
+            provider_health_json=record.get("provider_health_json"),
         )
 
     update_calls: list[dict] = []
-    monkeypatch.setattr("account_service.save_account_credentials", fake_save_account_credentials)
+    async def fail_save_account_credentials(*_args, **_kwargs):
+        raise AssertionError("lifecycle service should persist via its own dao, not account_service")
+
+    monkeypatch.setattr("account_service.save_account_credentials", fail_save_account_credentials)
     monkeypatch.setattr(
         "microsoft_access.account_lifecycle_service.db.update_account",
         lambda email, **kwargs: update_calls.append({"email": email, **kwargs}) or True,
@@ -299,6 +374,7 @@ async def test_account_lifecycle_service_exposes_v1_public_write_methods(monkeyp
         capability_resolver=_CapabilityResolver(),
         mail_gateway=strategy_gateway,
         account_loader=load_credentials,
+        account_dao=account_dao,
     )
 
     register_result = await service.register_account(
@@ -327,14 +403,37 @@ async def test_account_lifecycle_service_exposes_v1_public_write_methods(monkeyp
         {
             "email": "writer@example.com",
             "persist": True,
-            "strategy_mode": "auto",
+            "strategy_mode": "graph_preferred",
             "requested_provider": None,
         }
     ]
     assert strategy_gateway.resolve_calls == []
-    assert saved_credentials[0]["refresh_token"] == "rotated-refresh-token"
-    assert saved_credentials[0]["api_method"] == "graph_api"
-    assert saved_credentials[1]["refresh_token"] == "refreshed-token"
+    assert account_dao.create_calls == [
+        {
+            "email": "writer@example.com",
+            "refresh_token": "rotated-refresh-token",
+            "client_id": "client-id",
+            "tags": [],
+            "api_method": "graph_api",
+            "strategy_mode": "graph_preferred",
+            "lifecycle_state": "new",
+            "last_provider_used": "graph_api",
+            "capability_snapshot_json": None,
+            "provider_health_json": None,
+        }
+    ]
+    assert account_dao.update_calls[0]["email"] == "writer@example.com"
+    assert account_dao.update_calls[0]["refresh_status"] == "success"
+    assert account_dao.update_calls[0]["refresh_error"] is None
+    assert account_dao.update_calls[0]["last_refresh_time"]
+    assert account_dao.update_calls[0]["next_refresh_time"]
+    refresh_persist_call = next(
+        call for call in account_dao.update_calls if call.get("refresh_token") == "refreshed-token"
+    )
+    assert refresh_persist_call["email"] == "writer@example.com"
+    assert refresh_persist_call["api_method"] == "graph_api"
+    assert refresh_persist_call["last_provider_used"] == "graph_api"
+    assert refresh_persist_call["refresh_status"] == "success"
     assert update_calls == [{"email": "writer@example.com", "api_method": "graph_api"}]
 
 
@@ -387,6 +486,114 @@ async def test_detect_api_method_uses_capability_result_instead_of_stale_api_met
         {"email": "writer@example.com", "lifecycle_state": "probed"},
         {"email": "writer@example.com", "api_method": "graph_api"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_register_account_preserves_existing_metadata_when_request_does_not_explicitly_set_it():
+    account_dao = _RecordingLifecycleAccountDao()
+    account_dao.records["writer@example.com"] = {
+        "email": "writer@example.com",
+        "refresh_token": "old-refresh-token",
+        "client_id": "old-client-id",
+        "tags": ["vip", "keep-me"],
+        "api_method": "graph_api",
+        "strategy_mode": "graph_preferred",
+        "lifecycle_state": "healthy",
+        "last_provider_used": "graph_api",
+        "capability_snapshot_json": '{"recommended_provider":"graph_api"}',
+        "provider_health_json": '{"last_error_message":"keep"}',
+    }
+
+    service = AccountLifecycleService(
+        token_broker=_LifecycleTokenBrokerWithoutProviderHint(),
+        capability_resolver=_CapabilityResolver(),
+        mail_gateway=_StrategyMailGateway(),
+        account_dao=account_dao,
+    )
+
+    await service.register_account(
+        AccountCredentials(
+            email="writer@example.com",
+            refresh_token="new-refresh-token",
+            client_id="new-client-id",
+            strategy_mode="auto",
+        )
+    )
+
+    record = account_dao.records["writer@example.com"]
+    assert record["refresh_token"] == "rotated-refresh-token"
+    assert record["client_id"] == "new-client-id"
+    assert record["strategy_mode"] == "auto"
+    assert record["tags"] == ["vip", "keep-me"]
+    assert record["api_method"] == "graph_api"
+    assert record["lifecycle_state"] == "healthy"
+    assert record["last_provider_used"] == "graph_api"
+    assert record["capability_snapshot_json"] == '{"recommended_provider":"graph_api"}'
+    assert record["provider_health_json"] == '{"last_error_message":"keep"}'
+
+    persisted_payload = account_dao.update_calls[-1]
+    assert persisted_payload["email"] == "writer@example.com"
+    assert "tags" not in persisted_payload
+    assert "api_method" not in persisted_payload
+    assert "lifecycle_state" not in persisted_payload
+    assert "capability_snapshot_json" not in persisted_payload
+    assert "provider_health_json" not in persisted_payload
+    assert persisted_payload["refresh_status"] == "success"
+    assert persisted_payload["refresh_error"] is None
+    assert persisted_payload["last_refresh_time"]
+    assert persisted_payload["next_refresh_time"]
+
+
+@pytest.mark.asyncio
+async def test_refresh_and_detect_tolerate_invalid_historical_strategy_mode(monkeypatch):
+    warnings: list[str] = []
+    account_dao = _RecordingLifecycleAccountDao()
+    account_dao.records["dirty@example.com"] = {
+        "email": "dirty@example.com",
+        "refresh_token": "old-refresh-token",
+        "client_id": "client-id",
+        "tags": ["keep-me"],
+        "api_method": "imap",
+        "strategy_mode": "bogus_mode",
+        "lifecycle_state": "healthy",
+        "capability_snapshot_json": '{"recommended_provider":"graph_api"}',
+        "provider_health_json": '{"last_error_message":"keep"}',
+    }
+    detect_updates: list[dict] = []
+
+    monkeypatch.setattr(
+        "microsoft_access.account_lifecycle_service.logger.warning",
+        lambda message: warnings.append(message),
+    )
+
+    service = AccountLifecycleService(
+        token_broker=_LifecycleTokenBroker(),
+        capability_resolver=_CapabilityResolver(),
+        mail_gateway=_StrategyMailGateway(),
+        account_dao=account_dao,
+        db_module=SimpleNamespace(
+            update_account=lambda email, **kwargs: detect_updates.append(
+                {"email": email, **kwargs}
+            )
+            or True
+        ),
+    )
+
+    detect_result = await service.detect_api_method("dirty@example.com")
+    refresh_result = await service.refresh_account_token("dirty@example.com")
+
+    assert detect_result == {"email_id": "dirty@example.com", "api_method": "graph_api"}
+    assert refresh_result["success"] is True
+    assert warnings == [
+        "Account dirty@example.com has invalid strategy_mode='bogus_mode'; fallback to auto",
+        "Account dirty@example.com has invalid strategy_mode='bogus_mode'; fallback to auto",
+    ]
+    assert detect_updates == [{"email": "dirty@example.com", "api_method": "graph_api"}]
+    persisted_refresh = next(
+        call for call in account_dao.update_calls if call.get("refresh_token") == "refreshed-token"
+    )
+    assert persisted_refresh["strategy_mode"] == "auto"
+    assert persisted_refresh["tags"] == ["keep-me"]
 
 
 @pytest.mark.asyncio

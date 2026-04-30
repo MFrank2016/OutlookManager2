@@ -157,64 +157,57 @@ class MailGateway:
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> list[dict[str, Any]]:
+        last_error: Exception | None = None
         provider_order = await self.resolve_provider_order(
             credentials,
             strategy_mode=strategy_mode,
             override_provider=override_provider,
         )
-        provider_name = provider_order[0]
-        provider = self._provider_for(provider_name)
-
-        provider_bulk_method = getattr(provider, "list_messages_with_body", None)
-        if callable(provider_bulk_method):
-            response = await provider_bulk_method(
-                credentials,
-                folder=folder,
-                page=page,
-                page_size=page_size,
-                skip_cache=skip_cache,
-                sender_search=sender_search,
-                subject_search=subject_search,
-                sort_by=sort_by,
-                sort_order=sort_order,
-                start_time=start_time,
-                end_time=end_time,
-            )
-            self._record_successful_provider(credentials, provider_name)
-            return response
-
-        list_response = await provider.list_messages(
-            credentials,
-            folder=folder,
-            page=page,
-            page_size=page_size,
-            skip_cache=skip_cache,
-            sender_search=sender_search,
-            subject_search=subject_search,
-            sort_by=sort_by,
-            sort_order=sort_order,
-            start_time=start_time,
-            end_time=end_time,
-        )
-
-        semaphore = asyncio.Semaphore(DETAIL_FETCH_CONCURRENCY_LIMIT)
-
-        async def fetch_detail(item: Any) -> dict[str, Any]:
-            async with semaphore:
-                detail = await provider.get_message_detail(
+        for provider_name in provider_order:
+            provider = self._provider_for(provider_name)
+            try:
+                response = await self._list_messages_with_body_via_provider(
+                    provider,
                     credentials,
-                    item.message_id,
+                    folder=folder,
+                    page=page,
+                    page_size=page_size,
                     skip_cache=skip_cache,
+                    sender_search=sender_search,
+                    subject_search=subject_search,
+                    sort_by=sort_by,
+                    sort_order=sort_order,
+                    start_time=start_time,
+                    end_time=end_time,
                 )
-            merged = self._model_to_dict(item)
-            merged.update(self._model_to_dict(detail))
-            return merged
+                self._record_successful_provider(credentials, provider_name)
+                return response
+            except HTTPException as exc:
+                if not self._is_recoverable_http_exception(exc):
+                    raise
+                last_error = exc
+                logger.warning(
+                    "MailGateway list_messages_with_body recoverable failure via {} for {}: {}",
+                    provider_name,
+                    credentials.email,
+                    exc,
+                )
+                if provider_name == provider_order[-1]:
+                    raise
+            except RECOVERABLE_PROVIDER_EXCEPTION_TYPES as exc:
+                last_error = exc
+                logger.warning(
+                    "MailGateway list_messages_with_body recoverable failure via {} for {}: {}",
+                    provider_name,
+                    credentials.email,
+                    exc,
+                )
+                if provider_name == provider_order[-1]:
+                    raise
 
-        emails_with_body = await asyncio.gather(
-            *(fetch_detail(item) for item in list_response.emails)
-        )
-        self._record_successful_provider(credentials, provider_name)
-        return emails_with_body
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("MailGateway failed to resolve provider for list_messages_with_body")
 
     async def delete_message(
         self,
@@ -422,6 +415,67 @@ class MailGateway:
         if not isinstance(payload, dict):
             return None
         return self._normalize_provider_name(payload.get("recommended_provider"))
+
+    async def _list_messages_with_body_via_provider(
+        self,
+        provider: Any,
+        credentials: AccountCredentials,
+        *,
+        folder: str,
+        page: int,
+        page_size: int,
+        skip_cache: bool,
+        sender_search: str | None,
+        subject_search: str | None,
+        sort_by: str,
+        sort_order: str,
+        start_time: str | None,
+        end_time: str | None,
+    ) -> list[dict[str, Any]]:
+        provider_bulk_method = getattr(provider, "list_messages_with_body", None)
+        if callable(provider_bulk_method):
+            return await provider_bulk_method(
+                credentials,
+                folder=folder,
+                page=page,
+                page_size=page_size,
+                skip_cache=skip_cache,
+                sender_search=sender_search,
+                subject_search=subject_search,
+                sort_by=sort_by,
+                sort_order=sort_order,
+                start_time=start_time,
+                end_time=end_time,
+            )
+
+        list_response = await provider.list_messages(
+            credentials,
+            folder=folder,
+            page=page,
+            page_size=page_size,
+            skip_cache=skip_cache,
+            sender_search=sender_search,
+            subject_search=subject_search,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        semaphore = asyncio.Semaphore(DETAIL_FETCH_CONCURRENCY_LIMIT)
+
+        async def fetch_detail(item: Any) -> dict[str, Any]:
+            async with semaphore:
+                detail = await provider.get_message_detail(
+                    credentials,
+                    item.message_id,
+                    skip_cache=skip_cache,
+                )
+            merged = self._model_to_dict(item)
+            merged.update(self._model_to_dict(detail))
+            return merged
+
+        return await asyncio.gather(*(fetch_detail(item) for item in list_response.emails))
 
 
 default_mail_gateway = MailGateway()

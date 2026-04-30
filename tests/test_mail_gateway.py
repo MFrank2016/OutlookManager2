@@ -283,6 +283,57 @@ async def test_mail_gateway_prefers_provider_bulk_body_path(credentials):
 
 
 @pytest.mark.asyncio
+async def test_mail_gateway_list_with_body_falls_back_from_graph_bulk_503_to_imap(
+    credentials,
+):
+    class Bulk503GraphProvider(FakeProvider):
+        async def list_messages_with_body(self, credentials: AccountCredentials, **kwargs):
+            self.calls.append(("list_with_body", {"email": credentials.email, **kwargs}))
+            raise HTTPException(status_code=503, detail="graph bulk unavailable")
+
+    class BulkImapProvider(FakeProvider):
+        async def list_messages_with_body(self, credentials: AccountCredentials, **kwargs):
+            self.calls.append(("list_with_body", {"email": credentials.email, **kwargs}))
+            return [
+                {
+                    "message_id": "INBOX-1",
+                    "subject": "Fallback IMAP body",
+                    "body_plain": "Your code is 654321",
+                }
+            ]
+
+    graph_provider = Bulk503GraphProvider(name="graph")
+    imap_provider = BulkImapProvider(name="imap")
+    gateway = MailGateway(
+        graph_provider=graph_provider,
+        imap_provider=imap_provider,
+        persist_provider_hint=noop_persist_provider_hint,
+    )
+    request_credentials = credentials.model_copy(
+        update={"api_method": "graph_api", "last_provider_used": None}
+    )
+
+    response = await gateway.list_messages_with_body(
+        request_credentials,
+        folder="all",
+        page=1,
+        page_size=5,
+        strategy_mode="graph_preferred",
+    )
+
+    assert response == [
+        {
+            "message_id": "INBOX-1",
+            "subject": "Fallback IMAP body",
+            "body_plain": "Your code is 654321",
+        }
+    ]
+    assert [call[0] for call in graph_provider.calls] == ["list_with_body"]
+    assert [call[0] for call in imap_provider.calls] == ["list_with_body"]
+    assert request_credentials.last_provider_used == "imap"
+
+
+@pytest.mark.asyncio
 async def test_mail_gateway_detail_keeps_graph_503_for_graph_style_message_id(
     credentials,
 ):
