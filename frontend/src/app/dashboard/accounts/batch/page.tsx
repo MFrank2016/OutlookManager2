@@ -18,7 +18,7 @@ import {
 import { toast } from "sonner";
 import { AlertTriangle, CheckCircle, Loader2, ArrowLeft, Trash2, FileText, Play } from "lucide-react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface BatchDryRunResult {
   mode: "dry_run" | "commit";
@@ -35,6 +35,7 @@ interface BatchDryRunResult {
 }
 
 export default function BatchAddPage() {
+  const queryClient = useQueryClient();
   const [input, setInput] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [importMethod, setImportMethod] = useState<"imap" | "graph">("imap");
@@ -223,13 +224,14 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
 
       if (status === "completed" || status === "failed") {
         if (status === "completed") {
+          queryClient.invalidateQueries({ queryKey: ["accounts"] });
           toast.success(`批量导入完成！成功: ${success_count}, 失败: ${failed_count}`);
         } else {
           toast.error("批量导入任务失败");
         }
       }
     }
-  }, [taskProgress]);
+  }, [queryClient, taskProgress]);
 
   return (
     <div className="page-enter mx-auto max-w-4xl space-y-6 px-4 sm:px-0">

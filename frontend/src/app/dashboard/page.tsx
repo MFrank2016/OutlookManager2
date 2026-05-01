@@ -121,6 +121,26 @@ export default function DashboardPage() {
       exclude_tags: excludeTags.trim(),
       refresh_status: refreshStatus,
     };
+    const isSameQuery =
+      queryParams.page === newParams.page &&
+      queryParams.page_size === newParams.page_size &&
+      queryParams.email_search === newParams.email_search &&
+      (queryParams.include_tags || "") === (newParams.include_tags || "") &&
+      (queryParams.exclude_tags || "") === (newParams.exclude_tags || "") &&
+      queryParams.refresh_status === newParams.refresh_status;
+
+    if (isSameQuery) {
+      setFilters({
+        page: 1,
+        pageSize: newParams.page_size,
+        search,
+        includeTags,
+        excludeTags,
+        refreshStatus,
+      });
+      void refetch();
+      return;
+    }
 
     setQueryParams(newParams);
     setPage(1);
