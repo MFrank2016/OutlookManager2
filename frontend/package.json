@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --import ./scripts/register-ts-resolver.mjs --test --experimental-strip-types src/lib/theme.test.ts src/lib/microsoftAccess.test.ts src/lib/loginLayoutContract.test.ts src/lib/batchImportContract.test.ts src/lib/accountsSearchContract.test.ts src/lib/v2ProxyContract.test.ts"
+    "test": "node --import ./scripts/register-ts-resolver.mjs --test --experimental-strip-types src/lib/theme.test.ts src/lib/microsoftAccess.test.ts src/lib/loginLayoutContract.test.ts src/lib/batchImportContract.test.ts src/lib/accountsSearchContract.test.ts src/lib/v2ProxyContract.test.ts src/lib/emailAutoRefreshContract.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

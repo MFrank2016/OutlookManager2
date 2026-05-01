@@ -83,7 +83,7 @@ function EmailsPageContent() {
   const [jumpPage, setJumpPage] = useState("");
   const [forceRefreshOnce, setForceRefreshOnce] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
-  const [isAutoRefreshEnabled] = useState(true);
+  const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
   const [useV2ReadPath, setUseV2ReadPath] = useState(false);
   const [overrideProvider, setOverrideProvider] = useState<ProviderOverride>("auto");
   const [strategyModeOverride, setStrategyModeOverride] = useState<StrategyMode>("auto");
@@ -559,6 +559,7 @@ function EmailsPageContent() {
         onLocalFolderChange={setLocalFolder}
         onSortByChange={setSortBy}
         onToggleSortOrder={() => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
+        onToggleAutoRefresh={() => setIsAutoRefreshEnabled((current) => !current)}
         onSearch={handleSearch}
         onManualRefresh={handleManualRefresh}
         onOpenCreateShare={() => {

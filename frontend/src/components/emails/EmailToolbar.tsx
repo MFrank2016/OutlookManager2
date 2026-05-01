@@ -29,6 +29,7 @@ interface EmailToolbarProps {
   onLocalFolderChange: (value: string) => void;
   onSortByChange: (value: string) => void;
   onToggleSortOrder: () => void;
+  onToggleAutoRefresh: () => void;
   onSearch: () => void;
   onManualRefresh: () => void;
   onOpenCreateShare: () => void;
@@ -54,12 +55,14 @@ export function EmailToolbar({
   onLocalFolderChange,
   onSortByChange,
   onToggleSortOrder,
+  onToggleAutoRefresh,
   onSearch,
   onManualRefresh,
   onOpenCreateShare,
   onOpenClearFolder,
 }: EmailToolbarProps) {
   const hasAccount = Boolean(selectedAccount);
+  const autoRefreshStatus = !hasAccount ? "未选择账户" : isAutoRefreshEnabled ? `${refreshCountdown}s` : "已关闭";
 
   return (
     <div className="panel-surface space-y-3 p-3 md:p-4">
@@ -139,11 +142,20 @@ export function EmailToolbar({
           <ArrowUpDown className={cn("mr-2 h-4 w-4", sortOrder === "asc" && "rotate-180")} />
           {sortOrder === "asc" ? "升序" : "降序"}
         </Button>
-        {isAutoRefreshEnabled ? (
-          <div className="flex items-center justify-center rounded-xl border border-border/70 bg-[color:var(--surface-1)]/75 px-3 text-xs font-mono text-[color:var(--text-soft)]">
-            {refreshCountdown}s
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant={isAutoRefreshEnabled ? "secondary" : "outline"}
+            onClick={onToggleAutoRefresh}
+            disabled={!hasAccount}
+            aria-pressed={isAutoRefreshEnabled}
+          >
+            <RefreshCw className={cn("mr-2 h-4 w-4", isAutoRefreshEnabled && hasAccount && "text-emerald-600")} />
+            自动刷新
+          </Button>
+          <div className="flex min-w-[72px] items-center justify-center rounded-xl border border-border/70 bg-[color:var(--surface-1)]/75 px-3 text-xs font-mono text-[color:var(--text-soft)]">
+            {autoRefreshStatus}
           </div>
-        ) : null}
+        </div>
       </div>
 
       <FilterToolbar
