@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useRouter } from "next/navigation";
-import { ArrowRight, LockKeyhole } from "lucide-react";
+import { ArrowRight, Mail } from "lucide-react";
 
 import api from "@/lib/api";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
@@ -77,57 +77,66 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(180deg,color-mix(in_oklch,var(--surface-0)_94%,white_6%)_0%,color-mix(in_oklch,var(--surface-1)_88%,var(--surface-0)_12%)_100%)] px-4 py-10 page-enter">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[linear-gradient(180deg,#f7f9fc_0%,#eef3f9_100%)] px-4 py-10 page-enter">
       <ThemeToggle
         compact
-        className="absolute right-5 top-5 z-20 rounded-full border border-border/80 bg-[color:var(--panel)]/85 shadow-[var(--shadow-soft)] backdrop-blur-md"
+        className="absolute right-5 top-5 z-20 rounded-full border border-white/80 bg-white/80 shadow-[0_8px_24px_rgba(148,163,184,0.14)] backdrop-blur-md"
       />
 
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,color-mix(in_oklch,var(--surface-1)_90%,transparent),transparent_52%)]" />
-        <div className="absolute left-[-10%] top-[-14%] h-[380px] w-[380px] rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--brand)_18%,transparent),transparent_70%)] blur-3xl" />
-        <div className="absolute right-[-12%] bottom-[-18%] h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,color-mix(in_oklch,var(--accent)_18%,transparent),transparent_72%)] blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),transparent_50%)]" />
+        <div className="absolute left-[-8%] top-[-12%] h-[300px] w-[300px] rounded-full bg-[radial-gradient(circle,rgba(59,130,246,0.05),transparent_70%)] blur-3xl" />
+        <div className="absolute right-[-10%] bottom-[-16%] h-[280px] w-[280px] rounded-full bg-[radial-gradient(circle,rgba(96,165,250,0.05),transparent_72%)] blur-3xl" />
         <div
-          className="absolute inset-0 opacity-[0.08]"
+          className="absolute inset-0 opacity-[0.05]"
           style={{
             backgroundImage:
-              "linear-gradient(color-mix(in oklch, var(--text-faint) 16%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklch, var(--text-faint) 16%, transparent) 1px, transparent 1px)",
+              "linear-gradient(rgba(148,163,184,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.12) 1px, transparent 1px)",
             backgroundSize: "48px 48px",
           }}
         />
       </div>
 
-      <Card className="interactive-lift relative z-10 w-full max-w-[860px] overflow-hidden rounded-[34px] border border-border/80 bg-[color:var(--panel)]/88 py-0 shadow-[var(--shadow-pop)] backdrop-blur-2xl">
-        <div className="absolute inset-x-0 top-0 h-[2px] bg-[linear-gradient(90deg,transparent,color-mix(in_oklch,var(--brand)_56%,transparent),transparent)]" />
+      <Card className="interactive-lift relative z-10 flex w-full max-w-[840px] flex-col overflow-hidden rounded-[32px] border border-white/95 bg-white/92 py-0 shadow-[0_22px_52px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:min-h-[520px]">
+        <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,rgba(255,255,255,0),rgba(148,163,184,0.35),rgba(255,255,255,0))]" />
 
-        <CardHeader className="space-y-4 px-8 pb-1 pt-10 sm:px-14">
+        <CardHeader className="space-y-4 px-8 pb-2 pt-11 sm:px-14 sm:pt-12">
           <div className="flex flex-col items-center justify-center gap-4 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-[20px] border border-border/80 bg-[linear-gradient(180deg,color-mix(in_oklch,var(--surface-1)_96%,transparent),color-mix(in_oklch,var(--surface-2)_88%,transparent))] shadow-[0_12px_28px_color-mix(in_oklch,var(--brand)_26%,transparent)]">
-              <LockKeyhole className="h-4.5 w-4.5 text-[color:var(--brand)]" />
+            <div className="relative flex h-[76px] w-[76px] items-center justify-center rounded-[24px] border border-sky-100/90 bg-[linear-gradient(180deg,rgba(219,234,254,0.98),rgba(186,230,253,0.95))] shadow-[0_14px_32px_rgba(37,99,235,0.14)]">
+              <div className="absolute inset-[6px] rounded-[18px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.34),rgba(255,255,255,0.18))]" />
+              <div className="absolute top-[11px] h-[5px] w-[28px] rounded-full bg-white/55" />
+              <div className="relative z-10 flex h-[42px] w-[48px] overflow-hidden rounded-[14px] border border-sky-200/70 bg-white/90 shadow-[0_8px_16px_rgba(37,99,235,0.12)]">
+                <div className="flex w-[18px] items-center justify-center bg-[linear-gradient(180deg,#0ea5e9,#2563eb)] text-[11px] font-semibold tracking-[-0.04em] text-white">
+                  O
+                </div>
+                <div className="flex flex-1 items-center justify-center bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(239,246,255,0.94))]">
+                  <Mail className="h-[16px] w-[16px] text-sky-700" />
+                </div>
+              </div>
             </div>
-            <CardTitle className="text-[2rem] font-semibold tracking-[-0.04em] text-foreground">
+            <CardTitle className="text-[1.85rem] font-semibold tracking-[-0.04em] text-slate-900">
               Outlook Manager
             </CardTitle>
           </div>
         </CardHeader>
 
-        <CardContent className="px-8 pb-10 pt-4 sm:px-14">
-          <div className="rounded-[26px] border border-border/75 bg-[color:color-mix(in_oklch,var(--surface-1)_86%,transparent)] p-7 shadow-[inset_0_1px_0_color-mix(in_oklch,var(--surface-1)_88%,transparent),0_16px_34px_color-mix(in_oklch,var(--brand)_10%,transparent)] sm:p-8">
-            <div className="mx-auto max-w-[560px]">
+        <CardContent className="flex flex-1 items-center justify-center px-8 pb-10 pt-4 sm:px-14 sm:pb-12 sm:pt-6">
+          <div className="mx-auto w-full max-w-[500px] rounded-[24px] border border-slate-200/70 bg-white/96 p-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.96),0_12px_26px_rgba(15,23,42,0.04)] sm:p-8">
+            <div className="mx-auto flex w-full max-w-[420px] flex-col items-center">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-7">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="w-full space-y-7">
                   <FormField
                     control={form.control}
                     name="username"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-[13px] font-medium text-[color:var(--text-soft)]">
+                      <FormItem className="mx-auto w-full max-w-[420px] space-y-3">
+                        <FormLabel className="block w-full text-left text-[13px] font-medium text-slate-700">
                           用户名
                         </FormLabel>
                         <FormControl>
                           <Input
                             placeholder="请输入管理员用户名"
-                            className="h-12 rounded-[16px] border-[color:var(--border)] bg-[color:color-mix(in_oklch,var(--surface-1)_90%,transparent)] px-4 text-[15px] text-foreground shadow-[inset_0_1px_0_color-mix(in_oklch,var(--surface-1)_92%,transparent)] placeholder:text-[color:var(--text-faint)] focus:border-[color:var(--brand)] focus:bg-[color:var(--surface-1)] focus:ring-4 focus:ring-[color:color-mix(in_oklch,var(--brand)_18%,transparent)]"
+                            className="h-12 rounded-[16px] border-slate-200 bg-white px-4 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.96)] transition-all duration-200 placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus-visible:ring-2 focus-visible:ring-sky-500/20"
                             {...field}
                           />
                         </FormControl>
@@ -140,15 +149,15 @@ export default function LoginPage() {
                     control={form.control}
                     name="password"
                     render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-[13px] font-medium text-[color:var(--text-soft)]">
+                      <FormItem className="mx-auto w-full max-w-[420px] space-y-3">
+                        <FormLabel className="block w-full text-left text-[13px] font-medium text-slate-700">
                           密码
                         </FormLabel>
                         <FormControl>
                           <Input
                             type="password"
                             placeholder="请输入登录密码"
-                            className="h-12 rounded-[16px] border-[color:var(--border)] bg-[color:color-mix(in_oklch,var(--surface-1)_90%,transparent)] px-4 text-[15px] text-foreground shadow-[inset_0_1px_0_color-mix(in_oklch,var(--surface-1)_92%,transparent)] placeholder:text-[color:var(--text-faint)] focus:border-[color:var(--brand)] focus:bg-[color:var(--surface-1)] focus:ring-4 focus:ring-[color:color-mix(in_oklch,var(--brand)_18%,transparent)]"
+                            className="h-12 rounded-[16px] border-slate-200 bg-white px-4 text-[15px] shadow-[inset_0_1px_0_rgba(255,255,255,0.96)] transition-all duration-200 placeholder:text-slate-400 focus:border-sky-400 focus:bg-white focus-visible:ring-2 focus-visible:ring-sky-500/20"
                             {...field}
                           />
                         </FormControl>
@@ -159,7 +168,7 @@ export default function LoginPage() {
 
                   <Button
                     type="submit"
-                    className="group mt-6 h-12 w-full rounded-[16px] bg-[linear-gradient(135deg,color-mix(in_oklch,var(--brand)_92%,oklch(0.56_0.15_236)_8%),color-mix(in_oklch,var(--primary)_80%,oklch(0.47_0.15_256)_20%))] text-[15px] font-semibold text-primary-foreground shadow-[0_14px_28px_color-mix(in_oklch,var(--brand)_34%,transparent)] transition-all duration-200 hover:translate-y-[-1px] hover:shadow-[0_18px_34px_color-mix(in_oklch,var(--brand)_42%,transparent)] hover:brightness-[1.02]"
+                    className="group mx-auto mt-1 flex h-12 w-full max-w-[420px] rounded-[15px] bg-[linear-gradient(135deg,#2383e2,#2563eb)] text-[15px] font-semibold text-white shadow-[0_10px_20px_rgba(37,99,235,0.18)] transition-all duration-200 hover:translate-y-[-1px] hover:shadow-[0_14px_24px_rgba(37,99,235,0.22)] hover:brightness-[1.01]"
                     disabled={isLoading}
                   >
                     <span className="inline-flex items-center gap-2">
