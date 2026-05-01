@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 
 const toolbarPath = resolve(process.cwd(), "src/components/emails/EmailToolbar.tsx");
 const emailsPagePath = resolve(process.cwd(), "src/app/dashboard/emails/page.tsx");
+const autoRefreshHookPath = resolve(process.cwd(), "src/hooks/useAutoRefresh.ts");
 
 test("emails toolbar should expose an auto refresh toggle with visible status", () => {
   const source = readFileSync(toolbarPath, "utf-8");
@@ -31,4 +32,26 @@ test("emails toolbar should anchor the auto refresh badge in the far-left toolba
   assert.ok(source.includes("leading={autoRefreshControl}"));
   assert.ok(source.includes("self-start"));
   assert.ok(source.includes("trailing={"));
+});
+
+
+test("emails page auto refresh should queue a forced list refresh cycle", () => {
+  const source = readFileSync(emailsPagePath, "utf-8");
+  const start = source.indexOf("const handleAutoRefresh = useCallback(async () => {");
+  const end = source.indexOf("  }, [", start);
+  const snippet = source.slice(start, end);
+
+  assert.ok(source.includes('const [pendingRefreshSource, setPendingRefreshSource] = useState<"idle" | "manual" | "auto">("idle");'));
+  assert.ok(snippet.includes('setForceRefreshOnce(true);'));
+  assert.ok(snippet.includes('setPendingRefreshSource("auto");'));
+});
+
+
+test("useAutoRefresh should not run refresh side effects inside the countdown state updater", () => {
+  const source = readFileSync(autoRefreshHookPath, "utf-8");
+  const start = source.indexOf("setCountdown((prevCountdown) => {");
+  const end = source.indexOf("    }, 1000);", start);
+  const snippet = source.slice(start, end);
+
+  assert.ok(!snippet.includes("onRefreshRef.current()"));
 });

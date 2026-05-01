@@ -25,11 +25,17 @@ export function useAutoRefresh({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const onRefreshRef = useRef(onRefresh);
   const isRefreshingRef = useRef(false);
+  const countdownRef = useRef(intervalSeconds);
 
   // 更新 onRefresh ref
   useEffect(() => {
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
+
+  useEffect(() => {
+    countdownRef.current = intervalSeconds;
+    setCountdown(intervalSeconds);
+  }, [intervalSeconds]);
 
   // 主逻辑
   useEffect(() => {
@@ -54,43 +60,50 @@ export function useAutoRefresh({
       };
     }
 
+    countdownRef.current = intervalSeconds;
+    setCountdown(intervalSeconds);
+
     // 创建新的 interval
-    // 使用函数式更新来初始化倒计时，避免在 effect 中同步调用 setState
     let isFirstTick = true;
     const interval = setInterval(() => {
-      setCountdown((prevCountdown) => {
-        // 第一次执行时，重置为初始值
-        if (isFirstTick) {
-          isFirstTick = false;
-          return intervalSeconds;
-        }
-        
-        const newCountdown = prevCountdown - 1;
+      // 第一次执行时，只同步显示初始值，不触发副作用
+      if (isFirstTick) {
+        isFirstTick = false;
+        countdownRef.current = intervalSeconds;
+        setCountdown(intervalSeconds);
+        return;
+      }
 
-        if (newCountdown <= 0) {
-          // 倒计时结束，触发刷新
-          if (!isRefreshingRef.current) {
-            isRefreshingRef.current = true;
+      const nextCountdown = countdownRef.current - 1;
 
-            // 调用刷新函数
+      if (nextCountdown <= 0) {
+        countdownRef.current = intervalSeconds;
+        setCountdown(intervalSeconds);
+
+        // 倒计时结束，触发刷新
+        if (!isRefreshingRef.current) {
+          isRefreshingRef.current = true;
+
+          const finishRefresh = () => {
+            isRefreshingRef.current = false;
+          };
+
+          setTimeout(() => {
             const result = onRefreshRef.current();
-            
-            // 如果返回 Promise，等待完成后重置标志
-            if (result instanceof Promise) {
-              result.finally(() => {
-                isRefreshingRef.current = false;
-              });
-            } else {
-              isRefreshingRef.current = false;
-            }
-          }
 
-          // 重置倒计时
-          return intervalSeconds;
+            if (result instanceof Promise) {
+              result.finally(finishRefresh);
+            } else {
+              finishRefresh();
+            }
+          }, 0);
         }
 
-        return newCountdown;
-      });
+        return;
+      }
+
+      countdownRef.current = nextCountdown;
+      setCountdown(nextCountdown);
     }, 1000);
 
     intervalRef.current = interval;
@@ -108,4 +121,3 @@ export function useAutoRefresh({
     countdown,
   };
 }
-

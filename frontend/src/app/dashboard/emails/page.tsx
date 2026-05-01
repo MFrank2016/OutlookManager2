@@ -82,6 +82,7 @@ function EmailsPageContent() {
   const [pageSize, setPageSize] = useState(20);
   const [jumpPage, setJumpPage] = useState("");
   const [forceRefreshOnce, setForceRefreshOnce] = useState(false);
+  const [pendingRefreshSource, setPendingRefreshSource] = useState<"idle" | "manual" | "auto">("idle");
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
   const [useV2ReadPath, setUseV2ReadPath] = useState(false);
@@ -150,26 +151,12 @@ function EmailsPageContent() {
   const lastUpdatedAccountRef = useRef<string | null>(null);
 
   const handleAutoRefresh = useCallback(async () => {
-    setQuerySortBy(sortBy);
-    setQuerySortOrder(sortOrder);
-
-    await queryClient.refetchQueries({
-      queryKey: ["emails", selectedAccount],
-      predicate: (query) => {
-        const queryKey = query.queryKey;
-        return (
-          queryKey.length >= 7 &&
-          queryKey[0] === "emails" &&
-          queryKey[1] === selectedAccount &&
-          queryKey[2] === page &&
-          queryKey[3] === pageSize &&
-          queryKey[4] === folder &&
-          queryKey[5] === sortBy &&
-          queryKey[6] === sortOrder
-        );
-      },
-    });
-  }, [folder, page, pageSize, queryClient, selectedAccount, sortBy, sortOrder]);
+    if (pendingRefreshSource !== "idle") {
+      return;
+    }
+    setForceRefreshOnce(true);
+    setPendingRefreshSource("auto");
+  }, [pendingRefreshSource]);
 
   const { countdown: refreshCountdown } = useAutoRefresh({
     enabled: isAutoRefreshEnabled && !!selectedAccount,
@@ -179,38 +166,42 @@ function EmailsPageContent() {
   });
 
   useEffect(() => {
-    if (!isManualRefreshing || !forceRefreshOnce) {
+    if (pendingRefreshSource === "idle" || !forceRefreshOnce) {
       return;
     }
 
     let cancelled = false;
 
-    const runManualRefresh = async () => {
+    const runListRefresh = async () => {
       try {
         await refetchEmailsRef.current();
-        if (!cancelled) {
+        if (!cancelled && pendingRefreshSource === "manual") {
           toast.success("邮件列表已刷新");
         }
       } finally {
         if (!cancelled) {
           setForceRefreshOnce(false);
-          setIsManualRefreshing(false);
+          setPendingRefreshSource("idle");
+          if (pendingRefreshSource === "manual") {
+            setIsManualRefreshing(false);
+          }
         }
       }
     };
 
-    void runManualRefresh();
+    void runListRefresh();
 
     return () => {
       cancelled = true;
     };
-  }, [forceRefreshOnce, isManualRefreshing]);
+  }, [forceRefreshOnce, pendingRefreshSource]);
 
   const handleManualRefresh = () => {
-    if (isManualRefreshing) {
+    if (pendingRefreshSource !== "idle") {
       return;
     }
     setForceRefreshOnce(true);
+    setPendingRefreshSource("manual");
     setIsManualRefreshing(true);
   };
 
