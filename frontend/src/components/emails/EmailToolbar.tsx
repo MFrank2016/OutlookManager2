@@ -63,6 +63,43 @@ export function EmailToolbar({
 }: EmailToolbarProps) {
   const hasAccount = Boolean(selectedAccount);
   const autoRefreshStatus = !hasAccount ? "未选择账户" : isAutoRefreshEnabled ? `${refreshCountdown}s` : "已关闭";
+  const autoRefreshControl = (
+    <Button
+      variant="ghost"
+      onClick={onToggleAutoRefresh}
+      disabled={!hasAccount}
+      aria-pressed={isAutoRefreshEnabled}
+      className={cn(
+        "group self-start inline-flex h-10 items-center gap-3 rounded-full border px-2.5 text-sm font-semibold shadow-[0_10px_24px_rgba(16,185,129,0.16)] transition-all duration-200",
+        isAutoRefreshEnabled
+          ? "border-emerald-300/80 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(14,165,233,0.14))] text-emerald-900 hover:border-emerald-400 hover:bg-[linear-gradient(135deg,rgba(16,185,129,0.22),rgba(14,165,233,0.18))]"
+          : "border-slate-300/80 bg-[color:var(--surface-1)]/85 text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.08)] hover:border-slate-400 hover:bg-[color:var(--surface-1)]",
+      )}
+    >
+      <span
+        className={cn(
+          "inline-flex h-7 items-center gap-2 rounded-full px-3",
+          isAutoRefreshEnabled ? "bg-white/78 text-emerald-900" : "bg-white/88 text-slate-600",
+        )}
+      >
+        <span
+          className={cn(
+            "h-2.5 w-2.5 rounded-full",
+            isAutoRefreshEnabled ? "bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.14)]" : "bg-slate-400",
+          )}
+        />
+        <span>自动刷新</span>
+      </span>
+      <span
+        className={cn(
+          "inline-flex min-w-[74px] items-center justify-center rounded-full px-3 py-1 text-xs font-mono tracking-[0.08em]",
+          isAutoRefreshEnabled ? "bg-emerald-950 text-emerald-50" : "bg-slate-200 text-slate-600",
+        )}
+      >
+        {autoRefreshStatus}
+      </span>
+    </Button>
+  );
 
   return (
     <div className="panel-surface space-y-3 p-3 md:p-4">
@@ -117,7 +154,7 @@ export function EmailToolbar({
         </Button>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
         <Select value={localFolder} onValueChange={onLocalFolderChange}>
           <SelectTrigger>
             <SelectValue />
@@ -142,25 +179,11 @@ export function EmailToolbar({
           <ArrowUpDown className={cn("mr-2 h-4 w-4", sortOrder === "asc" && "rotate-180")} />
           {sortOrder === "asc" ? "升序" : "降序"}
         </Button>
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            variant={isAutoRefreshEnabled ? "secondary" : "outline"}
-            onClick={onToggleAutoRefresh}
-            disabled={!hasAccount}
-            aria-pressed={isAutoRefreshEnabled}
-          >
-            <RefreshCw className={cn("mr-2 h-4 w-4", isAutoRefreshEnabled && hasAccount && "text-emerald-600")} />
-            自动刷新
-          </Button>
-          <div className="flex min-w-[72px] items-center justify-center rounded-xl border border-border/70 bg-[color:var(--surface-1)]/75 px-3 text-xs font-mono text-[color:var(--text-soft)]">
-            {autoRefreshStatus}
-          </div>
-        </div>
       </div>
 
       <FilterToolbar
         className="space-y-0 border-0 bg-transparent p-0 shadow-none"
-        leading={null}
+        leading={autoRefreshControl}
         center={null}
         trailing={
           <>

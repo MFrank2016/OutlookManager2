@@ -20,3 +20,15 @@ test("emails page should keep auto refresh toggle state and wire it into the too
   assert.ok(source.includes("const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);"));
   assert.ok(source.includes("onToggleAutoRefresh={() => setIsAutoRefreshEnabled((current) => !current)}"));
 });
+
+
+test("emails toolbar should anchor the auto refresh badge in the far-left toolbar slot with a stronger highlight style", () => {
+  const source = readFileSync(toolbarPath, "utf-8");
+
+  assert.ok(source.includes("const autoRefreshControl = ("));
+  assert.ok(source.includes("border-emerald-300/80"));
+  assert.ok(source.includes("shadow-[0_10px_24px_rgba(16,185,129,0.16)]"));
+  assert.ok(source.includes("leading={autoRefreshControl}"));
+  assert.ok(source.includes("self-start"));
+  assert.ok(source.includes("trailing={"));
+});
