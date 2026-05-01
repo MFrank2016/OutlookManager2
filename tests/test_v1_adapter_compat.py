@@ -13,6 +13,8 @@ from main import app
 from microsoft_access.account_lifecycle_service import AccountLifecycleService
 from microsoft_access.mail_gateway import MailGateway
 from models import AccountCredentials, EmailDetailsResponse, EmailItem, EmailListResponse
+
+EXPECTED_V1_SUNSET = "Wed, 31 Dec 2026 23:59:59 GMT"
 from routes import account_routes, email_routes, share_routes
 
 
@@ -728,6 +730,8 @@ def test_v1_accounts_post_uses_lifecycle_register(monkeypatch):
         "email_id": "mailbox@example.com",
         "message": "Account verified and saved successfully.",
     }
+    assert response.headers["Deprecation"] == "true"
+    assert response.headers["Sunset"] == EXPECTED_V1_SUNSET
     assert service.register_calls == [
         {
             "email": "mailbox@example.com",
@@ -768,6 +772,8 @@ def test_v1_emails_get_uses_mail_gateway(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["email_id"] == "mailbox@example.com"
+    assert response.headers["Deprecation"] == "true"
+    assert response.headers["Sunset"] == EXPECTED_V1_SUNSET
     assert gateway.list_calls == [
         {
             "email": "mailbox@example.com",
@@ -849,11 +855,15 @@ def test_v1_account_refresh_and_detect_use_lifecycle_public_api(monkeypatch):
         "email_id": "mailbox@example.com",
         "message": "Token refreshed successfully at 2026-04-30T00:00:00",
     }
+    assert refresh_response.headers["Deprecation"] == "true"
+    assert refresh_response.headers["Sunset"] == EXPECTED_V1_SUNSET
     assert detect_response.status_code == 200
     assert detect_response.json() == {
         "email_id": "mailbox@example.com",
         "message": "API method detected and updated to: graph_api",
     }
+    assert detect_response.headers["Deprecation"] == "true"
+    assert detect_response.headers["Sunset"] == EXPECTED_V1_SUNSET
     assert service.refresh_calls == ["mailbox@example.com"]
     assert service.detect_calls == ["mailbox@example.com"]
 
@@ -904,6 +914,8 @@ def test_v1_email_write_routes_use_mail_gateway_public_api(monkeypatch):
         "message": "Email deleted successfully",
         "message_id": "msg-7",
     }
+    assert delete_response.headers["Deprecation"] == "true"
+    assert delete_response.headers["Sunset"] == EXPECTED_V1_SUNSET
     assert batch_delete_response.status_code == 200
     assert batch_delete_response.json() == {
         "success": True,
@@ -912,12 +924,16 @@ def test_v1_email_write_routes_use_mail_gateway_public_api(monkeypatch):
         "fail_count": 0,
         "total_count": 2,
     }
+    assert batch_delete_response.headers["Deprecation"] == "true"
+    assert batch_delete_response.headers["Sunset"] == EXPECTED_V1_SUNSET
     assert send_response.status_code == 200
     assert send_response.json() == {
         "success": True,
         "message": "Email sent successfully",
         "message_id": "sent-msg-1",
     }
+    assert send_response.headers["Deprecation"] == "true"
+    assert send_response.headers["Sunset"] == EXPECTED_V1_SUNSET
     assert gateway.delete_calls == [
         {
             "email": "mailbox@example.com",

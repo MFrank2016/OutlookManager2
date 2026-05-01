@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import api from "@/lib/api";
-import { Email } from "@/types";
+import api, { buildV2MessagePath, buildV2MessageQueryParams, buildV2MessagesPath } from "@/lib/api";
+import { Email, ProviderOverride, StrategyMode } from "@/types";
 import { toast } from "sonner";
 
 interface EmailListResponse {
@@ -22,6 +22,10 @@ interface EmailsParams {
     sortOrder?: "asc" | "desc";
     forceRefresh?: boolean; // 强制刷新，不走缓存
     refreshNonce?: number; // 手动刷新触发器
+    useV2?: boolean;
+    overrideProvider?: ProviderOverride;
+    strategyMode?: StrategyMode;
+    skipCache?: boolean;
 }
 
 // 请求去重 Map，防止同一时间多次请求同一资源
@@ -40,7 +44,11 @@ export function useEmails(params: EmailsParams) {
         params.searchType || "subject",
         params.sortBy || "date",
         params.sortOrder || "desc",
-        params.refreshNonce || 0
+        params.refreshNonce || 0,
+        params.useV2 ? "v2" : "v1",
+        params.overrideProvider || "auto",
+        params.strategyMode || "auto",
+        params.skipCache ? 1 : 0,
     ];
     
     return useQuery({
@@ -58,36 +66,53 @@ export function useEmails(params: EmailsParams) {
             }
             
             // Clean params to remove empty/undefined values
-            const queryParams: Record<string, unknown> = {
-                page: params.page || 1,
-                page_size: params.page_size || 20,
-                folder: params.folder || "all",
-                sort_by: params.sortBy || "date",
-                sort_order: params.sortOrder || "desc",
-            };
+            const folder = (params.folder || "all").toLowerCase();
+            const queryParams: Record<string, unknown> = params.useV2
+                ? buildV2MessageQueryParams({
+                    page: params.page || 1,
+                    page_size: params.page_size || 20,
+                    folder,
+                    sort_by: params.sortBy || "date",
+                    sort_order: params.sortOrder || "desc",
+                    sender_search:
+                        params.search && params.searchType === "sender"
+                            ? params.search
+                            : undefined,
+                    subject_search:
+                        params.search && params.searchType !== "sender"
+                            ? params.search
+                            : undefined,
+                    override_provider: params.overrideProvider,
+                    strategy_mode: params.strategyMode,
+                    skip_cache: Boolean(params.skipCache || params.forceRefresh),
+                })
+                : {
+                    page: params.page || 1,
+                    page_size: params.page_size || 20,
+                    folder,
+                    sort_by: params.sortBy || "date",
+                    sort_order: params.sortOrder || "desc",
+                };
 
-            // 如果设置了强制刷新，添加 refresh 参数
-            if (params.forceRefresh) {
-                queryParams.refresh = true;
-            }
-
-            // Handle search types
-            if (params.search && params.search.trim() !== "") {
-                if (params.searchType === "sender") {
-                    queryParams.sender_search = params.search;
-                } else {
-                    // Default to subject search if not specified or "subject"
-                    queryParams.subject_search = params.search;
+            if (!params.useV2) {
+                if (params.forceRefresh) {
+                    queryParams.refresh = true;
                 }
-            }
-
-            // Ensure folder is lowercase as per regex
-            if (queryParams.folder && typeof queryParams.folder === 'string') {
-                queryParams.folder = queryParams.folder.toLowerCase();
+                if (params.search && params.search.trim() !== "") {
+                    if (params.searchType === "sender") {
+                        queryParams.sender_search = params.search;
+                    } else {
+                        queryParams.subject_search = params.search;
+                    }
+                }
             }
             
             // 创建并存储请求 Promise
-            const requestPromise = api.get<EmailListResponse>(`/emails/${params.account}`, {
+            const requestPromise = api.get<EmailListResponse>(
+                params.useV2
+                    ? buildV2MessagesPath(params.account)
+                    : `/emails/${params.account}`,
+                {
                 params: queryParams
             }).then(response => {
                 // 请求完成后移除
@@ -118,11 +143,41 @@ export function useEmails(params: EmailsParams) {
     });
 }
 
-export function useEmailDetail(account: string, messageId: string, options?: { enabled?: boolean }) {
+export function useEmailDetail(
+    account: string,
+    messageId: string,
+    options?: {
+        enabled?: boolean;
+        useV2?: boolean;
+        overrideProvider?: ProviderOverride;
+        strategyMode?: StrategyMode;
+        skipCache?: boolean;
+    }
+) {
     return useQuery({
-        queryKey: ["email", account, messageId],
+        queryKey: [
+            "email",
+            account,
+            messageId,
+            options?.useV2 ? "v2" : "v1",
+            options?.overrideProvider || "auto",
+            options?.strategyMode || "auto",
+            options?.skipCache ? 1 : 0,
+        ],
         queryFn: async () => {
-            const { data } = await api.get(`/emails/${account}/${messageId}`);
+            const params = options?.useV2
+                ? buildV2MessageQueryParams({
+                    override_provider: options.overrideProvider,
+                    strategy_mode: options.strategyMode,
+                    skip_cache: options.skipCache,
+                })
+                : undefined;
+            const { data } = await api.get(
+                options?.useV2
+                    ? buildV2MessagePath(account, messageId)
+                    : `/emails/${account}/${messageId}`,
+                { params }
+            );
             return data;
         },
         enabled: options?.enabled !== undefined ? options.enabled : (!!account && !!messageId)

@@ -9,15 +9,27 @@ import { EmailDetailPanel } from "@/components/emails/EmailDetailPanel";
 import { EmailListPanel } from "@/components/emails/EmailListPanel";
 import { EmailToolbar } from "@/components/emails/EmailToolbar";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DataEmptyState } from "@/components/ui/data-empty-state";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useAccounts } from "@/hooks/useAccounts";
+import { useDeliveryStrategy } from "@/hooks/useDeliveryStrategy";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
 import { useEmails } from "@/hooks/useEmails";
 import { useVerificationCodeAutoCopy } from "@/hooks/useVerificationCodeAutoCopy";
 import { copyToClipboard } from "@/lib/clipboard";
-import api from "@/lib/api";
-import { Email } from "@/types";
+import api, {
+  buildV2MessagePath,
+  buildV2MessageQueryParams,
+  buildV2MessagesPath,
+} from "@/lib/api";
+import {
+  mapProviderLabel,
+  mapStrategyLabel,
+  summarizeDeliveryStrategy,
+} from "@/lib/microsoftAccess";
+import { Email, ProviderOverride, StrategyMode } from "@/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,6 +84,10 @@ function EmailsPageContent() {
   const [forceRefreshOnce, setForceRefreshOnce] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [isAutoRefreshEnabled] = useState(true);
+  const [useV2ReadPath, setUseV2ReadPath] = useState(false);
+  const [overrideProvider, setOverrideProvider] = useState<ProviderOverride>("auto");
+  const [strategyModeOverride, setStrategyModeOverride] = useState<StrategyMode>("auto");
+  const [skipCache, setSkipCache] = useState(false);
 
   const queryClient = useQueryClient();
   const { data: accountsResponse } = useAccounts(
@@ -93,6 +109,17 @@ function EmailsPageContent() {
     page,
     page_size: pageSize,
     forceRefresh: forceRefreshOnce,
+    useV2: useV2ReadPath,
+    overrideProvider,
+    strategyMode: strategyModeOverride,
+    skipCache,
+  });
+  const { data: deliveryStrategy } = useDeliveryStrategy({
+    email: selectedAccount,
+    overrideProvider,
+    strategyMode: strategyModeOverride,
+    skipCache,
+    enabled: useV2ReadPath && !!selectedAccount,
   });
   const refetchEmailsRef = useRef(refetchEmails);
 
@@ -307,7 +334,19 @@ function EmailsPageContent() {
     if (!selectedAccount) return;
 
     try {
-      await api.delete(`/emails/${selectedAccount}/${messageId}`);
+      await api.delete(
+        useV2ReadPath
+          ? buildV2MessagePath(selectedAccount, messageId)
+          : `/emails/${selectedAccount}/${messageId}`,
+        useV2ReadPath
+          ? {
+              params: buildV2MessageQueryParams({
+                override_provider: overrideProvider,
+                strategy_mode: strategyModeOverride,
+              }),
+            }
+          : undefined
+      );
       toast.success("邮件已删除");
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       if (selectedEmailId === messageId) {
@@ -340,10 +379,20 @@ function EmailsPageContent() {
               : "收件箱";
       toast.info(`开始清空${folderName}...`);
 
-      const response = await api.delete(`/emails/${selectedAccount}/batch`, {
-        params: {
-          folder: targetFolder,
-        },
+      const response = await api.delete(
+        useV2ReadPath
+          ? buildV2MessagesPath(selectedAccount)
+          : `/emails/${selectedAccount}/batch`,
+        {
+        params: useV2ReadPath
+          ? buildV2MessageQueryParams({
+              folder: targetFolder,
+              override_provider: overrideProvider,
+              strategy_mode: strategyModeOverride,
+            })
+          : {
+              folder: targetFolder,
+            },
       });
 
       const result = response.data;
@@ -387,6 +436,10 @@ function EmailsPageContent() {
       account={selectedAccount}
       messageId={selectedEmailId}
       emailData={selectedEmailData}
+      useV2={useV2ReadPath}
+      overrideProvider={overrideProvider}
+      strategyMode={strategyModeOverride}
+      skipCache={skipCache || forceRefreshOnce}
       onDelete={() => {
         if (selectedEmailId) {
           void handleDeleteEmail(selectedEmailId);
@@ -407,6 +460,85 @@ function EmailsPageContent() {
         description="围绕账户、筛选、验证码与正文详情的一站式邮件处理面板。"
         className="pb-0 md:pb-0 border-b-0"
       />
+
+      <div className="panel-surface space-y-3 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={useV2ReadPath ? "default" : "secondary"}>
+            {useV2ReadPath ? "V2 调试读链路" : "V1 兼容读链路"}
+          </Badge>
+          <span className="text-sm text-muted-foreground">
+            可直接切换 `/api/v2` 的 provider override、strategy mode 与 skip cache。
+          </span>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-[180px_180px_180px_auto]">
+          <div className="space-y-2">
+            <div className="text-xs text-muted-foreground">读取路径</div>
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={useV2ReadPath ? "v2" : "v1"}
+              onChange={(event) => setUseV2ReadPath(event.target.value === "v2")}
+            >
+              <option value="v1">V1 兼容</option>
+              <option value="v2">V2 调试</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-xs text-muted-foreground">Provider Override</div>
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={overrideProvider}
+              onChange={(event) => setOverrideProvider(event.target.value as ProviderOverride)}
+              disabled={!useV2ReadPath}
+            >
+              <option value="auto">自动</option>
+              <option value="graph">Graph API</option>
+              <option value="imap">IMAP</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <div className="text-xs text-muted-foreground">Strategy Mode</div>
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={strategyModeOverride}
+              onChange={(event) => setStrategyModeOverride(event.target.value as StrategyMode)}
+              disabled={!useV2ReadPath}
+            >
+              <option value="auto">自动选择</option>
+              <option value="graph_preferred">Graph 优先</option>
+              <option value="graph_only">仅 Graph</option>
+              <option value="imap_only">仅 IMAP</option>
+            </select>
+          </div>
+
+          <label className="flex items-center gap-3 rounded-xl border border-border/70 px-3 py-2 text-sm">
+            <Checkbox
+              checked={skipCache}
+              onCheckedChange={(checked) => setSkipCache(Boolean(checked))}
+              disabled={!useV2ReadPath}
+            />
+            <span>跳过缓存（skip_cache）</span>
+          </label>
+        </div>
+
+        {useV2ReadPath && selectedAccount ? (
+          <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/60 p-3 text-sm text-muted-foreground">
+            <div className="font-medium text-foreground">
+              {summarizeDeliveryStrategy(deliveryStrategy)}
+            </div>
+            <div className="mt-1 flex flex-wrap gap-3 text-xs">
+              <span>账户：{selectedAccount}</span>
+              <span>override：{mapProviderLabel(overrideProvider)}</span>
+              <span>strategy：{mapStrategyLabel(strategyModeOverride)}</span>
+              {deliveryStrategy?.resolved_provider ? (
+                <span>resolved：{mapProviderLabel(deliveryStrategy.resolved_provider)}</span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <EmailToolbar
         accounts={accounts}

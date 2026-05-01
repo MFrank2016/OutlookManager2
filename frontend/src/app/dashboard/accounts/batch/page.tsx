@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import api from "@/lib/api";
+import api, { extractApiErrorMessage } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -20,14 +20,57 @@ import { AlertTriangle, CheckCircle, Loader2, ArrowLeft, Trash2, FileText, Play 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+interface BatchDryRunResult {
+  mode: "dry_run" | "commit";
+  total_count: number;
+  success_count: number;
+  failed_count: number;
+  persisted_count: number;
+  results: Array<{
+    email: string;
+    success: boolean;
+    persisted: boolean;
+    message: string;
+  }>;
+}
+
 export default function BatchAddPage() {
   const [input, setInput] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [importMethod, setImportMethod] = useState<"imap" | "graph">("imap");
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [isDryRunLoading, setIsDryRunLoading] = useState(false);
   const [initialTotal, setInitialTotal] = useState(0);
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [dryRunResult, setDryRunResult] = useState<BatchDryRunResult | null>(null);
   const notifiedStatusRef = useRef<string | null>(null);
+
+  const parseBatchItems = () => {
+    const lines = input.split("\n").filter((line) => line.trim());
+    const items = [];
+
+    for (const line of lines) {
+      const parts = line.split("----").map((p) => p.trim());
+      if (parts.length !== 4) {
+        continue;
+      }
+      const [email, , third, fourth] = parts;
+      const clientId = third.length < fourth.length ? third : fourth;
+      const refreshToken = third.length < fourth.length ? fourth : third;
+      items.push({
+        email,
+        refresh_token: refreshToken,
+        client_id: clientId,
+      });
+    }
+
+    const tags = tagsInput
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+
+    return { lines, items, tags };
+  };
 
   const handleLoadSample = () => {
     const sample = `example1@outlook.com----password1----refresh_token_here_1----client_id_here_1
@@ -43,6 +86,8 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
     setInitialTotal(0);
     setTaskId(null);
     setIsCreatingTask(false);
+    setIsDryRunLoading(false);
+    setDryRunResult(null);
     notifiedStatusRef.current = null;
   };
 
@@ -72,7 +117,7 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
   };
 
   const handleBatchAdd = async () => {
-    const lines = input.split("\n").filter((line) => line.trim());
+    const { lines, items, tags } = parseBatchItems();
     if (lines.length === 0) {
       toast.warning("没有有效的行可处理");
       return;
@@ -82,38 +127,11 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
     setInitialTotal(lines.length);
     notifiedStatusRef.current = null;
 
-    // 解析所有账户数据
-    const items = [];
-    for (const line of lines) {
-      const parts = line.split("----").map((p) => p.trim());
-      if (parts.length !== 4) {
-        continue;
-      }
-      const [email, , third, fourth] = parts;
-      
-      // 根据长度自动识别 client_id 和 refresh_token
-      // client_id 通常较短（如 UUID），refresh_token 通常较长
-      const clientId = third.length < fourth.length ? third : fourth;
-      const refreshToken = third.length < fourth.length ? fourth : third;
-      
-      items.push({
-        email,
-        refresh_token: refreshToken,
-        client_id: clientId,
-      });
-    }
-
     if (items.length === 0) {
       toast.error("没有有效的账户数据");
       setIsCreatingTask(false);
       return;
     }
-
-    // 解析标签
-    const tags = tagsInput
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter((tag) => tag.length > 0);
 
     try {
       // 创建批量导入任务
@@ -128,13 +146,43 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
       setIsCreatingTask(false);
       toast.success(`批量导入任务已创建，任务ID: ${taskId}`);
     } catch (error: unknown) {
-      const msg =
-        error && typeof error === "object" && "response" in error
-          ? ((error as { response?: { data?: { detail?: string } } }).response?.data?.detail ??
-            "创建任务失败")
-          : "创建任务失败";
-      toast.error(msg);
+      toast.error(extractApiErrorMessage(error as never, "创建任务失败"));
       setIsCreatingTask(false);
+    }
+  };
+
+  const handleDryRunProbe = async () => {
+    const { lines, items, tags } = parseBatchItems();
+    if (lines.length === 0) {
+      toast.warning("没有有效的行可预检");
+      return;
+    }
+    if (items.length === 0) {
+      toast.error("没有有效的账户数据");
+      return;
+    }
+
+    setIsDryRunLoading(true);
+    try {
+      const response = await api.post<BatchDryRunResult>(
+        "/api/v2/accounts/import",
+        {
+          items,
+          api_method: importMethod,
+          tags,
+        },
+        {
+          params: { mode: "dry_run" },
+        }
+      );
+      setDryRunResult(response.data);
+      toast.success(
+        `预检完成：成功 ${response.data.success_count}，失败 ${response.data.failed_count}`
+      );
+    } catch (error: unknown) {
+      toast.error(extractApiErrorMessage(error as never, "预检失败"));
+    } finally {
+      setIsDryRunLoading(false);
     }
   };
 
@@ -319,6 +367,24 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
               )}
             </Button>
             <Button 
+              variant="outline"
+              onClick={handleDryRunProbe}
+              disabled={isProcessing || isDryRunLoading || !input.trim()}
+              throttle={true}
+              throttleMs={300}
+              className="w-full sm:w-auto min-h-[44px]"
+            >
+              {isDryRunLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 预检中...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" /> 预检导入
+                </>
+              )}
+            </Button>
+            <Button 
               variant="secondary" 
               onClick={handleClear} 
               disabled={isProcessing}
@@ -374,6 +440,32 @@ example3@outlook.com----password3----refresh_token_here_3----client_id_here_3`;
                   状态: <span className="font-medium">{taskProgress.status === "processing" ? "处理中" : taskProgress.status === "completed" ? "已完成" : taskProgress.status === "failed" ? "失败" : "等待中"}</span>
                 </div>
               )}
+            </div>
+          ) : null}
+
+          {dryRunResult ? (
+            <div className="space-y-3 rounded-xl border border-border/70 bg-[color:var(--surface-1)]/60 p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-sm font-medium">预检结果</span>
+                <span className="text-xs text-muted-foreground">
+                  总计 {dryRunResult.total_count}，成功 {dryRunResult.success_count}，失败 {dryRunResult.failed_count}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {dryRunResult.results.slice(0, 5).map((item) => (
+                  <div key={item.email} className="flex items-start justify-between gap-3 text-sm">
+                    <span className="break-all text-foreground">{item.email}</span>
+                    <span className={item.success ? "text-green-700" : "text-red-700"}>
+                      {item.success ? "通过" : item.message}
+                    </span>
+                  </div>
+                ))}
+                {dryRunResult.results.length > 5 ? (
+                  <div className="text-xs text-muted-foreground">
+                    其余 {dryRunResult.results.length - 5} 条结果已省略。
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </CardContent>

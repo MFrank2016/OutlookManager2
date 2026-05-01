@@ -34,6 +34,7 @@ class AccountLifecycleService:
         self.token_broker = token_broker or TokenBroker()
         self.capability_resolver = capability_resolver or CapabilityResolver()
         self.mail_gateway = mail_gateway or default_mail_gateway
+        self._uses_custom_account_dao = account_dao is not None
         self.account_dao = account_dao or AccountDAO()
         self.db = db_module
         self.now_fn = now_fn or (lambda: datetime.now(timezone.utc))
@@ -77,6 +78,73 @@ class AccountLifecycleService:
         return {
             "email_id": credentials.email,
             "message": "Account verified and saved successfully.",
+        }
+
+    async def import_accounts(
+        self,
+        items: list[AccountCredentials],
+        *,
+        mode: str,
+        api_method: str,
+        tags: list[str],
+    ) -> Dict[str, Any]:
+        results: list[Dict[str, Any]] = []
+        success_count = 0
+        failed_count = 0
+        persisted_count = 0
+
+        for item in items:
+            credentials = item.model_copy(
+                update={
+                    "tags": list(tags or []),
+                    "api_method": api_method,
+                }
+            )
+            try:
+                if mode == "dry_run":
+                    probe = await self.probe_account(credentials, persist=False)
+                    token_ok = bool(probe.get("token_ok"))
+                    success_count += 1 if token_ok else 0
+                    failed_count += 0 if token_ok else 1
+                    results.append(
+                        {
+                            "email": credentials.email,
+                            "success": token_ok,
+                            "persisted": False,
+                            "message": "probe ok" if token_ok else "probe failed",
+                        }
+                    )
+                    continue
+
+                register_result = await self.register_account(credentials)
+                success_count += 1
+                persisted_count += 1
+                results.append(
+                    {
+                        "email": credentials.email,
+                        "success": True,
+                        "persisted": True,
+                        "message": register_result["message"],
+                    }
+                )
+            except Exception as exc:
+                failed_count += 1
+                results.append(
+                    {
+                        "email": credentials.email,
+                        "success": False,
+                        "persisted": False,
+                        "message": self._error_message(exc),
+                    }
+                )
+
+        return {
+            "mode": mode,
+            "total_count": len(items),
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "persisted_count": persisted_count,
+            "results": results,
         }
 
     async def refresh_account_token(self, email: str) -> Dict[str, Any]:
@@ -278,6 +346,13 @@ class AccountLifecycleService:
         return {}
 
     async def _load_account_credentials(self, email: str) -> AccountCredentials:
+        if not self._uses_custom_account_dao:
+            # 默认路径复用 account_service 的读逻辑，保持 v1/v2
+            # 在宽容归一化和测试注入 seam 上一致。
+            from account_service import get_account_credentials
+
+            return await get_account_credentials(email)
+
         account = self.account_dao.get_by_email(email)
         if not account:
             raise HTTPException(status_code=404, detail=f"Account {email} not found")
@@ -452,6 +527,11 @@ class AccountLifecycleService:
             return "imap"
 
         return "imap"
+
+    def _error_message(self, exc: Exception) -> str:
+        if isinstance(exc, HTTPException):
+            return str(exc.detail)
+        return str(exc)
 
 
 __all__ = ["AccountLifecycleService"]

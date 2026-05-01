@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEmailDetail } from "@/hooks/useEmails";
 import { copyToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
-import { Email } from "@/types";
+import { Email, ProviderOverride, StrategyMode } from "@/types";
 
 const CountdownDisplay = memo(({ countdown }: { countdown: number }) => (
   <span className="text-xs font-mono text-[color:var(--text-soft)]">{countdown}s</span>
@@ -45,13 +45,34 @@ interface EmailDetailPanelProps {
   messageId: string;
   emailData?: Email | null;
   onDelete?: () => void;
+  useV2?: boolean;
+  overrideProvider?: ProviderOverride;
+  strategyMode?: StrategyMode;
+  skipCache?: boolean;
 }
 
-export function EmailDetailPanel({ account, messageId, emailData, onDelete }: EmailDetailPanelProps) {
+export function EmailDetailPanel({
+  account,
+  messageId,
+  emailData,
+  onDelete,
+  useV2 = false,
+  overrideProvider = "auto",
+  strategyMode = "auto",
+  skipCache = false,
+}: EmailDetailPanelProps) {
   const hasFullContent = Boolean(emailData && (emailData.body_plain || emailData.body_html));
-  const { data: emailDetail, isLoading, error, refetch, isRefetching } = useEmailDetail(account, messageId, {
-    enabled: !hasFullContent,
-  });
+  const { data: emailDetail, isLoading, error, refetch, isRefetching } = useEmailDetail(
+    account,
+    messageId,
+    {
+      enabled: !hasFullContent,
+      useV2,
+      overrideProvider,
+      strategyMode,
+      skipCache,
+    }
+  );
 
   const email = hasFullContent ? emailData : emailDetail;
   const [copied, setCopied] = useState(false);

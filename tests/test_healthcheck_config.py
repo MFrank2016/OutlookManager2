@@ -40,3 +40,9 @@ def test_api_dockerfile_pins_base_image_digest():
     )
 
     assert "@sha256:" in first_from
+
+
+def test_api_dockerfile_copies_microsoft_access_package():
+    dockerfile_text = Path("docker/Dockerfile").read_text(encoding="utf-8")
+
+    assert "COPY microsoft_access/ ./microsoft_access/" in dockerfile_text

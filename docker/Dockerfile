@@ -39,6 +39,7 @@ COPY cache_service.py .
 COPY verification_rule_service.py .
 COPY verification_code_detector.py .
 COPY rate_limiter.py .
+COPY microsoft_access/ ./microsoft_access/
 COPY routes/ ./routes/
 COPY dao/ ./dao/
 COPY database/ ./database/

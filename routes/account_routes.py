@@ -10,7 +10,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, BackgroundTasks, Request, Response
 
 import auth
 import database as db
@@ -37,11 +37,18 @@ from models import (
     BatchImportTaskResponse,
     BatchImportTaskProgress,
 )
+from microsoft_access.account_lifecycle_service import AccountLifecycleService
 from oauth_service import get_access_token, refresh_account_token
 from logger_config import logger
 
 # 创建路由器
 router = APIRouter(prefix="/accounts", tags=["账户管理"])
+V1_DEPRECATION_SUNSET = "Wed, 31 Dec 2026 23:59:59 GMT"
+
+
+def _apply_v1_deprecation_headers(response: Response) -> None:
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = V1_DEPRECATION_SUNSET
 
 
 def _serialize_datetime(dt: Optional[Any]) -> Optional[str]:
@@ -238,12 +245,14 @@ async def get_accounts(
 async def register_account(
     credentials: AccountCredentials,
     request: Request,
+    response: Response,
     admin: dict = Depends(auth.get_current_admin),
 ):
     """注册或更新邮箱账户"""
     try:
         lifecycle_service = get_account_lifecycle_service_for_request(request)
         result = await register_account_via_lifecycle(lifecycle_service, credentials)
+        _apply_v1_deprecation_headers(response)
         return AccountResponse(
             email_id=result["email_id"],
             message=result["message"],
@@ -413,6 +422,7 @@ async def batch_delete_accounts(
 async def manual_refresh_token(
     email_id: str,
     request: Request,
+    response: Response,
     admin: dict = Depends(auth.get_current_admin),
 ):
     """手动刷新指定账户的token"""
@@ -421,6 +431,7 @@ async def manual_refresh_token(
         result = await refresh_account_token_via_lifecycle(lifecycle_service, email_id)
         if result["success"]:
             logger.info(f"Token refreshed for {email_id} by {admin['username']}")
+            _apply_v1_deprecation_headers(response)
             return AccountResponse(
                 email_id=email_id,
                 message=result["message"],
@@ -606,6 +617,7 @@ async def batch_refresh_tokens(
 async def detect_api_method_route(
     email_id: str,
     request: Request,
+    response: Response,
     admin: dict = Depends(auth.get_current_admin),
 ):
     """检测并更新账户的API方法（Graph API 或 IMAP）"""
@@ -616,6 +628,7 @@ async def detect_api_method_route(
         logger.info(
             f"Detected API method for {email_id}: {api_method} by {admin['username']}"
         )
+        _apply_v1_deprecation_headers(response)
         return AccountResponse(
             email_id=email_id,
             message=f"API method detected and updated to: {api_method}",
@@ -672,20 +685,8 @@ def _process_single_import_item_sync(
         
         # 运行异步操作
         async def _async_import():
-            # 验证凭证有效性并获取access token
-            await get_access_token(credentials)
-            
-            # 更新凭证的刷新时间和状态
-            current_time = datetime.now().isoformat()
-            next_refresh = datetime.now() + timedelta(days=7)  # refresh token 过期时间改为 7 天
-            
-            credentials.last_refresh_time = current_time
-            credentials.next_refresh_time = next_refresh.isoformat()
-            credentials.refresh_status = "success"
-            credentials.refresh_error = None
-            
-            # 保存凭证（包含access token和刷新时间）
-            await save_account_credentials(credentials.email, credentials)
+            lifecycle_service = AccountLifecycleService()
+            await lifecycle_service.register_account(credentials)
             
             # 更新任务项状态
             from dao.batch_import_task_dao import BatchImportTaskItemDAO

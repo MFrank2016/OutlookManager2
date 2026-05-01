@@ -1,6 +1,14 @@
 import axios, { AxiosError } from "axios";
 import { toast } from "sonner";
 
+export {
+  buildV2AccountPath,
+  buildV2MessagePath,
+  buildV2MessagesPath,
+  buildV2MessageQueryParams,
+  buildV2MessageSendPath,
+} from "./microsoftAccess";
+
 export interface ApiValidationIssue {
   msg?: string;
   [key: string]: unknown;

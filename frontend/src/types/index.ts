@@ -10,6 +10,9 @@ export interface User {
   last_login?: string;
 }
 
+export type StrategyMode = "auto" | "graph_preferred" | "graph_only" | "imap_only";
+export type ProviderOverride = "auto" | "graph" | "imap";
+
 export interface Account {
   email_id: string;
   client_id: string;
@@ -19,6 +22,74 @@ export interface Account {
   next_refresh_time?: string;
   refresh_status: "success" | "failed" | "pending";
   refresh_error?: string;
+  strategy_mode?: StrategyMode;
+  lifecycle_state?: string;
+  last_provider_used?: string;
+  capability_snapshot_json?: string;
+  provider_health_json?: string;
+}
+
+export interface CapabilitySnapshot {
+  graph_available?: boolean | null;
+  graph_read_available?: boolean | null;
+  graph_write_available?: boolean | null;
+  graph_send_available?: boolean | null;
+  imap_available?: boolean | null;
+  recommended_provider?: string | null;
+  last_probe_at?: string | null;
+  last_probe_source?: string | null;
+  graph_probe_status?: string | null;
+  graph_probe_error?: string | null;
+}
+
+export interface ProviderError {
+  code?: string | null;
+  message?: string | null;
+  at?: string | null;
+}
+
+export interface AccountHealth {
+  email: string;
+  strategy_mode: StrategyMode;
+  lifecycle_state: string;
+  capability: CapabilitySnapshot;
+  last_provider_used?: string | null;
+  last_error?: ProviderError | null;
+}
+
+export interface DeliveryStrategy {
+  email: string;
+  strategy_mode: StrategyMode;
+  recommended_provider?: string | null;
+  resolved_provider?: string | null;
+  provider_order: string[];
+  last_provider_used?: string | null;
+  override_active: boolean;
+  override_provider?: string | null;
+  skip_cache: boolean;
+  capability: CapabilitySnapshot;
+}
+
+export interface AccountProbeResult {
+  token_ok: boolean;
+  capability: CapabilitySnapshot;
+  lifecycle_state: string;
+  warnings: string[];
+}
+
+export interface V2MessageQuery {
+  folder?: string;
+  page?: number;
+  page_size?: number;
+  sender_search?: string;
+  subject_search?: string;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+  start_time?: string;
+  end_time?: string;
+  override_provider?: ProviderOverride | null;
+  strategy_mode?: StrategyMode | null;
+  skip_cache?: boolean;
 }
 
 export interface Email {

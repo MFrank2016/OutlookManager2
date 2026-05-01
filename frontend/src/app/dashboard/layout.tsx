@@ -36,7 +36,7 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="page-enter flex h-dvh overflow-hidden bg-[color:var(--surface-0)] text-foreground">
+    <div className="theme-console page-enter flex h-dvh overflow-hidden bg-[color:var(--surface-0)] text-foreground">
       <button
         type="button"
         aria-label="关闭菜单"

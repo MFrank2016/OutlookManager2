@@ -103,8 +103,8 @@ async def check_graph_api_availability(credentials: AccountCredentials) -> Dict[
         - availability_status: mail_scope_confirmed / confirmed_unavailable / insufficient_evidence / probe_error
         - scope / evidence / access_token
     """
+    broker = TokenBroker()
     try:
-        broker = TokenBroker()
         result = await broker.fetch_access_token(
             credentials,
             persist=False,
@@ -139,6 +139,13 @@ async def check_graph_api_availability(credentials: AccountCredentials) -> Dict[
         logger.warning(f"Graph API availability check failed for {credentials.email}: {exc}")
         return _build_graph_probe_error_result(exc)
     except RECOVERABLE_GRAPH_PROBE_EXCEPTION_TYPES as exc:
+        logger.warning(f"Graph API availability check failed for {credentials.email}: {exc}")
+        return _build_graph_probe_error_result(exc)
+    except Exception as exc:
+        # 只有外部注入/替身 broker 的异常才归一化成 probe_error；
+        # 默认实现里的运行时 bug 应继续冒泡，避免 MailGateway 静默回退。
+        if type(broker).__module__.startswith("microsoft_access."):
+            raise
         logger.warning(f"Graph API availability check failed for {credentials.email}: {exc}")
         return _build_graph_probe_error_result(exc)
 

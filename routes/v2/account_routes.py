@@ -8,9 +8,11 @@ from pydantic import BaseModel, Field
 import auth
 from microsoft_access.account_lifecycle_service import AccountLifecycleService
 from models import (
+    AccountResponse,
     AccountCredentials,
     AccountHealthResponse,
     AccountProbeResponse,
+    BatchImportRequest,
     CapabilitySnapshotResponse,
     DeliveryStrategyOverrideResponse,
     DeliveryStrategyResponse,
@@ -27,6 +29,22 @@ class DeliveryStrategyOverrideRequest(BaseModel):
     strategy_mode: Optional[StrategyMode] = None
     skip_cache: bool = False
     ttl_seconds: Optional[int] = Field(default=None, ge=1)
+
+
+class BatchImportResultItem(BaseModel):
+    email: str
+    success: bool
+    persisted: bool
+    message: str
+
+
+class BatchImportResponse(BaseModel):
+    mode: Literal["dry_run", "commit"]
+    total_count: int
+    success_count: int
+    failed_count: int
+    persisted_count: int
+    results: list[BatchImportResultItem]
 
 
 def get_account_lifecycle_service(request: Request) -> AccountLifecycleService:
@@ -46,6 +64,54 @@ async def probe_account(
 ):
     auth.require_admin(user)
     return await service.probe_account(credentials, persist=False)
+
+
+@router.post(
+    "",
+    response_model=AccountResponse,
+    response_model_exclude_unset=True,
+)
+async def register_account(
+    credentials: AccountCredentials,
+    user: dict = Depends(auth.get_current_user),
+    service: AccountLifecycleService = Depends(get_account_lifecycle_service),
+):
+    auth.require_admin(user)
+    result = await service.register_account(credentials)
+    return AccountResponse(
+        email_id=result["email_id"],
+        message=result["message"],
+    )
+
+
+@router.post(
+    "/import",
+    response_model=BatchImportResponse,
+    response_model_exclude_unset=True,
+)
+async def import_accounts(
+    request: BatchImportRequest,
+    mode: Literal["dry_run", "commit"] = Query("dry_run"),
+    user: dict = Depends(auth.get_current_user),
+    service: AccountLifecycleService = Depends(get_account_lifecycle_service),
+):
+    auth.require_admin(user)
+    items = [
+        AccountCredentials(
+            email=item.email,
+            refresh_token=item.refresh_token,
+            client_id=item.client_id,
+            tags=request.tags,
+            api_method=request.api_method,
+        )
+        for item in request.items
+    ]
+    return await service.import_accounts(
+        items,
+        mode=mode,
+        api_method=request.api_method,
+        tags=request.tags,
+    )
 
 
 @router.get(
@@ -77,6 +143,31 @@ async def detect_account_capability(
 ):
     auth.require_admin(user)
     return await service.detect_capability(email, persist=True)
+
+
+@router.post(
+    "/{email}/token-refresh",
+    response_model=AccountResponse,
+    response_model_exclude_unset=True,
+)
+async def refresh_account_token(
+    email: str,
+    user: dict = Depends(auth.get_current_user),
+    service: AccountLifecycleService = Depends(get_account_lifecycle_service),
+):
+    auth.require_admin(user)
+    result = await service.refresh_account_token(email)
+    if not result.get("success", False):
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Token refresh failed: {result.get('error', 'Unknown error')}",
+        )
+    return AccountResponse(
+        email_id=result["email_id"],
+        message=result["message"],
+    )
 
 
 @router.get(

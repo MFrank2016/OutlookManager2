@@ -6,7 +6,7 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 import auth
 from account_service import (
@@ -34,6 +34,12 @@ from logger_config import logger
 
 # 创建路由器
 router = APIRouter(prefix="/emails", tags=["邮件管理"])
+V1_DEPRECATION_SUNSET = "Wed, 31 Dec 2026 23:59:59 GMT"
+
+
+def _apply_v1_deprecation_headers(response: Response) -> None:
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = V1_DEPRECATION_SUNSET
 
 
 @router.get("/{email_id}", response_model=EmailListResponse)
@@ -48,6 +54,7 @@ async def get_emails(
     sort_by: str = Query("date", description="排序字段（date/subject/from_email）"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$", description="排序方向"),
     request: Request = None,
+    response: Response = None,
     user: dict = Depends(auth.get_current_user),
 ):
     """获取邮件列表（支持搜索、排序、SQLite缓存，根据用户权限控制）"""
@@ -60,6 +67,8 @@ async def get_emails(
     
     credentials = await get_account_credentials(email_id)
     mail_gateway = get_mail_gateway_for_request(request)
+    if response is not None:
+        _apply_v1_deprecation_headers(response)
     return await list_messages_via_gateway(
         mail_gateway,
         credentials,
@@ -81,6 +90,7 @@ async def get_dual_view_emails(
     junk_page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     request: Request = None,
+    response: Response = None,
     user: dict = Depends(auth.get_current_user),
 ):
     """获取双栏视图邮件（收件箱和垃圾箱，根据用户权限控制）"""
@@ -93,6 +103,8 @@ async def get_dual_view_emails(
     
     credentials = await get_account_credentials(email_id)
     mail_gateway = get_mail_gateway_for_request(request)
+    if response is not None:
+        _apply_v1_deprecation_headers(response)
 
     # 并行获取收件箱和垃圾箱邮件
     inbox_response = await list_messages_via_gateway(
@@ -124,6 +136,7 @@ async def get_email_detail(
     email_id: str,
     message_id: str,
     request: Request = None,
+    response: Response = None,
     user: dict = Depends(auth.get_current_user),
 ):
     """获取邮件详细内容（根据用户权限控制）"""
@@ -136,6 +149,8 @@ async def get_email_detail(
     
     credentials = await get_account_credentials(email_id)
     mail_gateway = get_mail_gateway_for_request(request)
+    if response is not None:
+        _apply_v1_deprecation_headers(response)
     return await get_message_detail_via_gateway(mail_gateway, credentials, message_id)
 
 
@@ -144,6 +159,7 @@ async def delete_emails_batch_route(
     email_id: str,
     folder: str = Query("inbox", pattern="^(inbox|junk|all)$", description="要清空的文件夹"),
     request: Request = None,
+    response: Response = None,
     user: dict = Depends(auth.get_current_user)
 ):
     """批量删除邮件（需要删除邮件权限）"""
@@ -159,6 +175,8 @@ async def delete_emails_batch_route(
     
     try:
         result = await delete_messages_batch_via_gateway(mail_gateway, credentials, folder)
+        if response is not None:
+            _apply_v1_deprecation_headers(response)
         
         return BatchDeleteEmailsResponse(
             success=True,
@@ -183,6 +201,7 @@ async def delete_email_route(
     email_id: str,
     message_id: str,
     request: Request = None,
+    response: Response = None,
     user: dict = Depends(auth.get_current_user),
 ):
     """删除指定邮件（需要删除邮件权限）"""
@@ -196,6 +215,8 @@ async def delete_email_route(
     credentials = await get_account_credentials(email_id)
     mail_gateway = get_mail_gateway_for_request(request)
     success = await delete_message_via_gateway(mail_gateway, credentials, message_id)
+    if response is not None:
+        _apply_v1_deprecation_headers(response)
     
     return DeleteEmailResponse(
         success=success,
@@ -209,6 +230,7 @@ async def send_email_route(
     email_id: str,
     request: SendEmailRequest,
     http_request: Request,
+    response: Response,
     user: dict = Depends(auth.get_current_user)
 ):
     """发送邮件（需要发送邮件权限）"""
@@ -231,6 +253,7 @@ async def send_email_route(
             body_text=request.body_text,
             body_html=request.body_html,
         )
+        _apply_v1_deprecation_headers(response)
         
         return SendEmailResponse(
             success=True,
