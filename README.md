@@ -103,3 +103,73 @@ docker compose down
 
 - `README_DOCKER.md`：本地 compose 栈运维命令
 - `docs/LOCAL_DEVELOPMENT.md`：远程 PostgreSQL / 只跑后端高级模式
+
+## Microsoft Access Layer / API v2 快速入口
+
+`OutlookManager2` 现在已经提供一套面向 Microsoft Access Layer 的 `/api/v2` 契约。
+
+推荐优先使用这些入口：
+
+- `POST /api/v2/accounts/probe`
+- `GET /api/v2/accounts/{email}/health`
+- `GET /api/v2/accounts/{email}/delivery-strategy`
+- `GET /api/v2/accounts/{email}/messages`
+- `POST /api/v2/accounts/import?mode=dry_run`
+
+### 快速示例
+
+预检单个账户：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v2/accounts/probe \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "email": "user@example.com",
+    "refresh_token": "refresh-token",
+    "client_id": "client-id",
+    "strategy_mode": "auto"
+  }'
+```
+
+查看健康状态：
+
+```bash
+curl http://127.0.0.1:8000/api/v2/accounts/user%40example.com/health
+```
+
+解释当前投递策略：
+
+```bash
+curl "http://127.0.0.1:8000/api/v2/accounts/user%40example.com/delivery-strategy?override_provider=graph&skip_cache=true"
+```
+
+批量导入先 dry run：
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/v2/accounts/import?mode=dry_run" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "api_method": "imap",
+    "tags": ["seed"],
+    "items": [
+      {
+        "email": "user@example.com",
+        "refresh_token": "refresh-token",
+        "client_id": "client-id"
+      }
+    ]
+  }'
+```
+
+## v1 兼容期说明
+
+当前 `/accounts`、`/emails` 等 v1 路由仍可继续使用，但它们已经进入兼容层。
+
+- 响应头会返回 `Deprecation: true`
+- 响应头会返回 `Sunset: Wed, 31 Dec 2026 23:59:59 GMT`
+
+新接入调用方、自动化脚本、前端新功能，默认都应优先走 `/api/v2`。
+
+更详细的迁移说明见：
+
+- `docs/runbooks/2026-04-30-microsoft-access-v2-migration.md`

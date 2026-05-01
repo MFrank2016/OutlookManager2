@@ -604,3 +604,38 @@
 - `v1` 不炸，`v2` 可正式接入前端和外部调用方
 - `probe / capability / health / override` 能真正帮助排障
 - 微软交互逻辑只保留一份，后续演进不再重复分叉
+
+## 2026-04-30 落地补充
+
+截至 2026 年 4 月 30 日，这条设计线已经补齐了下面这些最小可用面：
+
+- `v2` 账户写接口：`register / import(dry_run|commit) / token-refresh`
+- `v2` 邮件写接口：`delete / batch-delete / send`
+- 前端最小接入：账户页 health / delivery-strategy 摘要、批量导入 dry-run、邮件页 `/api/v2` 调试读链路
+
+同时，`v1` 兼容层已经开始显式发出弃用信号：
+
+- `Deprecation: true`
+- `Sunset: Wed, 31 Dec 2026 23:59:59 GMT`
+
+这代表设计进入了“**双轨并行，但默认新能力走 v2**”的阶段。
+
+### 当前推荐口径
+
+1. **新接入一律优先 `/api/v2`**
+   - 尤其是 `probe / health / delivery-strategy / messages`
+   - 新脚本不再围绕 `api_method` 直接分流
+
+2. **旧调用方暂不强制迁移**
+   - `/accounts`、`/emails` 仍保持兼容
+   - 但它们的行为本质上已经是 adapter 到统一服务层
+
+3. **迁移文档与操作指引要同步收口**
+   - README 负责给出主入口
+   - runbook 负责解释 `v1` vs `v2` 差异、dry-run 导入、override 排障
+
+如果后续继续推进，下一阶段的重点不应再是“补第三套路径”，而是：
+
+- 让前端默认读链路切到 `v2`
+- 把外部调用方和运维脚本逐步从 `v1` 切出
+- 到 Sunset 日期前，确保 `v1` 只承担兼容职责，不再承接新语义
