@@ -9,3 +9,4 @@ logs/
 msOauth2api/
 .worktrees/
 .playwright-cli/
+.env.compose.local
