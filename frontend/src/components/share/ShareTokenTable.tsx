@@ -26,7 +26,7 @@ interface ShareTokenTableProps {
   onToggleSelectAll: (checked: boolean) => void;
   onEdit: (token: ShareToken) => void;
   onExtend: (token: ShareToken) => void;
-  onDelete: (token: string) => void;
+  onRequestDelete: (token: ShareToken) => void;
   shareDomain?: string;
 }
 
@@ -35,7 +35,7 @@ export const ShareTokenTable = memo(function ShareTokenTable({
   selectedTokens,
   onToggleSelect,
   onToggleSelectAll,
-  onDelete,
+  onRequestDelete,
   onEdit,
   onExtend,
   shareDomain,
@@ -193,11 +193,7 @@ export const ShareTokenTable = memo(function ShareTokenTable({
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          if (window.confirm("确定要删除此分享链接吗？")) {
-                            onDelete(token.token);
-                          }
-                        }}
+                        onClick={() => onRequestDelete(token)}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         title="删除"
                       >

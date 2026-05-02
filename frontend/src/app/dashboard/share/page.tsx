@@ -14,6 +14,16 @@ import { ExtendShareDialog } from "@/components/share/ExtendShareDialog";
 import { ShareTokenDialog } from "@/components/share/ShareTokenDialog";
 import { ShareTokenSearch } from "@/components/share/ShareTokenSearch";
 import { ShareTokenTable } from "@/components/share/ShareTokenTable";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -34,6 +44,8 @@ export default function ShareManagementPage() {
   const [extendToken, setExtendToken] = useState<ShareToken | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<string>("");
   const [selectedTokens, setSelectedTokens] = useState<Set<number>>(new Set());
+  const [pendingDeleteToken, setPendingDeleteToken] = useState<ShareToken | null>(null);
+  const [pendingBatchAction, setPendingBatchAction] = useState<"deactivate" | "delete" | null>(null);
 
   // 本地查询条件状态（用于输入，不立即触发查询）
   const [localAccountSearch, setLocalAccountSearch] = useState("");
@@ -219,9 +231,7 @@ export default function ShareManagementPage() {
 
           <Button
             onClick={() => {
-              if (window.confirm(`确定要将选中的 ${selectedCount} 个分享码设置为失效吗？`)) {
-                batchDeactivate.mutate(Array.from(selectedTokens));
-              }
+              setPendingBatchAction("deactivate");
             }}
             variant="outline"
             className="gap-2 text-orange-600 hover:text-orange-700"
@@ -234,9 +244,7 @@ export default function ShareManagementPage() {
 
           <Button
             onClick={() => {
-              if (window.confirm(`确定要删除选中的 ${selectedCount} 个分享码吗？此操作不可恢复！`)) {
-                batchDelete.mutate(Array.from(selectedTokens));
-              }
+              setPendingBatchAction("delete");
             }}
             variant="outline"
             className="gap-2 text-red-600 hover:text-red-700"
@@ -276,10 +284,78 @@ export default function ShareManagementPage() {
             setExtendToken(token);
             setIsExtendDialogOpen(true);
           }}
-          onDelete={(token) => deleteToken.mutate(token)}
+          onRequestDelete={(token) => setPendingDeleteToken(token)}
           shareDomain={shareDomain || undefined}
         />
       )}
+
+      <AlertDialog
+        open={!!pendingDeleteToken}
+        onOpenChange={(open) => {
+          if (!open) setPendingDeleteToken(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除分享链接</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeleteToken
+                ? `确定要删除 ${pendingDeleteToken.email_account_id} 的分享链接吗？此操作不可恢复。`
+                : "确定要删除此分享链接吗？此操作不可恢复。"}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingDeleteToken) {
+                  deleteToken.mutate(pendingDeleteToken.token);
+                  setPendingDeleteToken(null);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendingBatchAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingBatchAction(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingBatchAction === "deactivate" ? "确认批量失效" : "确认批量删除"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingBatchAction === "deactivate"
+                ? `确定要将选中的 ${selectedCount} 个分享码设置为失效吗？`
+                : `确定要删除选中的 ${selectedCount} 个分享码吗？此操作不可恢复！`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingBatchAction === "deactivate") {
+                  batchDeactivate.mutate(Array.from(selectedTokens));
+                } else if (pendingBatchAction === "delete") {
+                  batchDelete.mutate(Array.from(selectedTokens));
+                }
+                setPendingBatchAction(null);
+              }}
+              className={pendingBatchAction === "delete" ? "bg-red-600 hover:bg-red-700" : undefined}
+            >
+              {pendingBatchAction === "deactivate" ? "确认失效" : "确认删除"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ShareTokenDialog
         open={isEditDialogOpen}
