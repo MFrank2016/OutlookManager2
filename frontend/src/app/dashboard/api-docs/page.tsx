@@ -430,6 +430,23 @@ export default function ApiDocsPage() {
     () => (parsedResponseJson !== null ? filterJsonValue(parsedResponseJson, jsonSearch) : null),
     [parsedResponseJson, jsonSearch]
   );
+  const selectedOperationMetaStats = useMemo(() => {
+    if (!selectedOperation) {
+      return [] as string[];
+    }
+
+    const pathCount = selectedOperation.parameters.filter((item) => item.in === "path").length;
+    const queryCount = selectedOperation.parameters.filter((item) => item.in === "query").length;
+    const headerCount = selectedOperation.parameters.filter((item) => item.in === "header").length;
+
+    return [
+      `路径参数 ${pathCount}`,
+      `查询参数 ${queryCount}`,
+      `请求头 ${headerCount}`,
+      `请求体字段 ${selectedOperation.bodyFields.length}`,
+      selectedOperation.requiresAuth ? "需要鉴权" : "公共接口",
+    ];
+  }, [selectedOperation]);
   const visualBodyFields = useMemo(() => selectedOperation?.bodyFields ?? [], [selectedOperation]);
   const supportsVisualBodyEditor = visualBodyFields.length > 0;
 
@@ -1127,6 +1144,16 @@ export default function ApiDocsPage() {
                   <div className="text-lg font-semibold">{selectedOperation.summary}</div>
                   <div className="text-sm text-muted-foreground">
                     {selectedOperation.description || "暂无详细描述，可直接在下方填写参数并发起调试。"}
+                  </div>
+                  <div className="rounded-xl border border-border/70 bg-[color:var(--surface-2)]/45 px-3 py-2">
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">接口概况</div>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedOperationMetaStats.map((item) => (
+                        <Badge key={item} variant="outline">
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <div className="grid w-full gap-2 rounded-2xl border border-border/70 bg-[color:var(--surface-2)]/55 p-1.5 shadow-sm sm:flex sm:w-auto sm:flex-wrap">

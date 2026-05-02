@@ -131,3 +131,11 @@ test("api docs page should keep the parameter panel fully localized in Chinese",
   assert.ok(source.includes("请求头参数"));
   assert.ok(source.includes("当前接口未声明 path / query / header 参数。"));
 });
+
+test("api docs page should show an operation overview strip with request surface counts", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(source.includes("接口概况"));
+  assert.ok(source.includes("请求体字段"));
+  assert.ok(source.includes("const selectedOperationMetaStats = useMemo("));
+});
