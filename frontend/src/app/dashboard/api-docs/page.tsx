@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Play, RefreshCw, Search } from "lucide-react";
+import { Copy, Loader2, Play, RefreshCw, Search, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageSection } from "@/components/layout/PageSection";
@@ -11,9 +12,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  ApiDocScope,
   ApiDocOperation,
   buildRequestUrl,
+  matchesOperationScope,
   parseOpenApiSpec,
+  pickDefaultOperation,
 } from "@/lib/apiDocs";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +28,13 @@ interface ResponseState {
   headers: Record<string, string>;
   body: string;
 }
+
+const SCOPE_OPTIONS: Array<{ value: ApiDocScope; label: string }> = [
+  { value: "all", label: "全部接口" },
+  { value: "v2", label: "仅 V2" },
+  { value: "auth", label: "仅鉴权" },
+  { value: "public", label: "仅公共" },
+];
 
 function prettyJson(value: unknown): string {
   if (value == null) {
@@ -36,6 +47,7 @@ export default function ApiDocsPage() {
   const [operations, setOperations] = useState<ApiDocOperation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<ApiDocScope>("all");
   const [selectedOperationId, setSelectedOperationId] = useState<string>("");
   const [pathValues, setPathValues] = useState<Record<string, string>>({});
   const [queryValues, setQueryValues] = useState<Record<string, string>>({});
@@ -48,6 +60,13 @@ export default function ApiDocsPage() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openApiError, setOpenApiError] = useState<string | null>(null);
+  const [hasStoredToken, setHasStoredToken] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setHasStoredToken(Boolean(localStorage.getItem("auth_token")));
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,7 +84,7 @@ export default function ApiDocsPage() {
         const parsed = parseOpenApiSpec(spec);
         if (!cancelled) {
           setOperations(parsed);
-          setSelectedOperationId((current) => current || parsed[0]?.id || "");
+          setSelectedOperationId((current) => current || pickDefaultOperation(parsed)?.id || "");
         }
       } catch (error) {
         if (!cancelled) {
@@ -86,16 +105,32 @@ export default function ApiDocsPage() {
 
   const filteredOperations = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    if (!keyword) {
-      return operations;
-    }
+    return operations.filter((item) => {
+      if (!matchesOperationScope(item, scope)) {
+        return false;
+      }
 
-    return operations.filter((item) =>
-      [item.method, item.path, item.summary, item.description, item.tag]
+      if (!keyword) {
+        return true;
+      }
+
+      return [item.method, item.path, item.summary, item.description, item.tag]
         .filter(Boolean)
-        .some((part) => part.toLowerCase().includes(keyword))
-    );
-  }, [operations, search]);
+        .some((part) => part.toLowerCase().includes(keyword));
+    });
+  }, [operations, scope, search]);
+
+  const scopeCounts = useMemo(() => {
+    return SCOPE_OPTIONS.reduce<Record<ApiDocScope, number>>((acc, option) => {
+      acc[option.value] = operations.filter((item) => matchesOperationScope(item, option.value)).length;
+      return acc;
+    }, {
+      all: 0,
+      v2: 0,
+      auth: 0,
+      public: 0,
+    });
+  }, [operations]);
 
   const selectedOperation = useMemo(
     () => operations.find((item) => item.id === selectedOperationId) ?? filteredOperations[0] ?? null,
@@ -109,6 +144,16 @@ export default function ApiDocsPage() {
       return acc;
     }, {});
   }, [filteredOperations]);
+
+  useEffect(() => {
+    if (filteredOperations.length === 0) {
+      return;
+    }
+    const isSelectedVisible = filteredOperations.some((item) => item.id === selectedOperationId);
+    if (!isSelectedVisible) {
+      setSelectedOperationId(pickDefaultOperation(filteredOperations)?.id || filteredOperations[0]!.id);
+    }
+  }, [filteredOperations, selectedOperationId]);
 
   useEffect(() => {
     if (!selectedOperation) {
@@ -243,6 +288,30 @@ export default function ApiDocsPage() {
     }
   };
 
+  const copyText = async (content: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast.success(successMessage);
+    } catch (error) {
+      console.error(error);
+      toast.error("复制失败，请检查浏览器剪贴板权限");
+    }
+  };
+
+  const handleFormatBody = () => {
+    if (!bodyValue.trim()) {
+      return;
+    }
+
+    try {
+      setBodyValue(JSON.stringify(JSON.parse(bodyValue), null, 2));
+      toast.success("请求体已格式化");
+    } catch (error) {
+      console.error(error);
+      toast.error("请求体不是合法 JSON，无法格式化");
+    }
+  };
+
   return (
     <div className="page-enter flex h-full min-h-[70dvh] flex-col gap-3 md:gap-4">
       <PageHeader
@@ -283,7 +352,34 @@ export default function ApiDocsPage() {
             className="mb-3"
           />
 
+          <div className="mb-3 flex flex-wrap gap-2">
+            {SCOPE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setScope(option.value)}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-all",
+                  scope === option.value
+                    ? "border-primary/50 bg-primary/12 text-primary shadow-sm"
+                    : "border-border/70 bg-[color:var(--surface-1)]/80 text-muted-foreground hover:border-primary/25 hover:text-foreground",
+                )}
+              >
+                <span>{option.label}</span>
+                <span className="rounded-full bg-black/5 px-1.5 py-0.5 text-[11px] dark:bg-white/10">
+                  {scopeCounts[option.value]}
+                </span>
+              </button>
+            ))}
+          </div>
+
           <div className="space-y-4 overflow-y-auto pr-1">
+            {filteredOperations.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border/70 px-3 py-6 text-sm text-muted-foreground">
+                当前筛选条件下没有可展示接口，试试切换到“全部接口”或清空搜索词。
+              </div>
+            ) : null}
+
             {Object.entries(groupedOperations).map(([tag, items]) => (
               <div key={tag} className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -442,6 +538,11 @@ export default function ApiDocsPage() {
                         />
                         <span>优先使用当前登录 token</span>
                       </label>
+                      <div className="rounded-lg border border-dashed border-border/70 px-3 py-2 text-xs text-muted-foreground">
+                        {hasStoredToken
+                          ? "已检测到本地 auth_token，可直接调试需要鉴权的接口。"
+                          : "当前未检测到本地 auth_token，如需调试鉴权接口，请切换为手动输入。"}
+                      </div>
                       {!useStoredToken ? (
                         <Input
                           value={manualToken}
@@ -463,11 +564,17 @@ export default function ApiDocsPage() {
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
                     <div className="mb-3 flex items-center justify-between">
                       <div className="text-sm font-semibold">请求体</div>
-                      {selectedOperation.bodyRequired ? (
-                        <Badge variant="outline">必填 JSON</Badge>
-                      ) : (
-                        <Badge variant="secondary">可选</Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {selectedOperation.bodyRequired ? (
+                          <Badge variant="outline">必填 JSON</Badge>
+                        ) : (
+                          <Badge variant="secondary">可选</Badge>
+                        )}
+                        <Button variant="outline" size="sm" onClick={handleFormatBody}>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          格式化 JSON
+                        </Button>
+                      </div>
                     </div>
                     <Textarea
                       value={bodyValue}
@@ -478,7 +585,17 @@ export default function ApiDocsPage() {
                   </div>
 
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                    <div className="mb-3 text-sm font-semibold">cURL 预览</div>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold">cURL 预览</div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void copyText(curlPreview || "当前接口尚未生成请求预览", "cURL 已复制")}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        复制 cURL
+                      </Button>
+                    </div>
                     <pre className="overflow-x-auto rounded-lg bg-slate-950 px-3 py-3 text-xs leading-6 text-slate-100">
                       {curlPreview || "当前接口尚未生成请求预览"}
                     </pre>
@@ -489,14 +606,25 @@ export default function ApiDocsPage() {
               <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="text-sm font-semibold">响应结果</div>
-                  {responseState ? (
-                    <div className="flex items-center gap-2">
-                      <Badge variant={responseState.ok ? "default" : "destructive"}>
-                        HTTP {responseState.status}
-                      </Badge>
-                      <Badge variant="secondary">{responseState.durationMs} ms</Badge>
-                    </div>
-                  ) : null}
+                  <div className="flex items-center gap-2">
+                    {responseState ? (
+                      <>
+                        <Badge variant={responseState.ok ? "default" : "destructive"}>
+                          HTTP {responseState.status}
+                        </Badge>
+                        <Badge variant="secondary">{responseState.durationMs} ms</Badge>
+                      </>
+                    ) : null}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!responseState}
+                      onClick={() => void copyText(responseState?.body || "", "响应已复制")}
+                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      复制响应
+                    </Button>
+                  </div>
                 </div>
 
                 {requestError ? (

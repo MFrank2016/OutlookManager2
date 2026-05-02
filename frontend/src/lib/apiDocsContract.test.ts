@@ -15,3 +15,15 @@ test("api docs page should expose an in-page API explorer instead of only embedd
   assert.ok(source.includes("响应结果"));
   assert.ok(!source.includes("<iframe"));
 });
+
+test("api docs page should include quick scopes and request debugging actions for polish", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(source.includes("全部接口"));
+  assert.ok(source.includes("仅 V2"));
+  assert.ok(source.includes("仅鉴权"));
+  assert.ok(source.includes("仅公共"));
+  assert.ok(source.includes("复制 cURL"));
+  assert.ok(source.includes("复制响应"));
+  assert.ok(source.includes("格式化 JSON"));
+});

@@ -28,7 +28,10 @@ export interface ApiDocOperation {
   bodyTemplate: Record<string, unknown> | unknown[] | string | number | boolean | null;
 }
 
+export type ApiDocScope = "all" | "v2" | "auth" | "public";
+
 type OpenApiSpec = {
+  openapi?: string;
   components?: {
     schemas?: Record<string, Record<string, unknown>>;
   };
@@ -159,6 +162,40 @@ export function parseOpenApiSpec(spec: OpenApiSpec): ApiDocOperation[] {
     if (a.path !== b.path) return a.path.localeCompare(b.path, "zh-CN");
     return a.method.localeCompare(b.method, "zh-CN");
   });
+}
+
+export function matchesOperationScope(operation: ApiDocOperation, scope: ApiDocScope): boolean {
+  switch (scope) {
+    case "v2":
+      return operation.path.startsWith("/api/v2");
+    case "auth":
+      return operation.requiresAuth;
+    case "public":
+      return !operation.requiresAuth;
+    case "all":
+    default:
+      return true;
+  }
+}
+
+export function pickDefaultOperation(operations: ApiDocOperation[]): ApiDocOperation | null {
+  const priorityMatchers = [
+    (item: ApiDocOperation) => item.method === "GET" && item.path === "/api",
+    (item: ApiDocOperation) => item.method === "POST" && item.path === "/auth/login",
+    (item: ApiDocOperation) => item.method === "GET" && item.path === "/auth/me",
+    (item: ApiDocOperation) => item.path.startsWith("/api/v2"),
+    (item: ApiDocOperation) => item.path.startsWith("/accounts"),
+    (item: ApiDocOperation) => !item.requiresAuth,
+  ];
+
+  for (const matches of priorityMatchers) {
+    const found = operations.find(matches);
+    if (found) {
+      return found;
+    }
+  }
+
+  return operations[0] ?? null;
 }
 
 export function buildRequestUrl(
