@@ -72,6 +72,26 @@ def _add_share_link_to_token_data(token_data: dict, share_domain: Optional[str] 
         result['share_link'] = _generate_share_link(result['token'], share_domain)
     return result
 
+
+def _normalize_datetime_for_compare(value: Any, *, field_name: str) -> datetime:
+    """
+    统一分享页时间比较用的 datetime：
+    - 字符串支持 ISO8601 和 `Z`
+    - 带时区时间转成本地时间后去掉 tzinfo
+    - 无时区时间按本地时间使用
+    """
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    else:
+        raise HTTPException(status_code=400, detail=f"{field_name} 日期格式无效")
+
+    if dt.tzinfo is not None:
+        local_tz = datetime.now().astimezone().tzinfo
+        dt = dt.astimezone(local_tz).replace(tzinfo=None)
+    return dt
+
 async def get_valid_share_token(token: str) -> dict:
     """
     验证分享码有效性并执行限流检查（异步版本，避免阻塞事件循环）
@@ -833,20 +853,23 @@ async def public_get_email_detail(
     # 安全检查：确保邮件符合分享码的过滤规则
     # 1. 检查时间
     # 处理 date 字段可能是 datetime 对象或字符串的情况
-    email_date_str = cached_detail.get('date')
-    if isinstance(email_date_str, datetime):
-        email_date = email_date_str
-    elif isinstance(email_date_str, str):
-        email_date = datetime.fromisoformat(email_date_str.replace('Z', '+00:00'))
-    else:
-        raise HTTPException(status_code=400, detail="邮件日期格式无效")
+    email_date = _normalize_datetime_for_compare(
+        cached_detail.get('date'),
+        field_name="邮件",
+    )
     
-    start_time = datetime.fromisoformat(token_data['start_time'])
+    start_time = _normalize_datetime_for_compare(
+        token_data['start_time'],
+        field_name="分享开始时间",
+    )
     if email_date < start_time:
         raise HTTPException(status_code=403, detail="邮件不在分享的时间范围内")
         
     if token_data.get('end_time'):
-        end_time = datetime.fromisoformat(token_data['end_time'])
+        end_time = _normalize_datetime_for_compare(
+            token_data['end_time'],
+            field_name="分享结束时间",
+        )
         if email_date > end_time:
             raise HTTPException(status_code=403, detail="邮件不在分享的时间范围内")
             

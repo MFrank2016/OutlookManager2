@@ -101,6 +101,10 @@ function EmailsPageContent() {
     }
   );
   const accounts = useMemo(() => accountsResponse?.accounts || [], [accountsResponse?.accounts]);
+  const selectedAccountInfo = useMemo(
+    () => accounts.find((account) => account.email_id === selectedAccount) ?? null,
+    [accounts, selectedAccount]
+  );
 
   const { data: emailsData, isLoading: isEmailsLoading, refetch: refetchEmails } = useEmails({
     account: selectedAccount || "",
@@ -534,6 +538,7 @@ function EmailsPageContent() {
       <EmailToolbar
         accounts={accounts}
         selectedAccount={selectedAccount}
+        selectedAccountInfo={selectedAccountInfo}
         localSearch={localSearch}
         localSearchType={localSearchType}
         localFolder={localFolder}

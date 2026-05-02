@@ -13,6 +13,7 @@ import { Account } from "@/types";
 interface EmailToolbarProps {
   accounts: Account[];
   selectedAccount: string | null;
+  selectedAccountInfo: Account | null;
   localSearch: string;
   localSearchType: "subject" | "sender";
   localFolder: string;
@@ -39,6 +40,7 @@ interface EmailToolbarProps {
 export function EmailToolbar({
   accounts,
   selectedAccount,
+  selectedAccountInfo,
   localSearch,
   localSearchType,
   localFolder,
@@ -187,7 +189,7 @@ export function EmailToolbar({
         center={null}
         trailing={
           <>
-            <SendEmailDialog account={selectedAccount} />
+            <SendEmailDialog account={selectedAccountInfo} />
             <Button variant="outline" onClick={onOpenCreateShare} disabled={!hasAccount}>
               <Share2 className="mr-2 h-4 w-4" />
               创建分享

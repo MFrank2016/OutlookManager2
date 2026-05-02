@@ -1,4 +1,5 @@
 import type {
+  Account,
   CapabilitySnapshot,
   DeliveryStrategy,
   ProviderOverride,
@@ -109,6 +110,56 @@ export function getCapabilityHighlights(snapshot?: CapabilitySnapshot | null): s
     result.push("证据不足");
   }
   return result;
+}
+
+export function parseCapabilitySnapshot(
+  raw?: string | null
+): CapabilitySnapshot | null {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return null;
+    }
+    return parsed as CapabilitySnapshot;
+  } catch {
+    return null;
+  }
+}
+
+export function getAccountSendSupport(
+  account?: Pick<Account, "api_method" | "capability_snapshot_json"> | null
+): {
+  canSend: boolean;
+  reason: string;
+  badge: string;
+} {
+  const snapshot = parseCapabilitySnapshot(account?.capability_snapshot_json);
+  if (snapshot?.graph_send_available) {
+    return {
+      canSend: true,
+      reason: "当前账户已开通 Graph 发信能力。",
+      badge: "Graph 可发信",
+    };
+  }
+
+  const apiMethod = account?.api_method?.toLowerCase();
+  if (apiMethod === "graph" || apiMethod === "graph_api") {
+    return {
+      canSend: true,
+      reason: "当前账户使用 Graph 通道，可直接发信。",
+      badge: "Graph 可发信",
+    };
+  }
+
+  return {
+    canSend: false,
+    reason: "当前账户为 IMAP 模式，仅 Graph 账户支持发信。",
+    badge: "仅支持 Graph 发信",
+  };
 }
 
 export function summarizeDeliveryStrategy(strategy?: DeliveryStrategy | null): string {

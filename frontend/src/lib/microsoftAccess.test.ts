@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   buildV2MessageQueryParams,
+  getAccountSendSupport,
   mapProviderLabel,
   mapStrategyLabel,
+  parseCapabilitySnapshot,
 } from "./microsoftAccess";
 
 test("mapStrategyLabel auto", () => {
@@ -33,4 +35,29 @@ test("buildV2MessageQueryParams strips empty debug values", () => {
       subject_search: "code",
     }
   );
+});
+
+test("parseCapabilitySnapshot returns null on invalid payload", () => {
+  assert.equal(parseCapabilitySnapshot("not-json"), null);
+});
+
+test("getAccountSendSupport marks IMAP-only accounts as unsupported for compose", () => {
+  const result = getAccountSendSupport({
+    api_method: "imap",
+    capability_snapshot_json: null,
+  });
+
+  assert.equal(result.canSend, false);
+  assert.match(result.reason, /仅 Graph 账户支持发信/);
+});
+
+test("getAccountSendSupport prefers explicit graph_send_available capability", () => {
+  const result = getAccountSendSupport({
+    api_method: "imap",
+    capability_snapshot_json: JSON.stringify({
+      graph_send_available: true,
+    }),
+  });
+
+  assert.equal(result.canSend, true);
 });

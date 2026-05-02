@@ -4,13 +4,16 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { AlertCircle, Send } from "lucide-react";
+
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useSendEmail } from "@/hooks/useEmails";
-import { Send } from "lucide-react";
+import { getAccountSendSupport } from "@/lib/microsoftAccess";
+import { Account } from "@/types";
 
 const sendEmailSchema = z.object({
   recipient: z.string().email(),
@@ -18,9 +21,11 @@ const sendEmailSchema = z.object({
   body: z.string().min(1, "正文必填"),
 });
 
-export function SendEmailDialog({ account }: { account: string | null }) {
+export function SendEmailDialog({ account }: { account: Account | null }) {
     const [open, setOpen] = useState(false);
     const sendEmail = useSendEmail();
+    const sendCapability = getAccountSendSupport(account);
+    const accountEmail = account?.email_id ?? null;
 
     const form = useForm<z.infer<typeof sendEmailSchema>>({
         resolver: zodResolver(sendEmailSchema),
@@ -32,9 +37,9 @@ export function SendEmailDialog({ account }: { account: string | null }) {
     });
 
     const onSubmit = (values: z.infer<typeof sendEmailSchema>) => {
-        if (!account) return;
+        if (!accountEmail || !sendCapability.canSend) return;
         sendEmail.mutate({
-            account,
+            account: accountEmail,
             to: values.recipient,
             subject: values.subject,
             body: values.body
@@ -48,20 +53,29 @@ export function SendEmailDialog({ account }: { account: string | null }) {
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button 
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-3"
-                    disabled={!account}
-                >
-                    <Send className="mr-1.5 h-3.5 w-3.5" />
-                    <span className="text-xs md:text-sm">撰写</span>
-                </Button>
-            </DialogTrigger>
+            <div className="flex flex-col gap-1.5">
+                <DialogTrigger asChild>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-3"
+                        disabled={!account?.email_id || !sendCapability.canSend}
+                        title={sendCapability.reason}
+                    >
+                        <Send className="mr-1.5 h-3.5 w-3.5" />
+                        <span className="text-xs md:text-sm">撰写</span>
+                    </Button>
+                </DialogTrigger>
+                {account?.email_id && !sendCapability.canSend ? (
+                    <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-700">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        <span>{sendCapability.reason}</span>
+                    </div>
+                ) : null}
+            </div>
             <DialogContent className="sm:max-w-[640px]">
                 <DialogHeader>
-                    <DialogTitle>发送邮件 ({account})</DialogTitle>
+                    <DialogTitle>发送邮件 ({accountEmail})</DialogTitle>
                     <DialogDescription>
                         从当前账户直接发送邮件，适合验证链路、回复测试或临时通知。
                     </DialogDescription>
@@ -111,7 +125,7 @@ export function SendEmailDialog({ account }: { account: string | null }) {
                             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
                                 取消
                             </Button>
-                            <Button type="submit" disabled={sendEmail.isPending}>
+                            <Button type="submit" disabled={sendEmail.isPending || !sendCapability.canSend}>
                                 {sendEmail.isPending ? "发送中..." : "发送邮件"}
                             </Button>
                         </DialogFooter>

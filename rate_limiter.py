@@ -38,7 +38,9 @@ class TokenBucket:
         # 存储每个key的令牌桶状态
         # key -> {"tokens": float, "last_refill": float}
         self.buckets: Dict[str, Dict] = {}
-        self.lock = threading.Lock()
+        # acquire()/get_remaining_tokens() 会在持锁状态下进入 _cleanup_old_buckets()，
+        # 这里必须使用可重入锁，避免 cleanup 路径再次加锁时把当前线程锁死。
+        self.lock = threading.RLock()
         self.last_cleanup = time.time()
     
     def _refill_tokens(self, key: str, now: float) -> float:
@@ -194,4 +196,3 @@ def create_rate_limiter(max_tokens: int, refill_rate: float, cleanup_interval: i
         TokenBucket实例
     """
     return TokenBucket(max_tokens, refill_rate, cleanup_interval)
-

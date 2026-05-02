@@ -202,6 +202,9 @@ export function useSendEmail() {
                 body_text: data.body,
                 body_html: `<p>${htmlBody}</p>`
             });
+            if (response.data?.success === false) {
+                throw new Error(response.data.message || "发送邮件失败");
+            }
             return response.data;
         },
         onSuccess: () => {
@@ -209,9 +212,12 @@ export function useSendEmail() {
             toast.success("邮件发送成功");
         },
         onError: (error: unknown) => {
-            const errorMessage = error && typeof error === 'object' && 'response' in error 
-                ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail || "发送邮件失败"
-                : "发送邮件失败";
+            const errorMessage =
+                error instanceof Error
+                    ? error.message
+                    : error && typeof error === 'object' && 'response' in error
+                        ? (error as { response?: { data?: { detail?: string } } }).response?.data?.detail || "发送邮件失败"
+                        : "发送邮件失败";
             toast.error(errorMessage);
         },
     });

@@ -18,15 +18,16 @@ export interface Account {
   client_id: string;
   status: "active" | "invalid" | "error";
   tags: string[];
-  last_refresh_time?: string;
-  next_refresh_time?: string;
+  last_refresh_time?: string | null;
+  next_refresh_time?: string | null;
   refresh_status: "success" | "failed" | "pending";
-  refresh_error?: string;
-  strategy_mode?: StrategyMode;
-  lifecycle_state?: string;
-  last_provider_used?: string;
-  capability_snapshot_json?: string;
-  provider_health_json?: string;
+  refresh_error?: string | null;
+  api_method?: string | null;
+  strategy_mode?: StrategyMode | null;
+  lifecycle_state?: string | null;
+  last_provider_used?: string | null;
+  capability_snapshot_json?: string | null;
+  provider_health_json?: string | null;
 }
 
 export interface CapabilitySnapshot {
