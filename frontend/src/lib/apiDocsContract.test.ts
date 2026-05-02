@@ -104,3 +104,30 @@ test("api docs page should reserve more breathing room for desktop body editing 
   assert.ok(source.includes("xl:w-auto xl:min-w-[112px]"));
   assert.ok(source.includes("xl:self-start xl:sticky xl:top-4"));
 });
+
+test("api docs page should use consistent section helper copy for debugging, curl, response and history blocks", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(source.includes("快捷聚焦常用接口，减少来回检索。"));
+  assert.ok(source.includes("跟随当前参数、鉴权与请求体实时生成。"));
+  assert.ok(source.includes("按邮箱查找邮件后，可直接把 message_id 带回当前请求。"));
+  assert.ok(source.includes("支持状态码、响应头、结构视图与原始响应联合查看。"));
+  assert.ok(source.includes("保留最近一次的调试上下文，便于快速恢复和对比。"));
+});
+
+test("api docs page should extend the same helper-copy rhythm to params, auth and body cards", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(source.includes("自动识别 path、query 与 header 参数，并按接口定义渲染。"));
+  assert.ok(source.includes("保留当前请求级别的鉴权开关与额外请求头配置。"));
+  assert.ok(source.includes("支持键值对填充与 JSON 双模式切换。"));
+});
+
+test("api docs page should keep the parameter panel fully localized in Chinese", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(source.includes("路径参数"));
+  assert.ok(source.includes("查询参数"));
+  assert.ok(source.includes("请求头参数"));
+  assert.ok(source.includes("当前接口未声明 path / query / header 参数。"));
+});

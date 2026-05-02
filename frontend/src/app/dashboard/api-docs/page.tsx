@@ -1169,7 +1169,10 @@ export default function ApiDocsPage() {
               </div>
 
               <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                <div className="mb-3 text-sm font-semibold">简化调试</div>
+                <div className="mb-3 space-y-1">
+                  <div className="text-sm font-semibold">简化调试</div>
+                  <div className="text-xs text-muted-foreground">快捷聚焦常用接口，减少来回检索。</div>
+                </div>
                 <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap">
                   <Button variant="outline" size="sm" className="w-full justify-center xl:w-auto xl:min-w-[112px]" onClick={() => focusOperation(["GET /api"])}>
                     健康检查
@@ -1192,11 +1195,14 @@ export default function ApiDocsPage() {
               <div className={cn("grid gap-4", REQUEST_WORKSPACE_DESKTOP_GRID)}>
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                    <div className="mb-3 text-sm font-semibold">请求参数</div>
+                    <div className="mb-3 space-y-1">
+                      <div className="text-sm font-semibold">请求参数</div>
+                      <div className="text-xs text-muted-foreground">自动识别 path、query 与 header 参数，并按接口定义渲染。</div>
+                    </div>
                     <div className="space-y-4">
                       {selectedOperation.parameters.filter((item) => item.in === "path").length > 0 ? (
                         <div className="space-y-3">
-                          <div className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Path Params</div>
+                          <div className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">路径参数</div>
                           {selectedOperation.parameters
                             .filter((item) => item.in === "path")
                             .map((item) => (
@@ -1219,7 +1225,7 @@ export default function ApiDocsPage() {
 
                       {selectedOperation.parameters.filter((item) => item.in === "query").length > 0 ? (
                         <div className="space-y-3">
-                          <div className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Query Params</div>
+                          <div className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">查询参数</div>
                           {selectedOperation.parameters
                             .filter((item) => item.in === "query")
                             .map((item) => (
@@ -1239,7 +1245,7 @@ export default function ApiDocsPage() {
 
                       {selectedOperation.parameters.filter((item) => item.in === "header").length > 0 ? (
                         <div className="space-y-3">
-                          <div className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">Header Params</div>
+                          <div className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">请求头参数</div>
                           {selectedOperation.parameters
                             .filter((item) => item.in === "header")
                             .map((item) => (
@@ -1259,7 +1265,7 @@ export default function ApiDocsPage() {
 
                       {selectedOperation.parameters.length === 0 ? (
                         <div className="rounded-lg border border-dashed border-border/70 px-3 py-4 text-sm text-muted-foreground">
-                          当前接口没有显式 path / query / header 参数。
+                          当前接口未声明 path / query / header 参数。
                         </div>
                       ) : null}
 
@@ -1273,7 +1279,10 @@ export default function ApiDocsPage() {
                   </div>
 
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                    <div className="mb-3 text-sm font-semibold">鉴权与请求头</div>
+                    <div className="mb-3 space-y-1">
+                      <div className="text-sm font-semibold">鉴权与请求头</div>
+                      <div className="text-xs text-muted-foreground">保留当前请求级别的鉴权开关与额外请求头配置。</div>
+                    </div>
                     <div className="space-y-3">
                       <label className="flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2 text-sm">
                         <Checkbox
@@ -1296,8 +1305,11 @@ export default function ApiDocsPage() {
 
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="text-sm font-semibold">请求体</div>
+                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="space-y-1">
+                        <div className="text-sm font-semibold">请求体</div>
+                        <div className="text-xs text-muted-foreground">支持键值对填充与 JSON 双模式切换。</div>
+                      </div>
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex flex-wrap items-center gap-2">
                           {selectedOperation.bodyRequired ? (
@@ -1542,8 +1554,11 @@ export default function ApiDocsPage() {
                   </div>
 
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="text-sm font-semibold">cURL 预览</div>
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="space-y-1">
+                        <div className="text-sm font-semibold">cURL 预览</div>
+                        <div className="text-xs text-muted-foreground">跟随当前参数、鉴权与请求体实时生成。</div>
+                      </div>
                       <Button
                         variant="outline"
                         size="sm"
@@ -1560,7 +1575,10 @@ export default function ApiDocsPage() {
                   </div>
 
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                    <div className="mb-3 text-sm font-semibold">message_id 查看页</div>
+                    <div className="mb-3 space-y-1">
+                      <div className="text-sm font-semibold">message_id 查看页</div>
+                      <div className="text-xs text-muted-foreground">按邮箱查找邮件后，可直接把 message_id 带回当前请求。</div>
+                    </div>
                     <div className="space-y-3">
                       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_repeat(2,minmax(0,120px))]">
                         <Input
@@ -1660,8 +1678,11 @@ export default function ApiDocsPage() {
 
               <div className={cn("grid gap-4", RESPONSE_WORKSPACE_DESKTOP_GRID)}>
                 <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="text-sm font-semibold">响应结果</div>
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold">响应结果</div>
+                      <div className="text-xs text-muted-foreground">支持状态码、响应头、结构视图与原始响应联合查看。</div>
+                    </div>
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                       {responseState ? (
                         <>
@@ -1757,10 +1778,13 @@ export default function ApiDocsPage() {
                 </div>
 
                 <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4 xl:self-start xl:sticky xl:top-4">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold">
-                      <History className="h-4 w-4 text-primary" />
-                      请求历史
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm font-semibold">
+                        <History className="h-4 w-4 text-primary" />
+                        请求历史
+                      </div>
+                      <div className="text-xs text-muted-foreground">保留最近一次的调试上下文，便于快速恢复和对比。</div>
                     </div>
                     <Badge variant="outline">{requestHistory.length}</Badge>
                   </div>
