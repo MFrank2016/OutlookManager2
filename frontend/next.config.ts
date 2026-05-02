@@ -29,6 +29,10 @@ const nextConfig: NextConfig = {
         destination: `${backendUrl}/api/v2/:path*`,
       },
       {
+        source: "/api",
+        destination: `${backendUrl}/api`,
+      },
+      {
         source: "/api/:path*",
         destination: `${backendUrl}/:path*`, // Proxy /api requests to backend
       },
