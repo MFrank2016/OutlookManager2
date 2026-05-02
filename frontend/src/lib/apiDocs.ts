@@ -25,10 +25,58 @@ export interface ApiDocOperation {
   parameters: OpenApiParameter[];
   requiresAuth: boolean;
   bodyRequired: boolean;
+  bodyFields: ApiDocBodyFieldDefinition[];
   bodyTemplate: Record<string, unknown> | unknown[] | string | number | boolean | null;
 }
 
 export type ApiDocScope = "all" | "v2" | "auth" | "public";
+
+export type ApiDocBodyFieldEditor = "text" | "number" | "boolean" | "json";
+
+export interface ApiDocBodyFieldDefinition {
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  description?: string;
+  defaultValue: unknown;
+  editor: ApiDocBodyFieldEditor;
+}
+
+export interface ApiDocRequestStateSnapshot {
+  pathValues: Record<string, string>;
+  queryValues: Record<string, string>;
+  headerValues: Record<string, string>;
+  bodyValue: string;
+  bodyEditorMode?: "json" | "visual";
+  bodyFieldValues?: Record<string, string | boolean>;
+  extraHeadersJson: string;
+  manualToken: string;
+  useStoredToken: boolean;
+}
+
+export interface ApiDocHistoryEntry {
+  id: string;
+  operationId: string;
+  method: string;
+  path: string;
+  requestUrl: string;
+  status: number;
+  ok: boolean;
+  durationMs: number;
+  requestedAt: string;
+  responsePreview: string;
+  stateSnapshot: ApiDocRequestStateSnapshot;
+}
+
+export interface ApiDocMessageCandidate {
+  messageId: string;
+  subject: string;
+  fromEmail: string;
+  date?: string;
+  folder?: string;
+  verificationCode?: string;
+}
 
 type OpenApiSpec = {
   openapi?: string;
@@ -122,6 +170,68 @@ function buildTemplateFromSchema(
   return null;
 }
 
+function inferSchemaType(schema: Record<string, unknown>, fallback: unknown): string {
+  if (typeof schema.type === "string") {
+    return schema.type;
+  }
+  if (Array.isArray(fallback)) {
+    return "array";
+  }
+  if (isRecord(fallback)) {
+    return "object";
+  }
+  if (typeof fallback === "boolean") {
+    return "boolean";
+  }
+  if (typeof fallback === "number") {
+    return "number";
+  }
+  return "string";
+}
+
+function mapFieldEditor(type: string): ApiDocBodyFieldEditor {
+  if (type === "boolean") {
+    return "boolean";
+  }
+  if (type === "number" || type === "integer") {
+    return "number";
+  }
+  if (type === "object" || type === "array") {
+    return "json";
+  }
+  return "text";
+}
+
+function buildBodyFieldDefinitions(spec: OpenApiSpec, schema: unknown): ApiDocBodyFieldDefinition[] {
+  const resolved = resolveSchemaRef(spec, schema);
+  if (!isRecord(resolved)) {
+    return [];
+  }
+
+  const properties = isRecord(resolved.properties) ? resolved.properties : null;
+  if (!properties) {
+    return [];
+  }
+
+  const requiredFields = new Set(Array.isArray(resolved.required) ? resolved.required.filter((item): item is string => typeof item === "string") : []);
+
+  return Object.entries(properties).map(([key, value]) => {
+    const fieldSchema = isRecord(resolveSchemaRef(spec, value)) ? (resolveSchemaRef(spec, value) as Record<string, unknown>) : {};
+    const defaultValue = buildTemplateFromSchema(spec, value);
+    const fieldType = inferSchemaType(fieldSchema, defaultValue);
+
+    return {
+      key,
+      label: key,
+      type: fieldType,
+      required: requiredFields.has(key),
+      description: typeof fieldSchema.description === "string" ? fieldSchema.description : undefined,
+      defaultValue,
+      editor: mapFieldEditor(fieldType),
+    };
+  });
+}
+
 export function parseOpenApiSpec(spec: OpenApiSpec): ApiDocOperation[] {
   const operations: ApiDocOperation[] = [];
 
@@ -152,6 +262,7 @@ export function parseOpenApiSpec(spec: OpenApiSpec): ApiDocOperation[] {
         parameters,
         requiresAuth: Array.isArray(operation.security) && operation.security.length > 0,
         bodyRequired: Boolean(requestBody?.required),
+        bodyFields: jsonBodySchema ? buildBodyFieldDefinitions(spec, jsonBodySchema) : [],
         bodyTemplate: jsonBodySchema ? buildTemplateFromSchema(spec, jsonBodySchema) : null,
       });
     }
@@ -218,4 +329,154 @@ export function buildRequestUrl(
 
   const queryString = query.toString();
   return queryString ? `${url}?${queryString}` : url;
+}
+
+export function toggleFavoriteOperation(favorites: string[], operationId: string): string[] {
+  if (favorites.includes(operationId)) {
+    return favorites.filter((item) => item !== operationId);
+  }
+  return [...favorites, operationId];
+}
+
+export function appendRequestHistory(
+  history: ApiDocHistoryEntry[],
+  entry: ApiDocHistoryEntry,
+  limit = 12
+): ApiDocHistoryEntry[] {
+  return [entry, ...history.filter((item) => item.id !== entry.id)].slice(0, limit);
+}
+
+export function buildResponsePreview(body: string, maxLength = 160): string {
+  const compact = body.replace(/\s+/g, " ").trim();
+  if (compact.length <= maxLength) {
+    return compact;
+  }
+  return `${compact.slice(0, maxLength - 1)}…`;
+}
+
+export function tryParseJson(value: string): unknown | null {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+export function buildBodyPayloadFromFieldValues(
+  fields: ApiDocBodyFieldDefinition[],
+  values: Record<string, string | boolean>
+): { payload: Record<string, unknown>; errors: string[] } {
+  const payload: Record<string, unknown> = {};
+  const errors: string[] = [];
+
+  for (const field of fields) {
+    const rawValue = values[field.key];
+
+    if (field.editor === "boolean") {
+      if (typeof rawValue !== "boolean") {
+        if (field.required) {
+          errors.push(`${field.label} 为必填字段`);
+        }
+        continue;
+      }
+      payload[field.key] = rawValue;
+      continue;
+    }
+
+    const textValue = typeof rawValue === "string" ? rawValue.trim() : "";
+    if (!textValue) {
+      if (field.required) {
+        errors.push(`${field.label} 为必填字段`);
+      }
+      continue;
+    }
+
+    if (field.editor === "number") {
+      const parsed = Number(textValue);
+      if (Number.isNaN(parsed)) {
+        errors.push(`${field.label} 需要是数字`);
+      } else {
+        payload[field.key] = parsed;
+      }
+      continue;
+    }
+
+    if (field.editor === "json") {
+      try {
+        payload[field.key] = JSON.parse(textValue);
+      } catch {
+        errors.push(`${field.label} 需要是合法 JSON`);
+      }
+      continue;
+    }
+
+    payload[field.key] = textValue;
+  }
+
+  return { payload, errors };
+}
+
+export function filterJsonValue(value: unknown, keyword: string): unknown | null {
+  const normalized = keyword.trim().toLowerCase();
+  if (!normalized) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const filtered = value
+      .map((item) => filterJsonValue(item, normalized))
+      .filter((item) => item !== null);
+    return filtered.length > 0 ? filtered : null;
+  }
+
+  if (isRecord(value)) {
+    const filteredEntries = Object.entries(value)
+      .map(([key, nested]) => {
+        if (key.toLowerCase().includes(normalized)) {
+          return [key, nested] as const;
+        }
+        const filteredNested = filterJsonValue(nested, normalized);
+        return filteredNested !== null ? ([key, filteredNested] as const) : null;
+      })
+      .filter((entry): entry is readonly [string, unknown] => entry !== null);
+
+    return filteredEntries.length > 0 ? Object.fromEntries(filteredEntries) : null;
+  }
+
+  return String(value).toLowerCase().includes(normalized) ? value : null;
+}
+
+export function extractMessageCandidates(payload: unknown): ApiDocMessageCandidate[] {
+  const candidates = new Map<string, ApiDocMessageCandidate>();
+
+  const tryCollect = (value: unknown) => {
+    if (!isRecord(value) || typeof value.message_id !== "string") {
+      return;
+    }
+
+    candidates.set(value.message_id, {
+      messageId: value.message_id,
+      subject: typeof value.subject === "string" ? value.subject : "(no subject)",
+      fromEmail: typeof value.from_email === "string" ? value.from_email : "",
+      date: typeof value.date === "string" ? value.date : undefined,
+      folder: typeof value.folder === "string" ? value.folder : undefined,
+      verificationCode: typeof value.verification_code === "string" ? value.verification_code : undefined,
+    });
+  };
+
+  const walk = (value: unknown) => {
+    if (Array.isArray(value)) {
+      value.forEach(walk);
+      return;
+    }
+    if (!isRecord(value)) {
+      return;
+    }
+
+    tryCollect(value);
+    Object.values(value).forEach(walk);
+  };
+
+  walk(payload);
+  return Array.from(candidates.values());
 }

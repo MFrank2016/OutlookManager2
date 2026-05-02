@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy, Loader2, Play, RefreshCw, Search, Sparkles } from "lucide-react";
+import { Braces, Copy, History, Loader2, Play, RefreshCw, Search, Sparkles, Star } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -12,12 +12,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  ApiDocBodyFieldDefinition,
+  ApiDocHistoryEntry,
+  ApiDocMessageCandidate,
+  ApiDocRequestStateSnapshot,
   ApiDocScope,
   ApiDocOperation,
+  appendRequestHistory,
+  buildBodyPayloadFromFieldValues,
+  buildResponsePreview,
   buildRequestUrl,
+  extractMessageCandidates,
+  filterJsonValue,
   matchesOperationScope,
   parseOpenApiSpec,
   pickDefaultOperation,
+  toggleFavoriteOperation,
+  tryParseJson,
 } from "@/lib/apiDocs";
 import { cn } from "@/lib/utils";
 
@@ -36,11 +47,147 @@ const SCOPE_OPTIONS: Array<{ value: ApiDocScope; label: string }> = [
   { value: "public", label: "仅公共" },
 ];
 
+const FAVORITES_STORAGE_KEY = "api-docs-favorite-operations";
+const HISTORY_STORAGE_KEY = "api-docs-request-history";
+const GLOBALS_STORAGE_KEY = "api-docs-global-variables";
+const MAX_HISTORY_ITEMS = 10;
+
+interface ApiDocGlobalVariables {
+  token: string;
+  email: string;
+}
+
 function prettyJson(value: unknown): string {
   if (value == null) {
     return "";
   }
   return JSON.stringify(value, null, 2);
+}
+
+function formatJsonLeaf(value: unknown): string {
+  if (typeof value === "string") {
+    return `"${value}"`;
+  }
+  if (value === null) {
+    return "null";
+  }
+  if (typeof value === "undefined") {
+    return "undefined";
+  }
+  return String(value);
+}
+
+function formatBodyFieldInput(field: ApiDocBodyFieldDefinition): string | boolean {
+  if (field.editor === "boolean") {
+    return typeof field.defaultValue === "boolean" ? field.defaultValue : false;
+  }
+  if (field.editor === "json") {
+    if (field.defaultValue == null || field.defaultValue === "") {
+      return "";
+    }
+    return JSON.stringify(field.defaultValue, null, 2);
+  }
+  if (field.defaultValue == null) {
+    return "";
+  }
+  return String(field.defaultValue);
+}
+
+function JsonTreeNode({
+  label,
+  value,
+  depth = 0,
+  expandSignal,
+  collapseSignal,
+  searchActive,
+}: {
+  label?: string;
+  value: unknown;
+  depth?: number;
+  expandSignal: number;
+  collapseSignal: number;
+  searchActive: boolean;
+}) {
+  const paddingClass = depth === 0 ? "" : "ml-4";
+  const [isOpen, setIsOpen] = useState(depth < 1);
+
+  useEffect(() => {
+    setIsOpen(true);
+  }, [expandSignal, searchActive]);
+
+  useEffect(() => {
+    if (!searchActive) {
+      setIsOpen(false);
+    }
+  }, [collapseSignal, searchActive]);
+
+  if (Array.isArray(value)) {
+    return (
+      <div className={cn("rounded-lg border border-border/60 bg-[color:var(--surface-2)]/55", paddingClass)}>
+        <button
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+          className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium"
+        >
+          <span className="text-foreground">{label ?? "array"}</span>
+          <span className="ml-2 text-xs text-muted-foreground">[{value.length}]</span>
+        </button>
+        {isOpen ? (
+          <div className="space-y-2 px-3 pb-3">
+            {value.map((item, index) => (
+              <JsonTreeNode
+                key={`${label ?? "array"}-${index}`}
+                label={`[${index}]`}
+                value={item}
+                depth={depth + 1}
+                expandSignal={expandSignal}
+                collapseSignal={collapseSignal}
+                searchActive={searchActive}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    return (
+      <div className={cn("rounded-lg border border-border/60 bg-[color:var(--surface-2)]/55", paddingClass)}>
+        <button
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+          className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-medium"
+        >
+          <span className="text-foreground">{label ?? "object"}</span>
+          <span className="ml-2 text-xs text-muted-foreground">{`{${entries.length}}`}</span>
+        </button>
+        {isOpen ? (
+          <div className="space-y-2 px-3 pb-3">
+            {entries.map(([key, nestedValue]) => (
+              <JsonTreeNode
+                key={`${label ?? "object"}-${key}`}
+                label={key}
+                value={nestedValue}
+                depth={depth + 1}
+                expandSignal={expandSignal}
+                collapseSignal={collapseSignal}
+                searchActive={searchActive}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn("flex items-start gap-2 rounded-lg border border-border/60 bg-[color:var(--surface-2)]/55 px-3 py-2 text-sm", paddingClass)}>
+      <span className="min-w-0 shrink-0 font-medium text-foreground">{label ?? "value"}</span>
+      <code className="break-all text-xs text-muted-foreground">{formatJsonLeaf(value)}</code>
+    </div>
+  );
 }
 
 export default function ApiDocsPage() {
@@ -53,7 +200,6 @@ export default function ApiDocsPage() {
   const [queryValues, setQueryValues] = useState<Record<string, string>>({});
   const [headerValues, setHeaderValues] = useState<Record<string, string>>({});
   const [bodyValue, setBodyValue] = useState("");
-  const [manualToken, setManualToken] = useState("");
   const [extraHeadersJson, setExtraHeadersJson] = useState("{}");
   const [useStoredToken, setUseStoredToken] = useState(true);
   const [responseState, setResponseState] = useState<ResponseState | null>(null);
@@ -61,12 +207,70 @@ export default function ApiDocsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openApiError, setOpenApiError] = useState<string | null>(null);
   const [hasStoredToken, setHasStoredToken] = useState(false);
+  const [favoriteOperationIds, setFavoriteOperationIds] = useState<string[]>([]);
+  const [requestHistory, setRequestHistory] = useState<ApiDocHistoryEntry[]>([]);
+  const [pendingRestoreSnapshot, setPendingRestoreSnapshot] = useState<ApiDocRequestStateSnapshot | null>(null);
+  const [bodyEditorMode, setBodyEditorMode] = useState<"json" | "visual">("json");
+  const [bodyFieldValues, setBodyFieldValues] = useState<Record<string, string | boolean>>({});
+  const [globalVariables, setGlobalVariables] = useState<ApiDocGlobalVariables>({ token: "", email: "" });
+  const [jsonSearch, setJsonSearch] = useState("");
+  const [jsonExpandSignal, setJsonExpandSignal] = useState(0);
+  const [jsonCollapseSignal, setJsonCollapseSignal] = useState(0);
+  const [messageHelperEmail, setMessageHelperEmail] = useState("");
+  const [messageHelperMode, setMessageHelperMode] = useState<"v2" | "legacy">("v2");
+  const [messageCandidates, setMessageCandidates] = useState<ApiDocMessageCandidate[]>([]);
+  const [isLoadingMessageCandidates, setIsLoadingMessageCandidates] = useState(false);
+  const [messageHelperError, setMessageHelperError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       setHasStoredToken(Boolean(localStorage.getItem("auth_token")));
+
+      try {
+        const favorites = JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) ?? "[]") as string[];
+        setFavoriteOperationIds(Array.isArray(favorites) ? favorites : []);
+      } catch {
+        setFavoriteOperationIds([]);
+      }
+
+      try {
+        const history = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) ?? "[]") as ApiDocHistoryEntry[];
+        setRequestHistory(Array.isArray(history) ? history : []);
+      } catch {
+        setRequestHistory([]);
+      }
+
+      try {
+        const globals = JSON.parse(localStorage.getItem(GLOBALS_STORAGE_KEY) ?? "{}") as Partial<ApiDocGlobalVariables>;
+        setGlobalVariables({
+          token: typeof globals.token === "string" ? globals.token : "",
+          email: typeof globals.email === "string" ? globals.email : "",
+        });
+        setMessageHelperEmail(typeof globals.email === "string" ? globals.email : "");
+      } catch {
+        setGlobalVariables({ token: "", email: "" });
+        setMessageHelperEmail("");
+      }
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favoriteOperationIds));
+    }
+  }, [favoriteOperationIds]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(requestHistory));
+    }
+  }, [requestHistory]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(GLOBALS_STORAGE_KEY, JSON.stringify(globalVariables));
+    }
+  }, [globalVariables]);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,6 +341,44 @@ export default function ApiDocsPage() {
     [operations, selectedOperationId, filteredOperations]
   );
 
+  const favoriteOperations = useMemo(
+    () =>
+      favoriteOperationIds
+        .map((operationId) => operations.find((item) => item.id === operationId) ?? null)
+        .filter((item): item is ApiDocOperation => item !== null),
+    [favoriteOperationIds, operations]
+  );
+
+  const selectedOperationIsFavorite = selectedOperation ? favoriteOperationIds.includes(selectedOperation.id) : false;
+
+  const parsedResponseJson = useMemo(
+    () => (responseState?.body ? tryParseJson(responseState.body) : null),
+    [responseState?.body]
+  );
+  const filteredResponseJson = useMemo(
+    () => (parsedResponseJson !== null ? filterJsonValue(parsedResponseJson, jsonSearch) : null),
+    [parsedResponseJson, jsonSearch]
+  );
+  const visualBodyFields = useMemo(() => selectedOperation?.bodyFields ?? [], [selectedOperation]);
+  const supportsVisualBodyEditor = visualBodyFields.length > 0;
+
+  const visualBodyDraft = useMemo(() => {
+    if (!supportsVisualBodyEditor) {
+      return { payload: null, errors: [] as string[] };
+    }
+    return buildBodyPayloadFromFieldValues(visualBodyFields, bodyFieldValues);
+  }, [bodyFieldValues, supportsVisualBodyEditor, visualBodyFields]);
+
+  const effectiveBodyPreview = useMemo(() => {
+    if (bodyEditorMode === "visual" && supportsVisualBodyEditor) {
+      if (visualBodyDraft.payload && Object.keys(visualBodyDraft.payload).length > 0) {
+        return prettyJson(visualBodyDraft.payload);
+      }
+      return "";
+    }
+    return bodyValue;
+  }, [bodyEditorMode, bodyValue, supportsVisualBodyEditor, visualBodyDraft.payload]);
+
   const groupedOperations = useMemo(() => {
     return filteredOperations.reduce<Record<string, ApiDocOperation[]>>((acc, item) => {
       acc[item.tag] ||= [];
@@ -157,6 +399,22 @@ export default function ApiDocsPage() {
 
   useEffect(() => {
     if (!selectedOperation) {
+      return;
+    }
+
+    if (pendingRestoreSnapshot) {
+      setPathValues({ ...pendingRestoreSnapshot.pathValues });
+      setQueryValues({ ...pendingRestoreSnapshot.queryValues });
+      setHeaderValues({ ...pendingRestoreSnapshot.headerValues });
+      setBodyValue(pendingRestoreSnapshot.bodyValue);
+      setBodyEditorMode(pendingRestoreSnapshot.bodyEditorMode ?? (selectedOperation.bodyFields.length > 0 ? "visual" : "json"));
+      setBodyFieldValues({ ...(pendingRestoreSnapshot.bodyFieldValues ?? {}) });
+      setExtraHeadersJson(pendingRestoreSnapshot.extraHeadersJson);
+      setGlobalVariables((current) => ({ ...current, token: pendingRestoreSnapshot.manualToken }));
+      setUseStoredToken(pendingRestoreSnapshot.useStoredToken);
+      setResponseState(null);
+      setRequestError(null);
+      setPendingRestoreSnapshot(null);
       return;
     }
 
@@ -185,9 +443,17 @@ export default function ApiDocsPage() {
     setQueryValues(nextQueryValues);
     setHeaderValues(nextHeaderValues);
     setBodyValue(selectedOperation.bodyTemplate ? prettyJson(selectedOperation.bodyTemplate) : "");
+    setBodyEditorMode(selectedOperation.bodyFields.length > 0 ? "visual" : "json");
+    setBodyFieldValues(
+      Object.fromEntries(
+        selectedOperation.bodyFields.map((field) => [field.key, formatBodyFieldInput(field)])
+      )
+    );
+    setExtraHeadersJson("{}");
+    setJsonSearch("");
     setResponseState(null);
     setRequestError(null);
-  }, [selectedOperation]);
+  }, [pendingRestoreSnapshot, selectedOperation]);
 
   const curlPreview = useMemo(() => {
     if (!selectedOperation) {
@@ -197,7 +463,7 @@ export default function ApiDocsPage() {
     const url = buildRequestUrl(selectedOperation.path, pathValues, queryValues);
     const lines = [`curl -X ${selectedOperation.method} '${url}'`];
 
-    const authToken = useStoredToken ? "<localStorage auth_token>" : manualToken.trim();
+    const authToken = useStoredToken ? "<localStorage auth_token>" : globalVariables.token.trim();
     if (selectedOperation.requiresAuth && authToken) {
       lines.push(`  -H 'Authorization: Bearer ${authToken}'`);
     }
@@ -208,32 +474,196 @@ export default function ApiDocsPage() {
       }
     }
 
-    if (bodyValue.trim()) {
+    if (effectiveBodyPreview.trim()) {
       lines.push("  -H 'Content-Type: application/json'");
-      lines.push(`  -d '${bodyValue.replace(/\n/g, "")}'`);
+      lines.push(`  -d '${effectiveBodyPreview.replace(/\n/g, "")}'`);
     }
 
     return lines.join(" \\\n");
-  }, [selectedOperation, pathValues, queryValues, headerValues, bodyValue, manualToken, useStoredToken]);
+  }, [selectedOperation, pathValues, queryValues, headerValues, effectiveBodyPreview, globalVariables.token, useStoredToken]);
+
+  useEffect(() => {
+    if (!messageHelperEmail && globalVariables.email) {
+      setMessageHelperEmail(globalVariables.email);
+    }
+  }, [globalVariables.email, messageHelperEmail]);
+
+  const resolveAuthToken = () => {
+    if (useStoredToken && typeof window !== "undefined") {
+      return localStorage.getItem("auth_token") || "";
+    }
+    return globalVariables.token.trim();
+  };
+
+  const applyGlobalVariablesToRequest = (messageId?: string) => {
+    if (!selectedOperation) {
+      return;
+    }
+
+    if (globalVariables.email) {
+      setPathValues((current) => {
+        const next = { ...current };
+        for (const parameter of selectedOperation.parameters) {
+          if (parameter.in === "path" && /(^email$|email_id)/i.test(parameter.name)) {
+            next[parameter.name] = globalVariables.email;
+          }
+        }
+        return next;
+      });
+      setQueryValues((current) => {
+        const next = { ...current };
+        for (const parameter of selectedOperation.parameters) {
+          if (parameter.in === "query" && /(^email$|email_id)/i.test(parameter.name)) {
+            next[parameter.name] = globalVariables.email;
+          }
+        }
+        return next;
+      });
+    }
+
+    if (messageId) {
+      setPathValues((current) => {
+        const next = { ...current };
+        for (const parameter of selectedOperation.parameters) {
+          if (parameter.in === "path" && /message_id/i.test(parameter.name)) {
+            next[parameter.name] = messageId;
+          }
+        }
+        return next;
+      });
+    }
+
+    toast.success("已一键填充全局变量");
+  };
+
+  const focusOperation = (operationIds: string[]) => {
+    const matched = operationIds
+      .map((id) => operations.find((item) => item.id === id) ?? null)
+      .find((item): item is ApiDocOperation => item !== null);
+
+    if (!matched) {
+      toast.error("未找到对应接口");
+      return;
+    }
+
+    setSearch("");
+    setScope("all");
+    setSelectedOperationId(matched.id);
+  };
+
+  const loadMessageCandidates = async (emailOverride?: string) => {
+    const targetEmail = (emailOverride ?? messageHelperEmail).trim();
+    if (!targetEmail) {
+      setMessageHelperError("请先输入邮箱 / 账户");
+      return;
+    }
+
+    setIsLoadingMessageCandidates(true);
+    setMessageHelperError(null);
+
+    try {
+      const requestUrl =
+        messageHelperMode === "v2"
+          ? `/api/v2/accounts/${encodeURIComponent(targetEmail)}/messages?page=1&page_size=20`
+          : `/emails/${encodeURIComponent(targetEmail)}?page=1&page_size=20`;
+
+      const headers = new Headers();
+      const token = resolveAuthToken();
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+
+      const res = await fetch(requestUrl, { headers });
+      if (!res.ok) {
+        throw new Error(`查询邮件列表失败: ${res.status}`);
+      }
+
+      const payload = await res.json();
+      const candidates = extractMessageCandidates(payload);
+      setMessageCandidates(candidates);
+      setGlobalVariables((current) => ({ ...current, email: targetEmail }));
+      if (candidates.length === 0) {
+        setMessageHelperError("当前邮箱暂无可用 message_id");
+      }
+    } catch (error) {
+      setMessageCandidates([]);
+      setMessageHelperError(error instanceof Error ? error.message : "查询邮件列表失败");
+    } finally {
+      setIsLoadingMessageCandidates(false);
+    }
+  };
 
   const handleRequest = async () => {
     if (!selectedOperation) {
       return;
     }
 
+    const missingPathFields = selectedOperation.parameters
+      .filter((item) => item.in === "path" && item.required)
+      .filter((item) => !(pathValues[item.name] ?? "").trim())
+      .map((item) => item.name);
+
+    const bodyValidationErrors =
+      bodyEditorMode === "visual" && supportsVisualBodyEditor
+        ? visualBodyDraft.errors
+        : (() => {
+            if (!selectedOperation.bodyRequired && !bodyValue.trim()) {
+              return [] as string[];
+            }
+            if (selectedOperation.bodyRequired && !bodyValue.trim()) {
+              return ["请求体为必填 JSON"];
+            }
+            if (!bodyValue.trim()) {
+              return [] as string[];
+            }
+
+            const parsedBody = tryParseJson(bodyValue);
+            if (parsedBody === null) {
+              return ["请求体不是合法 JSON"];
+            }
+
+            if (!supportsVisualBodyEditor || !selectedOperation.bodyFields.length || typeof parsedBody !== "object" || Array.isArray(parsedBody)) {
+              return [] as string[];
+            }
+
+            return selectedOperation.bodyFields
+              .filter((field) => field.required)
+              .filter((field) => !String((parsedBody as Record<string, unknown>)[field.key] ?? "").trim())
+              .map((field) => `${field.label} 为必填字段`);
+          })();
+
+    const bodyTextToSend =
+      bodyEditorMode === "visual" && supportsVisualBodyEditor
+        ? effectiveBodyPreview
+        : bodyValue;
+
+    if (missingPathFields.length > 0 || bodyValidationErrors.length > 0) {
+      setRequestError([
+        ...missingPathFields.map((item) => `缺少必填 path 参数：${item}`),
+        ...bodyValidationErrors,
+      ].join("；"));
+      return;
+    }
+
     setIsSubmitting(true);
     setRequestError(null);
+    const requestSnapshot: ApiDocRequestStateSnapshot = {
+      pathValues: { ...pathValues },
+      queryValues: { ...queryValues },
+      headerValues: { ...headerValues },
+      bodyValue,
+      bodyEditorMode,
+      bodyFieldValues: { ...bodyFieldValues },
+      extraHeadersJson,
+      manualToken: globalVariables.token,
+      useStoredToken,
+    };
 
     try {
       const url = buildRequestUrl(selectedOperation.path, pathValues, queryValues);
       const headers = new Headers();
 
-      const authToken =
-        useStoredToken
-          ? typeof window !== "undefined"
-            ? localStorage.getItem("auth_token") || ""
-            : ""
-          : manualToken.trim();
+      const authToken = resolveAuthToken();
 
       if (selectedOperation.requiresAuth && authToken) {
         headers.set("Authorization", `Bearer ${authToken}`);
@@ -253,8 +683,8 @@ export default function ApiDocsPage() {
       }
 
       let body: string | undefined;
-      if (bodyValue.trim()) {
-        body = JSON.stringify(JSON.parse(bodyValue));
+      if (bodyTextToSend.trim()) {
+        body = JSON.stringify(JSON.parse(bodyTextToSend));
         headers.set("Content-Type", "application/json");
       }
 
@@ -280,9 +710,49 @@ export default function ApiDocsPage() {
         headers: Object.fromEntries(res.headers.entries()),
         body: formattedBody,
       });
+      setRequestHistory((current) =>
+        appendRequestHistory(
+          current,
+          {
+            id: `${selectedOperation.id}:${Date.now()}`,
+            operationId: selectedOperation.id,
+            method: selectedOperation.method,
+            path: selectedOperation.path,
+            requestUrl: url,
+            status: res.status,
+            ok: res.ok,
+            durationMs,
+            requestedAt: new Date().toISOString(),
+            responsePreview: buildResponsePreview(formattedBody),
+            stateSnapshot: requestSnapshot,
+          },
+          MAX_HISTORY_ITEMS
+        )
+      );
     } catch (error) {
-      setRequestError(error instanceof Error ? error.message : "请求失败");
+      const errorMessage = error instanceof Error ? error.message : "请求失败";
+      setRequestError(errorMessage);
       setResponseState(null);
+      const url = buildRequestUrl(selectedOperation.path, pathValues, queryValues);
+      setRequestHistory((current) =>
+        appendRequestHistory(
+          current,
+          {
+            id: `${selectedOperation.id}:${Date.now()}`,
+            operationId: selectedOperation.id,
+            method: selectedOperation.method,
+            path: selectedOperation.path,
+            requestUrl: url,
+            status: 0,
+            ok: false,
+            durationMs: 0,
+            requestedAt: new Date().toISOString(),
+            responsePreview: errorMessage,
+            stateSnapshot: requestSnapshot,
+          },
+          MAX_HISTORY_ITEMS
+        )
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -312,8 +782,33 @@ export default function ApiDocsPage() {
     }
   };
 
+  const handleToggleFavorite = () => {
+    if (!selectedOperation) {
+      return;
+    }
+
+    setFavoriteOperationIds((current) => toggleFavoriteOperation(current, selectedOperation.id));
+    toast.success(selectedOperationIsFavorite ? "已取消收藏接口" : "已收藏接口");
+  };
+
+  const restoreHistoryEntry = (entry: ApiDocHistoryEntry) => {
+    setSearch("");
+    setScope("all");
+    setSelectedOperationId(entry.operationId);
+    setPendingRestoreSnapshot({
+      pathValues: { ...entry.stateSnapshot.pathValues },
+      queryValues: { ...entry.stateSnapshot.queryValues },
+      headerValues: { ...entry.stateSnapshot.headerValues },
+      bodyValue: entry.stateSnapshot.bodyValue,
+      extraHeadersJson: entry.stateSnapshot.extraHeadersJson,
+      manualToken: entry.stateSnapshot.manualToken,
+      useStoredToken: entry.stateSnapshot.useStoredToken,
+    });
+    toast.success("已恢复请求");
+  };
+
   return (
-    <div className="page-enter flex h-full min-h-[70dvh] flex-col gap-3 md:gap-4">
+    <div className="page-enter flex h-[calc(100dvh-9rem)] min-h-0 flex-1 flex-col gap-3 md:h-[calc(100dvh-10rem)] md:gap-4">
       <PageHeader
         title="API 文档"
         description="在页面内直接浏览 OpenAPI、填写参数并执行接口调试。"
@@ -336,8 +831,8 @@ export default function ApiDocsPage() {
         <Badge variant="secondary">POST /api/v2/accounts/import?mode=dry_run</Badge>
       </PageSection>
 
-      <div className="grid min-h-[66dvh] gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="panel-surface flex min-h-[66dvh] flex-col overflow-hidden p-3">
+      <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="panel-surface flex min-h-0 flex-col overflow-hidden p-3">
           <div className="mb-3 flex items-center gap-2">
             <Search className="h-4 w-4 text-muted-foreground" />
             <div>
@@ -372,6 +867,40 @@ export default function ApiDocsPage() {
               </button>
             ))}
           </div>
+
+          {favoriteOperations.length > 0 ? (
+            <div className="mb-4 space-y-2 rounded-2xl border border-border/70 bg-[color:var(--surface-1)]/75 p-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">已收藏</div>
+                <Badge variant="secondary">{favoriteOperations.length}</Badge>
+              </div>
+              <div className="space-y-2">
+                {favoriteOperations.slice(0, 4).map((item) => (
+                  <button
+                    key={`favorite-${item.id}`}
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setScope("all");
+                      setSelectedOperationId(item.id);
+                    }}
+                    className={cn(
+                      "w-full rounded-xl border px-3 py-2 text-left transition-all",
+                      selectedOperation?.id === item.id
+                        ? "border-amber-400/50 bg-amber-500/10"
+                        : "border-border/70 bg-[color:var(--surface-2)]/65 hover:border-amber-400/30 hover:bg-[color:var(--surface-2)]/85",
+                    )}
+                  >
+                    <div className="mb-1 flex items-center gap-2">
+                      <Star className="h-3.5 w-3.5 fill-current text-amber-500" />
+                      <Badge variant="outline">{item.method}</Badge>
+                    </div>
+                    <div className="truncate text-sm font-medium">{item.path}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="space-y-4 overflow-y-auto pr-1">
             {filteredOperations.length === 0 ? (
@@ -413,7 +942,7 @@ export default function ApiDocsPage() {
           </div>
         </aside>
 
-        <section className="panel-surface flex min-h-[66dvh] flex-col gap-4 p-4">
+        <section className="panel-surface flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
           {selectedOperation ? (
             <>
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/70 pb-3">
@@ -430,6 +959,10 @@ export default function ApiDocsPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button variant={selectedOperationIsFavorite ? "default" : "outline"} onClick={handleToggleFavorite}>
+                    <Star className={cn("mr-2 h-4 w-4", selectedOperationIsFavorite ? "fill-current" : "")} />
+                    {selectedOperationIsFavorite ? "已收藏" : "收藏接口"}
+                  </Button>
                   <Button
                     variant="outline"
                     onClick={() => {
@@ -437,7 +970,14 @@ export default function ApiDocsPage() {
                       setQueryValues({});
                       setHeaderValues({});
                       setBodyValue(selectedOperation.bodyTemplate ? prettyJson(selectedOperation.bodyTemplate) : "");
+                      setBodyEditorMode(selectedOperation.bodyFields.length > 0 ? "visual" : "json");
+                      setBodyFieldValues(
+                        Object.fromEntries(
+                          selectedOperation.bodyFields.map((field) => [field.key, formatBodyFieldInput(field)])
+                        )
+                      );
                       setExtraHeadersJson("{}");
+                      setJsonSearch("");
                       setResponseState(null);
                       setRequestError(null);
                     }}
@@ -448,6 +988,27 @@ export default function ApiDocsPage() {
                   <Button onClick={() => void handleRequest()} disabled={isSubmitting}>
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                     发送请求
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
+                <div className="mb-3 text-sm font-semibold">简化调试</div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => focusOperation(["GET /api"])}>
+                    健康检查
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => focusOperation(["POST /auth/login", "GET /auth/me"])}>
+                    鉴权接口
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => focusOperation(["GET /api/v2/accounts/{email}/messages"])}>
+                    查看邮件列表
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => applyGlobalVariablesToRequest()}>
+                    一键填充
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => void loadMessageCandidates()}>
+                    查询邮件列表
                   </Button>
                 </div>
               </div>
@@ -525,11 +1086,18 @@ export default function ApiDocsPage() {
                           当前接口没有显式 path / query / header 参数。
                         </div>
                       ) : null}
+
+                      {selectedOperation.parameters.some((item) => /(^email$|email_id|message_id)/i.test(item.name)) ? (
+                        <div className="rounded-lg border border-dashed border-primary/25 bg-primary/5 px-3 py-3 text-xs text-muted-foreground">
+                          检测到当前接口依赖邮箱或 message_id。可先在右侧配置全局变量，再使用“一键填充”或
+                          “message_id 查看页”快速带入参数。
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                    <div className="mb-3 text-sm font-semibold">鉴权与请求头</div>
+                    <div className="mb-3 text-sm font-semibold">全局变量</div>
                     <div className="space-y-3">
                       <label className="flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2 text-sm">
                         <Checkbox
@@ -540,16 +1108,32 @@ export default function ApiDocsPage() {
                       </label>
                       <div className="rounded-lg border border-dashed border-border/70 px-3 py-2 text-xs text-muted-foreground">
                         {hasStoredToken
-                          ? "已检测到本地 auth_token，可直接调试需要鉴权的接口。"
-                          : "当前未检测到本地 auth_token，如需调试鉴权接口，请切换为手动输入。"}
+                          ? "已检测到本地 auth_token；勾选时默认使用当前登录 token，取消勾选后改用下面的全局 Token。"
+                          : "当前未检测到本地 auth_token，建议在下面配置全局 Token，后续所有接口都会复用。"}
                       </div>
-                      {!useStoredToken ? (
+
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium">全局 Token</label>
                         <Input
-                          value={manualToken}
-                          onChange={(event) => setManualToken(event.target.value)}
-                          placeholder="手动填写 Bearer Token"
+                          value={globalVariables.token}
+                          onChange={(event) =>
+                            setGlobalVariables((current) => ({ ...current, token: event.target.value }))
+                          }
+                          placeholder="填写后可在所有接口复用"
                         />
-                      ) : null}
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-sm font-medium">邮箱 / 账户</label>
+                        <Input
+                          value={globalVariables.email}
+                          onChange={(event) =>
+                            setGlobalVariables((current) => ({ ...current, email: event.target.value }))
+                          }
+                          placeholder="用于 email、email_id 与 message_id 助手"
+                        />
+                      </div>
+
                       <Textarea
                         value={extraHeadersJson}
                         onChange={(event) => setExtraHeadersJson(event.target.value)}
@@ -570,18 +1154,96 @@ export default function ApiDocsPage() {
                         ) : (
                           <Badge variant="secondary">可选</Badge>
                         )}
+                        {supportsVisualBodyEditor ? (
+                          <div className="inline-flex rounded-lg border border-border/70 bg-[color:var(--surface-2)]/60 p-1">
+                            <button
+                              type="button"
+                              onClick={() => setBodyEditorMode("visual")}
+                              className={cn(
+                                "rounded-md px-2 py-1 text-xs transition-colors",
+                                bodyEditorMode === "visual" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                              )}
+                            >
+                              字段模式
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBodyValue(effectiveBodyPreview || bodyValue);
+                                setBodyEditorMode("json");
+                              }}
+                              className={cn(
+                                "rounded-md px-2 py-1 text-xs transition-colors",
+                                bodyEditorMode === "json" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                              )}
+                            >
+                              JSON 模式
+                            </button>
+                          </div>
+                        ) : null}
                         <Button variant="outline" size="sm" onClick={handleFormatBody}>
                           <Sparkles className="mr-2 h-4 w-4" />
                           格式化 JSON
                         </Button>
                       </div>
                     </div>
-                    <Textarea
-                      value={bodyValue}
-                      onChange={(event) => setBodyValue(event.target.value)}
-                      className="min-h-[280px] font-mono text-xs"
-                      placeholder="当前接口无 JSON body，可留空。"
-                    />
+
+                    {supportsVisualBodyEditor && bodyEditorMode === "visual" ? (
+                      <div className="space-y-3">
+                        {visualBodyFields.map((field) => (
+                          <div key={field.key} className="space-y-1">
+                            <label className="text-sm font-medium">
+                              {field.label}
+                              {field.required ? <span className="ml-1 text-red-500">*</span> : null}
+                            </label>
+                            {field.editor === "boolean" ? (
+                              <label className="flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2 text-sm">
+                                <Checkbox
+                                  checked={Boolean(bodyFieldValues[field.key])}
+                                  onCheckedChange={(checked) =>
+                                    setBodyFieldValues((current) => ({ ...current, [field.key]: Boolean(checked) }))
+                                  }
+                                />
+                                <span>{field.description || "布尔开关"}</span>
+                              </label>
+                            ) : field.editor === "json" ? (
+                              <Textarea
+                                value={String(bodyFieldValues[field.key] ?? "")}
+                                onChange={(event) =>
+                                  setBodyFieldValues((current) => ({ ...current, [field.key]: event.target.value }))
+                                }
+                                className="min-h-[120px] font-mono text-xs"
+                                placeholder={field.description || `${field.key} 的 JSON 值`}
+                              />
+                            ) : (
+                              <Input
+                                type={field.editor === "number" ? "number" : "text"}
+                                value={String(bodyFieldValues[field.key] ?? "")}
+                                onChange={(event) =>
+                                  setBodyFieldValues((current) => ({ ...current, [field.key]: event.target.value }))
+                                }
+                                placeholder={field.description || field.key}
+                              />
+                            )}
+                            {field.description ? (
+                              <div className="text-xs text-muted-foreground">{field.description}</div>
+                            ) : null}
+                          </div>
+                        ))}
+                        {visualBodyDraft.errors.length > 0 ? (
+                          <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-3 text-xs text-amber-700">
+                            {visualBodyDraft.errors.join("；")}
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <Textarea
+                        value={bodyValue}
+                        onChange={(event) => setBodyValue(event.target.value)}
+                        className="min-h-[280px] font-mono text-xs"
+                        placeholder="当前接口无 JSON body，可留空。"
+                      />
+                    )}
                   </div>
 
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
@@ -600,56 +1262,229 @@ export default function ApiDocsPage() {
                       {curlPreview || "当前接口尚未生成请求预览"}
                     </pre>
                   </div>
+
+                  <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
+                    <div className="mb-3 text-sm font-semibold">message_id 查看页</div>
+                    <div className="space-y-3">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+                        <Input
+                          value={messageHelperEmail}
+                          onChange={(event) => setMessageHelperEmail(event.target.value)}
+                          placeholder="根据邮箱查询对应邮件和 message_id"
+                        />
+                        <Button
+                          variant={messageHelperMode === "v2" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setMessageHelperMode("v2")}
+                        >
+                          V2
+                        </Button>
+                        <Button
+                          variant={messageHelperMode === "legacy" ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setMessageHelperMode("legacy")}
+                        >
+                          V1
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={() => void loadMessageCandidates()} disabled={isLoadingMessageCandidates}>
+                          {isLoadingMessageCandidates ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          查询邮件列表
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setMessageHelperEmail(globalVariables.email);
+                            void loadMessageCandidates(globalVariables.email);
+                          }}
+                        >
+                          使用全局邮箱
+                        </Button>
+                      </div>
+
+                      {messageHelperError ? (
+                        <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-3 text-xs text-amber-700">
+                          {messageHelperError}
+                        </div>
+                      ) : null}
+
+                      {messageCandidates.length > 0 ? (
+                        <div className="max-h-[320px] space-y-2 overflow-y-auto pr-1">
+                          {messageCandidates.map((candidate) => (
+                            <div key={candidate.messageId} className="rounded-xl border border-border/70 bg-[color:var(--surface-2)]/60 p-3">
+                              <div className="mb-1 text-sm font-medium">{candidate.subject}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {candidate.fromEmail || "未知发件人"} · {candidate.date || "未知时间"}
+                              </div>
+                              <div className="mt-2 break-all rounded-md bg-[color:var(--surface-1)] px-2 py-1 font-mono text-[11px] text-muted-foreground">
+                                {candidate.messageId}
+                              </div>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => applyGlobalVariablesToRequest(candidate.messageId)}
+                                >
+                                  应用到当前请求
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => void copyText(candidate.messageId, "message_id 已复制")}
+                                >
+                                  复制 ID
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-dashed border-border/70 px-3 py-4 text-xs text-muted-foreground">
+                          查询后会在这里展示邮件列表及对应的 message_id，可直接带入当前接口调试。
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-sm font-semibold">响应结果</div>
-                  <div className="flex items-center gap-2">
-                    {responseState ? (
-                      <>
-                        <Badge variant={responseState.ok ? "default" : "destructive"}>
-                          HTTP {responseState.status}
-                        </Badge>
-                        <Badge variant="secondary">{responseState.durationMs} ms</Badge>
-                      </>
-                    ) : null}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!responseState}
-                      onClick={() => void copyText(responseState?.body || "", "响应已复制")}
-                    >
-                      <Copy className="mr-2 h-4 w-4" />
-                      复制响应
-                    </Button>
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm font-semibold">响应结果</div>
+                    <div className="flex items-center gap-2">
+                      {responseState ? (
+                        <>
+                          <Badge variant={responseState.ok ? "default" : "destructive"}>
+                            HTTP {responseState.status}
+                          </Badge>
+                          <Badge variant="secondary">{responseState.durationMs} ms</Badge>
+                        </>
+                      ) : null}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!responseState}
+                        onClick={() => void copyText(responseState?.body || "", "响应已复制")}
+                      >
+                        <Copy className="mr-2 h-4 w-4" />
+                        复制响应
+                      </Button>
+                    </div>
                   </div>
-                </div>
 
-                {requestError ? (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
-                    {requestError}
-                  </div>
-                ) : null}
+                  {requestError ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
+                      {requestError}
+                    </div>
+                  ) : null}
 
-                {responseState ? (
-                  <div className="space-y-3">
-                    <div className="rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-3">
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">响应头</div>
-                      <pre className="overflow-x-auto text-xs leading-6 text-muted-foreground">
-                        {prettyJson(responseState.headers)}
+                  {responseState ? (
+                    <div className="space-y-3">
+                      <div className="rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-3">
+                        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">响应头</div>
+                        <pre className="overflow-x-auto text-xs leading-6 text-muted-foreground">
+                          {prettyJson(responseState.headers)}
+                        </pre>
+                      </div>
+
+                      {parsedResponseJson !== null ? (
+                        <div className="space-y-2 rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                              <Braces className="h-4 w-4" />
+                              JSON 结构视图
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button variant="outline" size="sm" onClick={() => setJsonExpandSignal((current) => current + 1)}>
+                                全部展开
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => setJsonCollapseSignal((current) => current + 1)}>
+                                全部折叠
+                              </Button>
+                            </div>
+                          </div>
+                          <Input
+                            value={jsonSearch}
+                            onChange={(event) => setJsonSearch(event.target.value)}
+                            placeholder="响应搜索"
+                          />
+                          {filteredResponseJson !== null ? (
+                            <JsonTreeNode
+                              value={filteredResponseJson}
+                              expandSignal={jsonExpandSignal}
+                              collapseSignal={jsonCollapseSignal}
+                              searchActive={Boolean(jsonSearch.trim())}
+                            />
+                          ) : (
+                            <div className="rounded-lg border border-dashed border-border/70 px-3 py-4 text-xs text-muted-foreground">
+                              当前搜索词没有命中任何 JSON 字段。
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+
+                      <pre className="overflow-x-auto rounded-lg bg-slate-950 px-3 py-3 text-xs leading-6 text-slate-100">
+                        {responseState.body || "(empty response body)"}
                       </pre>
                     </div>
-                    <pre className="overflow-x-auto rounded-lg bg-slate-950 px-3 py-3 text-xs leading-6 text-slate-100">
-                      {responseState.body || "(empty response body)"}
-                    </pre>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border/70 px-3 py-8 text-sm text-muted-foreground">
+                      发送请求后，这里会显示状态码、耗时、响应头和响应内容。
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <History className="h-4 w-4 text-primary" />
+                      请求历史
+                    </div>
+                    <Badge variant="outline">{requestHistory.length}</Badge>
                   </div>
-                ) : (
-                  <div className="rounded-lg border border-dashed border-border/70 px-3 py-8 text-sm text-muted-foreground">
-                    发送请求后，这里会显示状态码、耗时、响应头和响应内容。
-                  </div>
-                )}
+
+                  {requestHistory.length > 0 ? (
+                    <div className="space-y-3">
+                      {requestHistory.map((entry) => (
+                        <div key={entry.id} className="rounded-xl border border-border/70 bg-[color:var(--surface-2)]/60 p-3">
+                          <div className="mb-2 flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={entry.ok ? "secondary" : "destructive"}>{entry.method}</Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(entry.requestedAt).toLocaleTimeString("zh-CN", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    second: "2-digit",
+                                  })}
+                                </span>
+                              </div>
+                              <div className="mt-1 break-all text-sm font-medium">{entry.path}</div>
+                            </div>
+                            <Badge variant={entry.ok ? "default" : "destructive"}>
+                              {entry.status || "ERR"}
+                            </Badge>
+                          </div>
+                          <div className="mb-3 text-xs leading-5 text-muted-foreground">{entry.responsePreview}</div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs text-muted-foreground">{entry.durationMs} ms</span>
+                            <Button variant="outline" size="sm" onClick={() => restoreHistoryEntry(entry)}>
+                              恢复请求
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border/70 px-3 py-8 text-sm text-muted-foreground">
+                      发送请求后，这里会记录最近的调试轨迹，便于快速恢复请求。
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           ) : (
