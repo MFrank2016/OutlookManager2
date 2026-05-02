@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataEmptyState } from "@/components/ui/data-empty-state";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useDeliveryStrategy } from "@/hooks/useDeliveryStrategy";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -469,43 +470,55 @@ function EmailsPageContent() {
         <div className="grid gap-3 lg:grid-cols-[180px_180px_180px_auto]">
           <div className="space-y-2">
             <div className="text-xs text-muted-foreground">读取路径</div>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            <Select
               value={useV2ReadPath ? "v2" : "v1"}
-              onChange={(event) => setUseV2ReadPath(event.target.value === "v2")}
+              onValueChange={(value) => setUseV2ReadPath(value === "v2")}
             >
-              <option value="v1">V1 兼容</option>
-              <option value="v2">V2 调试</option>
-            </select>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="v1">V1 兼容</SelectItem>
+                <SelectItem value="v2">V2 调试</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
             <div className="text-xs text-muted-foreground">Provider Override</div>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            <Select
               value={overrideProvider}
-              onChange={(event) => setOverrideProvider(event.target.value as ProviderOverride)}
+              onValueChange={(value) => setOverrideProvider(value as ProviderOverride)}
               disabled={!useV2ReadPath}
             >
-              <option value="auto">自动</option>
-              <option value="graph">Graph API</option>
-              <option value="imap">IMAP</option>
-            </select>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">自动</SelectItem>
+                <SelectItem value="graph">Graph API</SelectItem>
+                <SelectItem value="imap">IMAP</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
             <div className="text-xs text-muted-foreground">Strategy Mode</div>
-            <select
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            <Select
               value={strategyModeOverride}
-              onChange={(event) => setStrategyModeOverride(event.target.value as StrategyMode)}
+              onValueChange={(value) => setStrategyModeOverride(value as StrategyMode)}
               disabled={!useV2ReadPath}
             >
-              <option value="auto">自动选择</option>
-              <option value="graph_preferred">Graph 优先</option>
-              <option value="graph_only">仅 Graph</option>
-              <option value="imap_only">仅 IMAP</option>
-            </select>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">自动选择</SelectItem>
+                <SelectItem value="graph_preferred">Graph 优先</SelectItem>
+                <SelectItem value="graph_only">仅 Graph</SelectItem>
+                <SelectItem value="imap_only">仅 IMAP</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <label className="flex items-center gap-3 rounded-xl border border-border/70 px-3 py-2 text-sm">

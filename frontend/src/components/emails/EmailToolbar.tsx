@@ -106,18 +106,20 @@ export function EmailToolbar({
   return (
     <div className="panel-surface space-y-3 p-3 md:p-4">
       <div className="grid gap-3 md:grid-cols-[minmax(0,1.55fr)_auto]">
-        <Select value={selectedAccount ?? undefined} onValueChange={onSelectedAccountChange}>
-          <SelectTrigger>
-            <SelectValue placeholder="选择邮箱账户" />
-          </SelectTrigger>
-          <SelectContent>
-            {accounts.map((account) => (
-              <SelectItem key={account.email_id} value={account.email_id}>
-                {account.email_id}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="w-full max-w-[560px]">
+          <Select value={selectedAccount ?? undefined} onValueChange={onSelectedAccountChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="选择邮箱账户" />
+            </SelectTrigger>
+            <SelectContent>
+              {accounts.map((account) => (
+                <SelectItem key={account.email_id} value={account.email_id}>
+                  {account.email_id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button variant="outline" onClick={onCopyAccount} disabled={!hasAccount}>
           <Copy className="mr-2 h-4 w-4" />
           复制邮箱
@@ -157,26 +159,30 @@ export function EmailToolbar({
       </div>
 
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-        <Select value={localFolder} onValueChange={onLocalFolderChange}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部邮件</SelectItem>
-            <SelectItem value="inbox">收件箱</SelectItem>
-            <SelectItem value="junk">垃圾邮件</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={sortBy} onValueChange={onSortByChange}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="date">日期</SelectItem>
-            <SelectItem value="subject">主题</SelectItem>
-            <SelectItem value="from_email">发件人</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="w-full max-w-[260px]">
+          <Select value={localFolder} onValueChange={onLocalFolderChange}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部邮件</SelectItem>
+              <SelectItem value="inbox">收件箱</SelectItem>
+              <SelectItem value="junk">垃圾邮件</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full max-w-[260px]">
+          <Select value={sortBy} onValueChange={onSortByChange}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date">日期</SelectItem>
+              <SelectItem value="subject">主题</SelectItem>
+              <SelectItem value="from_email">发件人</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <Button variant="outline" onClick={onToggleSortOrder}>
           <ArrowUpDown className={cn("mr-2 h-4 w-4", sortOrder === "asc" && "rotate-180")} />
           {sortOrder === "asc" ? "升序" : "降序"}
