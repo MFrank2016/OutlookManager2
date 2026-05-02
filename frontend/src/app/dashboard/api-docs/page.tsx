@@ -5,7 +5,6 @@ import { Braces, ChevronDown, ChevronUp, Copy, History, Loader2, Play, RefreshCw
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/layout/PageHeader";
-import { PageSection } from "@/components/layout/PageSection";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1006,18 +1005,6 @@ export default function ApiDocsPage() {
           </div>
         ) : null}
       </div>
-
-      <PageSection
-        title="V2 快速入口"
-        description="重点关注 Microsoft Access Layer 新增的 `/api/v2` 能力。"
-        contentClassName="flex flex-wrap gap-2"
-      >
-        <Badge variant="secondary">POST /api/v2/accounts/probe</Badge>
-        <Badge variant="secondary">{"GET /api/v2/accounts/{email}/health"}</Badge>
-        <Badge variant="secondary">{"GET /api/v2/accounts/{email}/delivery-strategy"}</Badge>
-        <Badge variant="secondary">{"GET /api/v2/accounts/{email}/messages"}</Badge>
-        <Badge variant="secondary">POST /api/v2/accounts/import?mode=dry_run</Badge>
-      </PageSection>
 
       <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="panel-surface flex min-h-0 flex-col overflow-hidden p-3">

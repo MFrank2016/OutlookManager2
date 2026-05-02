@@ -28,6 +28,13 @@ test("api docs page should include quick scopes and request debugging actions fo
   assert.ok(source.includes("格式化 JSON"));
 });
 
+test("api docs page should not render the legacy v2 quick entry strip anymore", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(!source.includes('title="V2 快速入口"'));
+  assert.ok(!source.includes("重点关注 Microsoft Access Layer 新增的 `/api/v2` 能力。"));
+});
+
 test("api docs page should include favorites, request history and collapsible json response tools", () => {
   const source = readFileSync(apiDocsPagePath, "utf-8");
 
