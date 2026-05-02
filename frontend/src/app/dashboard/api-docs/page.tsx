@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Braces, Copy, History, Loader2, Play, RefreshCw, Search, Sparkles, Star } from "lucide-react";
+import { Braces, ChevronDown, ChevronUp, Copy, History, Loader2, Play, RefreshCw, Search, Sparkles, Star } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -51,6 +51,9 @@ const FAVORITES_STORAGE_KEY = "api-docs-favorite-operations";
 const HISTORY_STORAGE_KEY = "api-docs-request-history";
 const GLOBALS_STORAGE_KEY = "api-docs-global-variables";
 const MAX_HISTORY_ITEMS = 10;
+const BODY_FIELD_DESKTOP_GRID = "md:grid-cols-[minmax(0,1.1fr)_112px_minmax(0,1.4fr)_minmax(0,0.9fr)_minmax(0,1fr)]";
+const REQUEST_WORKSPACE_DESKTOP_GRID = "xl:grid-cols-[minmax(320px,0.82fr)_minmax(520px,1.18fr)]";
+const RESPONSE_WORKSPACE_DESKTOP_GRID = "xl:grid-cols-[minmax(0,1fr)_360px]";
 
 interface ApiDocGlobalVariables {
   token: string;
@@ -91,6 +94,73 @@ function formatBodyFieldInput(field: ApiDocBodyFieldDefinition): string | boolea
     return "";
   }
   return String(field.defaultValue);
+}
+
+function formatBodyFieldTypeLabel(field: ApiDocBodyFieldDefinition): string {
+  switch (field.editor) {
+    case "number":
+      return field.type === "integer" ? "integer" : "number";
+    case "boolean":
+      return "boolean";
+    case "json":
+      return field.type === "array" ? "array/json" : "object/json";
+    case "text":
+    default:
+      return field.type || "string";
+  }
+}
+
+function formatBodyFieldDefaultValue(value: unknown): string {
+  if (value === null || typeof value === "undefined" || value === "") {
+    return "—";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return JSON.stringify(value);
+}
+
+function normalizeBodyFieldComparisonValue(field: ApiDocBodyFieldDefinition, value: unknown): string {
+  if (field.editor === "boolean") {
+    return String(Boolean(value));
+  }
+
+  if (field.editor === "json") {
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return "";
+      }
+      try {
+        return JSON.stringify(JSON.parse(trimmed));
+      } catch {
+        return trimmed;
+      }
+    }
+
+    if (value == null || value === "") {
+      return "";
+    }
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  if (value == null) {
+    return "";
+  }
+
+  return String(value);
+}
+
+function isBodyFieldValueModified(field: ApiDocBodyFieldDefinition, value: unknown): boolean {
+  return normalizeBodyFieldComparisonValue(field, value) !== normalizeBodyFieldComparisonValue(field, formatBodyFieldInput(field));
 }
 
 function JsonTreeNode({
@@ -207,6 +277,7 @@ export default function ApiDocsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openApiError, setOpenApiError] = useState<string | null>(null);
   const [hasStoredToken, setHasStoredToken] = useState(false);
+  const [isGlobalVariablesExpanded, setIsGlobalVariablesExpanded] = useState(false);
   const [favoriteOperationIds, setFavoriteOperationIds] = useState<string[]>([]);
   const [requestHistory, setRequestHistory] = useState<ApiDocHistoryEntry[]>([]);
   const [pendingRestoreSnapshot, setPendingRestoreSnapshot] = useState<ApiDocRequestStateSnapshot | null>(null);
@@ -378,6 +449,17 @@ export default function ApiDocsPage() {
     }
     return bodyValue;
   }, [bodyEditorMode, bodyValue, supportsVisualBodyEditor, visualBodyDraft.payload]);
+
+  const visualBodyStats = useMemo(() => {
+    const requiredCount = visualBodyFields.filter((field) => field.required).length;
+    const modifiedCount = visualBodyFields.filter((field) => isBodyFieldValueModified(field, bodyFieldValues[field.key])).length;
+
+    return {
+      totalCount: visualBodyFields.length,
+      requiredCount,
+      modifiedCount,
+    };
+  }, [bodyFieldValues, visualBodyFields]);
 
   const groupedOperations = useMemo(() => {
     return filteredOperations.reduce<Record<string, ApiDocOperation[]>>((acc, item) => {
@@ -791,6 +873,22 @@ export default function ApiDocsPage() {
     toast.success(selectedOperationIsFavorite ? "已取消收藏接口" : "已收藏接口");
   };
 
+  const restoreAllBodyFieldDefaults = () => {
+    setBodyFieldValues(
+      Object.fromEntries(
+        visualBodyFields.map((field) => [field.key, formatBodyFieldInput(field)])
+      )
+    );
+    toast.success("已回填全部默认值");
+  };
+
+  const restoreSingleBodyFieldDefault = (field: ApiDocBodyFieldDefinition) => {
+    setBodyFieldValues((current) => ({
+      ...current,
+      [field.key]: formatBodyFieldInput(field),
+    }));
+  };
+
   const restoreHistoryEntry = (entry: ApiDocHistoryEntry) => {
     setSearch("");
     setScope("all");
@@ -818,6 +916,79 @@ export default function ApiDocsPage() {
           </Button>
         }
       />
+
+      <div className="panel-surface overflow-hidden border border-border/70 bg-[color:var(--surface-1)]/75">
+        <button
+          type="button"
+          onClick={() => setIsGlobalVariablesExpanded((current) => !current)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[color:var(--surface-2)]/55"
+        >
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">全局变量设置</div>
+            <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <span>Token：{globalVariables.token ? "已配置" : "未配置"}</span>
+              <span>邮箱：{globalVariables.email || "未设置"}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{isGlobalVariablesExpanded ? "收起全局变量" : "展开全局变量"}</span>
+            {isGlobalVariablesExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </div>
+        </button>
+
+        {isGlobalVariablesExpanded ? (
+          <div className="border-t border-border/70 px-4 py-4">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2 text-sm">
+                  <Checkbox
+                    checked={useStoredToken}
+                    onCheckedChange={(checked) => setUseStoredToken(Boolean(checked))}
+                  />
+                  <span>优先使用当前登录 token</span>
+                </label>
+                <div className="rounded-lg border border-dashed border-border/70 px-3 py-2 text-xs text-muted-foreground">
+                  {hasStoredToken
+                    ? "已检测到本地 auth_token；勾选时默认使用当前登录 token，取消勾选后改用下面的全局 Token。"
+                    : "当前未检测到本地 auth_token，建议在下面配置全局 Token，后续所有接口都会复用。"}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">全局 Token</label>
+                  <Input
+                    value={globalVariables.token}
+                    onChange={(event) =>
+                      setGlobalVariables((current) => ({ ...current, token: event.target.value }))
+                    }
+                    placeholder="填写后可在所有接口复用"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">邮箱 / 账户</label>
+                  <Input
+                    value={globalVariables.email}
+                    onChange={(event) =>
+                      setGlobalVariables((current) => ({ ...current, email: event.target.value }))
+                    }
+                    placeholder="用于 email、email_id 与 message_id 助手"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-sm font-medium">额外请求头 JSON</label>
+                  <Textarea
+                    value={extraHeadersJson}
+                    onChange={(event) => setExtraHeadersJson(event.target.value)}
+                    className="min-h-[120px] font-mono text-xs"
+                    placeholder='额外请求头 JSON，例如 {"X-API-Key":"demo"}'
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <PageSection
         title="V2 快速入口"
@@ -958,13 +1129,18 @@ export default function ApiDocsPage() {
                     {selectedOperation.description || "暂无详细描述，可直接在下方填写参数并发起调试。"}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant={selectedOperationIsFavorite ? "default" : "outline"} onClick={handleToggleFavorite}>
+                <div className="grid w-full gap-2 rounded-2xl border border-border/70 bg-[color:var(--surface-2)]/55 p-1.5 shadow-sm sm:flex sm:w-auto sm:flex-wrap">
+                  <Button
+                    variant={selectedOperationIsFavorite ? "default" : "outline"}
+                    onClick={handleToggleFavorite}
+                    className="w-full justify-center sm:w-auto xl:min-w-[112px]"
+                  >
                     <Star className={cn("mr-2 h-4 w-4", selectedOperationIsFavorite ? "fill-current" : "")} />
                     {selectedOperationIsFavorite ? "已收藏" : "收藏接口"}
                   </Button>
                   <Button
                     variant="outline"
+                    className="w-full justify-center sm:w-auto xl:min-w-[112px]"
                     onClick={() => {
                       setPathValues({});
                       setQueryValues({});
@@ -985,7 +1161,7 @@ export default function ApiDocsPage() {
                     <RefreshCw className="mr-2 h-4 w-4" />
                     重置
                   </Button>
-                  <Button onClick={() => void handleRequest()} disabled={isSubmitting}>
+                  <Button onClick={() => void handleRequest()} disabled={isSubmitting} className="w-full justify-center sm:w-auto xl:min-w-[112px]">
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Play className="mr-2 h-4 w-4" />}
                     发送请求
                   </Button>
@@ -994,26 +1170,26 @@ export default function ApiDocsPage() {
 
               <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
                 <div className="mb-3 text-sm font-semibold">简化调试</div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" onClick={() => focusOperation(["GET /api"])}>
+                <div className="grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap">
+                  <Button variant="outline" size="sm" className="w-full justify-center xl:w-auto xl:min-w-[112px]" onClick={() => focusOperation(["GET /api"])}>
                     健康检查
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => focusOperation(["POST /auth/login", "GET /auth/me"])}>
+                  <Button variant="outline" size="sm" className="w-full justify-center xl:w-auto xl:min-w-[112px]" onClick={() => focusOperation(["POST /auth/login", "GET /auth/me"])}>
                     鉴权接口
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => focusOperation(["GET /api/v2/accounts/{email}/messages"])}>
+                  <Button variant="outline" size="sm" className="w-full justify-center xl:w-auto xl:min-w-[112px]" onClick={() => focusOperation(["GET /api/v2/accounts/{email}/messages"])}>
                     查看邮件列表
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => applyGlobalVariablesToRequest()}>
+                  <Button variant="outline" size="sm" className="w-full justify-center xl:w-auto xl:min-w-[112px]" onClick={() => applyGlobalVariablesToRequest()}>
                     一键填充
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => void loadMessageCandidates()}>
+                  <Button variant="outline" size="sm" className="w-full justify-center xl:w-auto xl:min-w-[112px]" onClick={() => void loadMessageCandidates()}>
                     查询邮件列表
                   </Button>
                 </div>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+              <div className={cn("grid gap-4", REQUEST_WORKSPACE_DESKTOP_GRID)}>
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
                     <div className="mb-3 text-sm font-semibold">请求参数</div>
@@ -1097,7 +1273,7 @@ export default function ApiDocsPage() {
                   </div>
 
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                    <div className="mb-3 text-sm font-semibold">全局变量</div>
+                    <div className="mb-3 text-sm font-semibold">鉴权与请求头</div>
                     <div className="space-y-3">
                       <label className="flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2 text-sm">
                         <Checkbox
@@ -1111,60 +1287,36 @@ export default function ApiDocsPage() {
                           ? "已检测到本地 auth_token；勾选时默认使用当前登录 token，取消勾选后改用下面的全局 Token。"
                           : "当前未检测到本地 auth_token，建议在下面配置全局 Token，后续所有接口都会复用。"}
                       </div>
-
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">全局 Token</label>
-                        <Input
-                          value={globalVariables.token}
-                          onChange={(event) =>
-                            setGlobalVariables((current) => ({ ...current, token: event.target.value }))
-                          }
-                          placeholder="填写后可在所有接口复用"
-                        />
+                      <div className="rounded-lg border border-dashed border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                        全局 Token / 邮箱已移动到页面顶部的“全局变量设置”，这里保留当前请求的鉴权开关与额外请求头。
                       </div>
-
-                      <div className="space-y-1">
-                        <label className="text-sm font-medium">邮箱 / 账户</label>
-                        <Input
-                          value={globalVariables.email}
-                          onChange={(event) =>
-                            setGlobalVariables((current) => ({ ...current, email: event.target.value }))
-                          }
-                          placeholder="用于 email、email_id 与 message_id 助手"
-                        />
-                      </div>
-
-                      <Textarea
-                        value={extraHeadersJson}
-                        onChange={(event) => setExtraHeadersJson(event.target.value)}
-                        className="min-h-[120px] font-mono text-xs"
-                        placeholder='额外请求头 JSON，例如 {"X-API-Key":"demo"}'
-                      />
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                    <div className="mb-3 flex items-center justify-between">
+                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="text-sm font-semibold">请求体</div>
-                      <div className="flex items-center gap-2">
-                        {selectedOperation.bodyRequired ? (
-                          <Badge variant="outline">必填 JSON</Badge>
-                        ) : (
-                          <Badge variant="secondary">可选</Badge>
-                        )}
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {selectedOperation.bodyRequired ? (
+                            <Badge variant="outline">必填 JSON</Badge>
+                          ) : (
+                            <Badge variant="secondary">可选</Badge>
+                          )}
+                        </div>
                         {supportsVisualBodyEditor ? (
-                          <div className="inline-flex rounded-lg border border-border/70 bg-[color:var(--surface-2)]/60 p-1">
+                          <div className="grid w-full grid-cols-2 rounded-lg border border-border/70 bg-[color:var(--surface-2)]/60 p-1 sm:inline-flex sm:w-auto">
                             <button
                               type="button"
                               onClick={() => setBodyEditorMode("visual")}
                               className={cn(
-                                "rounded-md px-2 py-1 text-xs transition-colors",
+                                "w-full rounded-md px-2 py-1 text-xs transition-colors",
                                 bodyEditorMode === "visual" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                               )}
                             >
-                              字段模式
+                              键值对模式
                             </button>
                             <button
                               type="button"
@@ -1173,7 +1325,7 @@ export default function ApiDocsPage() {
                                 setBodyEditorMode("json");
                               }}
                               className={cn(
-                                "rounded-md px-2 py-1 text-xs transition-colors",
+                                "w-full rounded-md px-2 py-1 text-xs transition-colors",
                                 bodyEditorMode === "json" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                               )}
                             >
@@ -1181,7 +1333,7 @@ export default function ApiDocsPage() {
                             </button>
                           </div>
                         ) : null}
-                        <Button variant="outline" size="sm" onClick={handleFormatBody}>
+                        <Button variant="outline" size="sm" onClick={handleFormatBody} className="w-full justify-center sm:w-auto">
                           <Sparkles className="mr-2 h-4 w-4" />
                           格式化 JSON
                         </Button>
@@ -1190,51 +1342,194 @@ export default function ApiDocsPage() {
 
                     {supportsVisualBodyEditor && bodyEditorMode === "visual" ? (
                       <div className="space-y-3">
-                        {visualBodyFields.map((field) => (
-                          <div key={field.key} className="space-y-1">
-                            <label className="text-sm font-medium">
-                              {field.label}
-                              {field.required ? <span className="ml-1 text-red-500">*</span> : null}
-                            </label>
-                            {field.editor === "boolean" ? (
-                              <label className="flex items-center gap-3 rounded-lg border border-border/70 px-3 py-2 text-sm">
-                                <Checkbox
-                                  checked={Boolean(bodyFieldValues[field.key])}
-                                  onCheckedChange={(checked) =>
-                                    setBodyFieldValues((current) => ({ ...current, [field.key]: Boolean(checked) }))
-                                  }
-                                />
-                                <span>{field.description || "布尔开关"}</span>
-                              </label>
-                            ) : field.editor === "json" ? (
-                              <Textarea
-                                value={String(bodyFieldValues[field.key] ?? "")}
-                                onChange={(event) =>
-                                  setBodyFieldValues((current) => ({ ...current, [field.key]: event.target.value }))
-                                }
-                                className="min-h-[120px] font-mono text-xs"
-                                placeholder={field.description || `${field.key} 的 JSON 值`}
-                              />
-                            ) : (
-                              <Input
-                                type={field.editor === "number" ? "number" : "text"}
-                                value={String(bodyFieldValues[field.key] ?? "")}
-                                onChange={(event) =>
-                                  setBodyFieldValues((current) => ({ ...current, [field.key]: event.target.value }))
-                                }
-                                placeholder={field.description || field.key}
-                              />
-                            )}
-                            {field.description ? (
-                              <div className="text-xs text-muted-foreground">{field.description}</div>
-                            ) : null}
+                        <div className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border/70 bg-[color:var(--surface-2)]/45 px-4 py-3">
+                          <div className="space-y-2">
+                            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">字段概览</div>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="secondary">{visualBodyStats.totalCount} 个字段</Badge>
+                              <Badge variant="outline">{visualBodyStats.requiredCount} 个必填</Badge>
+                              <Badge variant={visualBodyStats.modifiedCount > 0 ? "default" : "secondary"}>
+                                {visualBodyStats.modifiedCount > 0 ? `已修改 ${visualBodyStats.modifiedCount}` : "未修改"}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              适合先按字段填值，再切到 JSON 模式做最终检查。
+                            </div>
                           </div>
-                        ))}
+
+                          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                            <Button variant="outline" size="sm" onClick={restoreAllBodyFieldDefaults} className="w-full justify-center sm:w-auto">
+                              回填全部默认值
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full justify-center sm:w-auto"
+                              onClick={() => {
+                                setBodyValue(effectiveBodyPreview || "");
+                                setBodyEditorMode("json");
+                              }}
+                            >
+                              查看 JSON 模式
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-border/70 bg-[color:var(--surface-2)]/45">
+                          <div className={cn(
+                            "hidden border-b border-border/70 px-3 py-2 md:grid",
+                            BODY_FIELD_DESKTOP_GRID,
+                            "gap-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground"
+                          )}>
+                            <div>键</div>
+                            <div>值类型</div>
+                            <div>当前值</div>
+                            <div>默认值</div>
+                            <div>说明</div>
+                          </div>
+
+                          <div className="space-y-3 p-3 md:space-y-0 md:divide-y md:divide-border/60 md:p-0">
+                            {visualBodyFields.map((field) => (
+                              <div
+                                key={field.key}
+                                className={cn(
+                                  "space-y-3 rounded-xl border border-border/60 bg-background/70 p-3 md:grid md:gap-3 md:space-y-0 md:rounded-none md:border-0 md:bg-transparent md:px-3 md:py-3",
+                                  BODY_FIELD_DESKTOP_GRID,
+                                  isBodyFieldValueModified(field, bodyFieldValues[field.key])
+                                    ? "bg-primary/5 ring-1 ring-primary/15 md:ring-0"
+                                    : ""
+                                )}
+                              >
+                                <div className="min-w-0">
+                                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground md:hidden">
+                                    键
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="truncate text-sm font-medium">
+                                      {field.label}
+                                      {field.required ? <span className="ml-1 text-red-500">*</span> : null}
+                                    </div>
+                                    {field.required ? <Badge variant="outline">必填</Badge> : null}
+                                    {isBodyFieldValueModified(field, bodyFieldValues[field.key]) ? (
+                                      <Badge variant="default">已修改</Badge>
+                                    ) : (
+                                      <Badge variant="secondary">默认值</Badge>
+                                    )}
+                                  </div>
+                                  <div className="mt-1 text-xs text-muted-foreground">键值对填充模式</div>
+                                </div>
+
+                                <div className="min-w-0 space-y-2">
+                                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground md:hidden">
+                                    值类型
+                                  </div>
+                                  <Badge variant="outline" className="max-w-full truncate">
+                                    {formatBodyFieldTypeLabel(field)}
+                                  </Badge>
+                                </div>
+
+                                <div className="min-w-0 space-y-2">
+                                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground md:hidden">
+                                    当前值
+                                  </div>
+                                  {field.editor === "boolean" ? (
+                                    <label className="flex h-10 items-center gap-2 rounded-lg border border-border/70 px-3 text-sm">
+                                      <Checkbox
+                                        checked={Boolean(bodyFieldValues[field.key])}
+                                        onCheckedChange={(checked) =>
+                                          setBodyFieldValues((current) => ({ ...current, [field.key]: Boolean(checked) }))
+                                        }
+                                      />
+                                      <span>{Boolean(bodyFieldValues[field.key]) ? "true" : "false"}</span>
+                                    </label>
+                                  ) : field.editor === "json" ? (
+                                    <Textarea
+                                      value={String(bodyFieldValues[field.key] ?? "")}
+                                      onChange={(event) =>
+                                        setBodyFieldValues((current) => ({ ...current, [field.key]: event.target.value }))
+                                      }
+                                      className="min-h-[104px] font-mono text-xs"
+                                      placeholder={field.description || `${field.key} 的 JSON 值`}
+                                    />
+                                  ) : (
+                                    <Input
+                                      type={field.editor === "number" ? "number" : "text"}
+                                      value={String(bodyFieldValues[field.key] ?? "")}
+                                      onChange={(event) =>
+                                        setBodyFieldValues((current) => ({ ...current, [field.key]: event.target.value }))
+                                      }
+                                      placeholder={field.description || field.key}
+                                    />
+                                  )}
+                                </div>
+
+                                <div className="min-w-0 space-y-2">
+                                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground md:hidden">
+                                    默认值
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div className="break-all rounded-lg border border-dashed border-border/70 bg-[color:var(--surface-1)]/80 px-2 py-2 text-xs text-muted-foreground">
+                                      {formatBodyFieldDefaultValue(field.defaultValue)}
+                                    </div>
+                                    {isBodyFieldValueModified(field, bodyFieldValues[field.key]) ? (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs"
+                                        onClick={() => restoreSingleBodyFieldDefault(field)}
+                                      >
+                                        恢复默认值
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                </div>
+
+                                <div className="min-w-0 space-y-2">
+                                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground md:hidden">
+                                    说明
+                                  </div>
+                                  <div className="break-words text-xs leading-5 text-muted-foreground">
+                                    {field.description || "—"}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
                         {visualBodyDraft.errors.length > 0 ? (
                           <div className="rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-3 text-xs text-amber-700">
                             {visualBodyDraft.errors.join("；")}
                           </div>
                         ) : null}
+
+                        <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
+                          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <div className="text-sm font-semibold">生成的 JSON 草稿</div>
+                              <div className="text-xs text-muted-foreground">可直接复制或切到 JSON 模式继续微调。</div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void copyText(effectiveBodyPreview, "已复制 JSON 草稿")}
+                              disabled={!effectiveBodyPreview.trim()}
+                            >
+                              <Copy className="mr-2 h-4 w-4" />
+                              复制草稿
+                            </Button>
+                          </div>
+
+                          {effectiveBodyPreview.trim() ? (
+                            <pre className="overflow-x-auto rounded-xl border border-border/70 bg-background/80 p-3 font-mono text-xs leading-6 text-foreground">
+                              {effectiveBodyPreview}
+                            </pre>
+                          ) : (
+                            <div className="rounded-xl border border-dashed border-border/70 px-3 py-5 text-sm text-muted-foreground">
+                              当前还没有可发送的 JSON 字段，填写至少一个字段后这里会实时生成请求草稿。
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <Textarea
@@ -1247,11 +1542,12 @@ export default function ApiDocsPage() {
                   </div>
 
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                    <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div className="text-sm font-semibold">cURL 预览</div>
                       <Button
                         variant="outline"
                         size="sm"
+                        className="w-full justify-center sm:w-auto"
                         onClick={() => void copyText(curlPreview || "当前接口尚未生成请求预览", "cURL 已复制")}
                       >
                         <Copy className="mr-2 h-4 w-4" />
@@ -1266,7 +1562,7 @@ export default function ApiDocsPage() {
                   <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
                     <div className="mb-3 text-sm font-semibold">message_id 查看页</div>
                     <div className="space-y-3">
-                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]">
+                      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_repeat(2,minmax(0,120px))]">
                         <Input
                           value={messageHelperEmail}
                           onChange={(event) => setMessageHelperEmail(event.target.value)}
@@ -1275,6 +1571,7 @@ export default function ApiDocsPage() {
                         <Button
                           variant={messageHelperMode === "v2" ? "default" : "outline"}
                           size="sm"
+                          className="w-full justify-center"
                           onClick={() => setMessageHelperMode("v2")}
                         >
                           V2
@@ -1282,20 +1579,28 @@ export default function ApiDocsPage() {
                         <Button
                           variant={messageHelperMode === "legacy" ? "default" : "outline"}
                           size="sm"
+                          className="w-full justify-center"
                           onClick={() => setMessageHelperMode("legacy")}
                         >
                           V1
                         </Button>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" onClick={() => void loadMessageCandidates()} disabled={isLoadingMessageCandidates}>
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full justify-center sm:w-auto"
+                          onClick={() => void loadMessageCandidates()}
+                          disabled={isLoadingMessageCandidates}
+                        >
                           {isLoadingMessageCandidates ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                           查询邮件列表
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
+                          className="w-full justify-center sm:w-auto"
                           onClick={() => {
                             setMessageHelperEmail(globalVariables.email);
                             void loadMessageCandidates(globalVariables.email);
@@ -1322,10 +1627,11 @@ export default function ApiDocsPage() {
                               <div className="mt-2 break-all rounded-md bg-[color:var(--surface-1)] px-2 py-1 font-mono text-[11px] text-muted-foreground">
                                 {candidate.messageId}
                               </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  className="w-full justify-center sm:w-auto"
                                   onClick={() => applyGlobalVariablesToRequest(candidate.messageId)}
                                 >
                                   应用到当前请求
@@ -1333,6 +1639,7 @@ export default function ApiDocsPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
+                                  className="w-full justify-center sm:w-auto"
                                   onClick={() => void copyText(candidate.messageId, "message_id 已复制")}
                                 >
                                   复制 ID
@@ -1351,11 +1658,11 @@ export default function ApiDocsPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className={cn("grid gap-4", RESPONSE_WORKSPACE_DESKTOP_GRID)}>
                 <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-sm font-semibold">响应结果</div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
                       {responseState ? (
                         <>
                           <Badge variant={responseState.ok ? "default" : "destructive"}>
@@ -1367,6 +1674,7 @@ export default function ApiDocsPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="w-full justify-center sm:w-auto"
                         disabled={!responseState}
                         onClick={() => void copyText(responseState?.body || "", "响应已复制")}
                       >
@@ -1393,16 +1701,26 @@ export default function ApiDocsPage() {
 
                       {parsedResponseJson !== null ? (
                         <div className="space-y-2 rounded-lg border border-border/70 bg-[color:var(--surface-2)]/70 px-3 py-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                               <Braces className="h-4 w-4" />
                               JSON 结构视图
                             </div>
-                            <div className="flex flex-wrap gap-2">
-                              <Button variant="outline" size="sm" onClick={() => setJsonExpandSignal((current) => current + 1)}>
+                            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full justify-center sm:w-auto"
+                                onClick={() => setJsonExpandSignal((current) => current + 1)}
+                              >
                                 全部展开
                               </Button>
-                              <Button variant="outline" size="sm" onClick={() => setJsonCollapseSignal((current) => current + 1)}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full justify-center sm:w-auto"
+                                onClick={() => setJsonCollapseSignal((current) => current + 1)}
+                              >
                                 全部折叠
                               </Button>
                             </div>
@@ -1438,7 +1756,7 @@ export default function ApiDocsPage() {
                   )}
                 </div>
 
-                <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4">
+                <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/70 p-4 xl:self-start xl:sticky xl:top-4">
                   <div className="mb-3 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm font-semibold">
                       <History className="h-4 w-4 text-primary" />
@@ -1470,9 +1788,9 @@ export default function ApiDocsPage() {
                             </Badge>
                           </div>
                           <div className="mb-3 text-xs leading-5 text-muted-foreground">{entry.responsePreview}</div>
-                          <div className="flex items-center justify-between gap-2">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <span className="text-xs text-muted-foreground">{entry.durationMs} ms</span>
-                            <Button variant="outline" size="sm" onClick={() => restoreHistoryEntry(entry)}>
+                            <Button variant="outline" size="sm" className="w-full justify-center sm:w-auto" onClick={() => restoreHistoryEntry(entry)}>
                               恢复请求
                             </Button>
                           </div>

@@ -43,7 +43,7 @@ test("api docs page should expose global vars, visual body editor, message helpe
 
   assert.ok(source.includes("全局变量"));
   assert.ok(source.includes("全局 Token"));
-  assert.ok(source.includes("字段模式"));
+  assert.ok(source.includes("键值对模式"));
   assert.ok(source.includes("message_id 查看页"));
   assert.ok(source.includes("查询邮件列表"));
   assert.ok(source.includes("简化调试"));
@@ -51,4 +51,56 @@ test("api docs page should expose global vars, visual body editor, message helpe
   assert.ok(source.includes("响应搜索"));
   assert.ok(source.includes("overflow-y-auto"));
   assert.ok(source.includes("min-h-0"));
+});
+
+test("api docs page should place global variables in a top collapsed section", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(source.includes("全局变量设置"));
+  assert.ok(source.includes("展开全局变量"));
+  assert.ok(source.includes("收起全局变量"));
+  assert.ok(source.includes("const [isGlobalVariablesExpanded, setIsGlobalVariablesExpanded] = useState(false)"));
+});
+
+test("api docs page should render request body as key-value rows with type, value, default and description", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(source.includes("值类型"));
+  assert.ok(source.includes("默认值"));
+  assert.ok(source.includes("说明"));
+  assert.ok(source.includes("当前值"));
+  assert.ok(source.includes("键值对填充模式"));
+  assert.ok(source.includes("字段概览"));
+  assert.ok(source.includes("回填全部默认值"));
+  assert.ok(source.includes("生成的 JSON 草稿"));
+});
+
+test("api docs page should adapt the request body editor into a stacked mobile-friendly layout", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(source.includes("sm:flex-row sm:items-center sm:justify-between"));
+  assert.ok(source.includes("grid w-full grid-cols-2"));
+  assert.ok(source.includes("hidden border-b border-border/70 px-3 py-2 md:grid"));
+  assert.ok(source.includes("space-y-3 rounded-xl border border-border/60 bg-background/70 p-3 md:grid"));
+});
+
+test("api docs page should expose thumb-friendly mobile action groups across request, helper and response areas", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(source.includes("grid w-full gap-2 rounded-2xl border border-border/70 bg-[color:var(--surface-2)]/55 p-1.5 shadow-sm sm:flex sm:w-auto sm:flex-wrap"));
+  assert.ok(source.includes("grid gap-2 sm:grid-cols-2 xl:flex xl:flex-wrap"));
+  assert.ok(source.includes("w-full justify-center sm:w-auto"));
+  assert.ok(source.includes("grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"));
+  assert.ok(source.includes("sm:grid-cols-[minmax(0,1fr)_repeat(2,minmax(0,120px))]"));
+});
+
+test("api docs page should reserve more breathing room for desktop body editing and history review", () => {
+  const source = readFileSync(apiDocsPagePath, "utf-8");
+
+  assert.ok(source.includes("const REQUEST_WORKSPACE_DESKTOP_GRID ="));
+  assert.ok(source.includes("const RESPONSE_WORKSPACE_DESKTOP_GRID ="));
+  assert.ok(source.includes("rounded-2xl border border-border/70 bg-[color:var(--surface-2)]/55 p-1.5 shadow-sm"));
+  assert.ok(source.includes("xl:min-w-[112px]"));
+  assert.ok(source.includes("xl:w-auto xl:min-w-[112px]"));
+  assert.ok(source.includes("xl:self-start xl:sticky xl:top-4"));
 });
