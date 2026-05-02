@@ -21,3 +21,13 @@ test("emails page debug controls should use the shared Select component instead 
   assert.ok(source.includes("<SelectTrigger"));
   assert.ok(source.includes("<SelectContent>"));
 });
+
+test("emails page should default to v2 and keep the read-path debug bar collapsed until manually expanded", () => {
+  const source = readFileSync(emailsPagePath, "utf-8");
+
+  assert.ok(source.includes("const [useV2ReadPath, setUseV2ReadPath] = useState(true);"));
+  assert.ok(source.includes("const [isReadPathPanelCollapsed, setIsReadPathPanelCollapsed] = useState(true);"));
+  assert.ok(source.includes("展开读取路径栏"));
+  assert.ok(source.includes("收起读取路径栏"));
+  assert.ok(source.includes("{!isReadPathPanelCollapsed ? ("));
+});

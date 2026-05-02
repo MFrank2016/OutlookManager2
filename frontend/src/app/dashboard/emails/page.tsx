@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { EmailDetailPanel } from "@/components/emails/EmailDetailPanel";
 import { EmailListPanel } from "@/components/emails/EmailListPanel";
@@ -14,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DataEmptyState } from "@/components/ui/data-empty-state";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/hooks/useAccounts";
 import { useDeliveryStrategy } from "@/hooks/useDeliveryStrategy";
 import { useAutoRefresh } from "@/hooks/useAutoRefresh";
@@ -86,7 +88,8 @@ function EmailsPageContent() {
   const [pendingRefreshSource, setPendingRefreshSource] = useState<"idle" | "manual" | "auto">("idle");
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
-  const [useV2ReadPath, setUseV2ReadPath] = useState(false);
+  const [useV2ReadPath, setUseV2ReadPath] = useState(true);
+  const [isReadPathPanelCollapsed, setIsReadPathPanelCollapsed] = useState(true);
   const [overrideProvider, setOverrideProvider] = useState<ProviderOverride>("auto");
   const [strategyModeOverride, setStrategyModeOverride] = useState<StrategyMode>("auto");
   const [skipCache, setSkipCache] = useState(false);
@@ -455,98 +458,114 @@ function EmailsPageContent() {
         title="邮件工作区"
         description="围绕账户、筛选、验证码与正文详情的一站式邮件处理面板。"
         className="pb-0 md:pb-0 border-b-0"
+        actions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsReadPathPanelCollapsed((current) => !current)}
+          >
+            {isReadPathPanelCollapsed ? (
+              <ChevronDown className="mr-1.5 h-4 w-4" />
+            ) : (
+              <ChevronUp className="mr-1.5 h-4 w-4" />
+            )}
+            {isReadPathPanelCollapsed ? "展开读取路径栏" : "收起读取路径栏"}
+          </Button>
+        }
       />
 
-      <div className="panel-surface space-y-3 p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={useV2ReadPath ? "default" : "secondary"}>
-            {useV2ReadPath ? "V2 调试读链路" : "V1 兼容读链路"}
-          </Badge>
-          <span className="text-sm text-muted-foreground">
-            可直接切换 `/api/v2` 的 provider override、strategy mode 与 skip cache。
-          </span>
-        </div>
-
-        <div className="grid gap-3 lg:grid-cols-[180px_180px_180px_auto]">
-          <div className="space-y-2">
-            <div className="text-xs text-muted-foreground">读取路径</div>
-            <Select
-              value={useV2ReadPath ? "v2" : "v1"}
-              onValueChange={(value) => setUseV2ReadPath(value === "v2")}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="v1">V1 兼容</SelectItem>
-                <SelectItem value="v2">V2 调试</SelectItem>
-              </SelectContent>
-            </Select>
+      {!isReadPathPanelCollapsed ? (
+        <div className="panel-surface space-y-3 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={useV2ReadPath ? "default" : "secondary"}>
+              {useV2ReadPath ? "V2 调试读链路" : "V1 兼容读链路"}
+            </Badge>
+            <span className="text-sm text-muted-foreground">
+              可直接切换 `/api/v2` 的 provider override、strategy mode 与 skip cache。
+            </span>
           </div>
 
-          <div className="space-y-2">
-            <div className="text-xs text-muted-foreground">Provider Override</div>
-            <Select
-              value={overrideProvider}
-              onValueChange={(value) => setOverrideProvider(value as ProviderOverride)}
-              disabled={!useV2ReadPath}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">自动</SelectItem>
-                <SelectItem value="graph">Graph API</SelectItem>
-                <SelectItem value="imap">IMAP</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <div className="text-xs text-muted-foreground">Strategy Mode</div>
-            <Select
-              value={strategyModeOverride}
-              onValueChange={(value) => setStrategyModeOverride(value as StrategyMode)}
-              disabled={!useV2ReadPath}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">自动选择</SelectItem>
-                <SelectItem value="graph_preferred">Graph 优先</SelectItem>
-                <SelectItem value="graph_only">仅 Graph</SelectItem>
-                <SelectItem value="imap_only">仅 IMAP</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <label className="flex items-center gap-3 rounded-xl border border-border/70 px-3 py-2 text-sm">
-            <Checkbox
-              checked={skipCache}
-              onCheckedChange={(checked) => setSkipCache(Boolean(checked))}
-              disabled={!useV2ReadPath}
-            />
-            <span>跳过缓存（skip_cache）</span>
-          </label>
-        </div>
-
-        {useV2ReadPath && selectedAccount ? (
-          <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/60 p-3 text-sm text-muted-foreground">
-            <div className="font-medium text-foreground">
-              {summarizeDeliveryStrategy(deliveryStrategy)}
+          <div className="grid gap-3 lg:grid-cols-[180px_180px_180px_auto]">
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">读取路径</div>
+              <Select
+                value={useV2ReadPath ? "v2" : "v1"}
+                onValueChange={(value) => setUseV2ReadPath(value === "v2")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="v1">V1 兼容</SelectItem>
+                  <SelectItem value="v2">V2 调试</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="mt-1 flex flex-wrap gap-3 text-xs">
-              <span>账户：{selectedAccount}</span>
-              <span>override：{mapProviderLabel(overrideProvider)}</span>
-              <span>strategy：{mapStrategyLabel(strategyModeOverride)}</span>
-              {deliveryStrategy?.resolved_provider ? (
-                <span>resolved：{mapProviderLabel(deliveryStrategy.resolved_provider)}</span>
-              ) : null}
+
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">Provider Override</div>
+              <Select
+                value={overrideProvider}
+                onValueChange={(value) => setOverrideProvider(value as ProviderOverride)}
+                disabled={!useV2ReadPath}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">自动</SelectItem>
+                  <SelectItem value="graph">Graph API</SelectItem>
+                  <SelectItem value="imap">IMAP</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">Strategy Mode</div>
+              <Select
+                value={strategyModeOverride}
+                onValueChange={(value) => setStrategyModeOverride(value as StrategyMode)}
+                disabled={!useV2ReadPath}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">自动选择</SelectItem>
+                  <SelectItem value="graph_preferred">Graph 优先</SelectItem>
+                  <SelectItem value="graph_only">仅 Graph</SelectItem>
+                  <SelectItem value="imap_only">仅 IMAP</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <label className="flex items-center gap-3 rounded-xl border border-border/70 px-3 py-2 text-sm">
+              <Checkbox
+                checked={skipCache}
+                onCheckedChange={(checked) => setSkipCache(Boolean(checked))}
+                disabled={!useV2ReadPath}
+              />
+              <span>跳过缓存（skip_cache）</span>
+            </label>
           </div>
-        ) : null}
-      </div>
+
+          {useV2ReadPath && selectedAccount ? (
+            <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/60 p-3 text-sm text-muted-foreground">
+              <div className="font-medium text-foreground">
+                {summarizeDeliveryStrategy(deliveryStrategy)}
+              </div>
+              <div className="mt-1 flex flex-wrap gap-3 text-xs">
+                <span>账户：{selectedAccount}</span>
+                <span>override：{mapProviderLabel(overrideProvider)}</span>
+                <span>strategy：{mapStrategyLabel(strategyModeOverride)}</span>
+                {deliveryStrategy?.resolved_provider ? (
+                  <span>resolved：{mapProviderLabel(deliveryStrategy.resolved_provider)}</span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <EmailToolbar
         accounts={accounts}

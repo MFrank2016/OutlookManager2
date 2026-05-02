@@ -12,3 +12,10 @@ test("accounts dashboard search should refetch when the applied filters are unch
   assert.ok(source.includes("if (isSameQuery) {"));
   assert.ok(source.includes("void refetch();"));
 });
+
+test("accounts dashboard should no longer render the Microsoft Access summary section", () => {
+  const source = readFileSync(dashboardPagePath, "utf-8");
+
+  assert.ok(!source.includes("Microsoft Access 摘要"));
+  assert.ok(!source.includes("聚焦"));
+});

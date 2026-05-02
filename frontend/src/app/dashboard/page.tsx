@@ -10,26 +10,16 @@ import { AccountsTable } from "@/components/accounts/AccountsTable";
 import { AddAccountDialog } from "@/components/accounts/AddAccountDialog";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageSection } from "@/components/layout/PageSection";
-import { Badge } from "@/components/ui/badge";
 import { DataEmptyState } from "@/components/ui/data-empty-state";
 import { DataLoadingState } from "@/components/ui/data-loading-state";
-import { Card, CardContent } from "@/components/ui/card";
 import { FilterToolbar } from "@/components/ui/filter-toolbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SelectionBar } from "@/components/ui/selection-bar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { useAccountHealth } from "@/hooks/useAccountHealth";
 import api from "@/lib/api";
-import { useDeliveryStrategy } from "@/hooks/useDeliveryStrategy";
 import { useAccounts, useBatchDeleteAccounts } from "@/hooks/useAccounts";
-import {
-  getCapabilityHighlights,
-  mapProviderLabel,
-  mapStrategyLabel,
-  summarizeDeliveryStrategy,
-} from "@/lib/microsoftAccess";
 import { useAccountsFilterStore } from "@/store/useAccountsFilterStore";
 
 export default function DashboardPage() {
@@ -76,16 +66,6 @@ export default function DashboardPage() {
     exclude_tags: queryParams.exclude_tags || undefined,
     refresh_status: queryParams.refresh_status,
   });
-  const summaryAccountId = selectedAccounts[0] || data?.accounts?.[0]?.email_id || null;
-  const { data: accountHealth, isLoading: isHealthLoading } = useAccountHealth(summaryAccountId, !!summaryAccountId);
-  const { data: deliveryStrategy, isLoading: isStrategyLoading } = useDeliveryStrategy({
-    email: summaryAccountId,
-    enabled: !!summaryAccountId,
-  });
-  const capabilityHighlights = useMemo(
-    () => getCapabilityHighlights(accountHealth?.capability),
-    [accountHealth?.capability]
-  );
 
   useEffect(() => {
     if (!data?.accounts) {
@@ -382,76 +362,6 @@ export default function DashboardPage() {
           onClear={() => setSelectedAccounts([])}
         />
       ) : null}
-
-      <PageSection
-        title="Microsoft Access 摘要"
-        description={
-          summaryAccountId
-            ? `聚焦 ${summaryAccountId} 的策略、能力与最近 provider 状态。`
-            : "选择或加载一个账户后，这里会展示 v2 health / delivery-strategy 摘要。"
-        }
-        contentClassName="grid gap-3 md:grid-cols-3"
-      >
-        <Card className="border-border/70">
-          <CardContent className="space-y-2 p-4">
-            <div className="text-xs text-muted-foreground">当前聚焦账户</div>
-            <div className="break-all text-sm font-medium text-foreground">
-              {summaryAccountId || "暂无"}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {accountHealth?.strategy_mode ? (
-                <Badge variant="secondary">{mapStrategyLabel(accountHealth.strategy_mode)}</Badge>
-              ) : null}
-              {accountHealth?.last_provider_used ? (
-                <Badge variant="outline">{mapProviderLabel(accountHealth.last_provider_used)}</Badge>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70">
-          <CardContent className="space-y-2 p-4">
-            <div className="text-xs text-muted-foreground">能力快照</div>
-            {isHealthLoading ? (
-              <div className="text-sm text-muted-foreground">正在加载...</div>
-            ) : capabilityHighlights.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {capabilityHighlights.map((item) => (
-                  <Badge key={item} variant="outline">
-                    {item}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <div className="text-sm text-muted-foreground">暂无能力摘要</div>
-            )}
-            {accountHealth?.last_error?.message ? (
-              <div className="text-xs text-amber-700">
-                最近异常：{accountHealth.last_error.message}
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/70">
-          <CardContent className="space-y-2 p-4">
-            <div className="text-xs text-muted-foreground">投递策略解释</div>
-            <div className="text-sm text-foreground">
-              {isStrategyLoading
-                ? "正在加载..."
-                : summarizeDeliveryStrategy(deliveryStrategy)}
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-              {deliveryStrategy?.recommended_provider ? (
-                <span>推荐：{mapProviderLabel(deliveryStrategy.recommended_provider)}</span>
-              ) : null}
-              {deliveryStrategy?.resolved_provider ? (
-                <span>当前：{mapProviderLabel(deliveryStrategy.resolved_provider)}</span>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-      </PageSection>
 
       <PageSection title="账户列表" description={resultDescription} contentClassName="space-y-4">
         {isLoading && !data ? (
