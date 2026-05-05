@@ -283,6 +283,42 @@ async def test_mail_gateway_prefers_provider_bulk_body_path(credentials):
 
 
 @pytest.mark.asyncio
+async def test_mail_gateway_hydrate_details_enriches_list_response(
+    credentials,
+    email_list_response,
+    email_detail_response,
+):
+    graph_provider = FakeProvider(name="graph", list_response=email_list_response)
+    imap_provider = FakeProvider(
+        name="imap",
+        list_response=email_list_response,
+        detail_response=email_detail_response,
+    )
+    gateway = MailGateway(
+        graph_provider=graph_provider,
+        imap_provider=imap_provider,
+        persist_provider_hint=noop_persist_provider_hint,
+    )
+
+    response = await gateway.list_messages(
+        credentials,
+        folder="inbox",
+        page=1,
+        page_size=20,
+        hydrate_details=True,
+    )
+
+    assert response.total_emails == 1
+    assert response.emails[0].message_id == "INBOX-1"
+    assert response.emails[0].verification_code == "123456"
+    assert response.emails[0].to_email == "mail-gateway@example.com"
+    assert response.emails[0].body_plain == "Your code is 123456"
+    assert response.emails[0].body_preview == "Your code is 123456"
+    assert [call[0] for call in graph_provider.calls] == []
+    assert [call[0] for call in imap_provider.calls] == ["list", "detail"]
+
+
+@pytest.mark.asyncio
 async def test_mail_gateway_list_with_body_falls_back_from_graph_bulk_503_to_imap(
     credentials,
 ):

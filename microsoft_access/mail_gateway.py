@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import Any, Callable
 
 import database as db
@@ -29,6 +30,8 @@ RECOVERABLE_GRAPH_PROBE_EXCEPTION_TYPES = (
 )
 PersistProviderHint = Callable[[str, str], bool]
 DETAIL_FETCH_CONCURRENCY_LIMIT = 5
+DETAIL_HYDRATION_MAX_ITEMS = 50
+DETAIL_PREVIEW_MAX_LENGTH = 180
 
 
 class MailGateway:
@@ -56,6 +59,7 @@ class MailGateway:
         page_size: int,
         strategy_mode: str | None = None,
         override_provider: str | None = None,
+        hydrate_details: bool = False,
         skip_cache: bool = False,
         sender_search: str | None = None,
         subject_search: str | None = None,
@@ -87,6 +91,13 @@ class MailGateway:
                     start_time=start_time,
                     end_time=end_time,
                 )
+                if hydrate_details:
+                    response = await self._hydrate_list_response(
+                        provider,
+                        credentials,
+                        response,
+                        skip_cache=skip_cache,
+                    )
                 self._record_successful_provider(credentials, provider_name)
                 return response
             except HTTPException as exc:
@@ -415,6 +426,78 @@ class MailGateway:
         if not isinstance(payload, dict):
             return None
         return self._normalize_provider_name(payload.get("recommended_provider"))
+
+    def _build_body_preview_from_detail(
+        self,
+        detail: EmailDetailsResponse,
+    ) -> str | None:
+        preview_source = detail.body_plain or ""
+        if not preview_source and detail.body_html:
+            preview_source = re.sub(r"<[^>]+>", " ", detail.body_html)
+
+        compact = " ".join(str(preview_source).split())
+        if not compact:
+            return None
+        return compact[:DETAIL_PREVIEW_MAX_LENGTH]
+
+    async def _hydrate_list_response(
+        self,
+        provider: Any,
+        credentials: AccountCredentials,
+        list_response: EmailListResponse,
+        *,
+        skip_cache: bool,
+    ) -> EmailListResponse:
+        if not list_response.emails:
+            return list_response
+
+        semaphore = asyncio.Semaphore(DETAIL_FETCH_CONCURRENCY_LIMIT)
+        target_items = list_response.emails[:DETAIL_HYDRATION_MAX_ITEMS]
+
+        async def fetch_detail(item: Any) -> tuple[str, EmailDetailsResponse | None]:
+            try:
+                async with semaphore:
+                    detail = await provider.get_message_detail(
+                        credentials,
+                        item.message_id,
+                        skip_cache=skip_cache,
+                    )
+                return item.message_id, detail
+            except Exception as exc:  # noqa: BLE001 - 列表增强失败不应打断主列表
+                logger.warning(
+                    "MailGateway hydrate_details skipped {} for {} via {}: {}",
+                    item.message_id,
+                    credentials.email,
+                    getattr(provider, "name", provider.__class__.__name__),
+                    exc,
+                )
+                return item.message_id, None
+
+        detail_results = await asyncio.gather(
+            *(fetch_detail(item) for item in target_items)
+        )
+        items_by_id = {item.message_id: item for item in list_response.emails}
+
+        for message_id, detail in detail_results:
+            if detail is None:
+                continue
+
+            item = items_by_id.get(message_id)
+            if item is None:
+                continue
+
+            if detail.verification_code and not item.verification_code:
+                item.verification_code = detail.verification_code
+            if detail.to_email and not item.to_email:
+                item.to_email = detail.to_email
+            if detail.body_plain and not item.body_plain:
+                item.body_plain = detail.body_plain
+            if detail.body_html and not item.body_html:
+                item.body_html = detail.body_html
+            if not item.body_preview:
+                item.body_preview = self._build_body_preview_from_detail(detail)
+
+        return list_response
 
     async def _list_messages_with_body_via_provider(
         self,

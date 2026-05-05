@@ -118,6 +118,7 @@ function EmailsPageContent() {
     page,
     page_size: pageSize,
     forceRefresh: forceRefreshOnce,
+    hydrateDetails: true,
     useV2: useV2ReadPath,
     overrideProvider,
     strategyMode: strategyModeOverride,

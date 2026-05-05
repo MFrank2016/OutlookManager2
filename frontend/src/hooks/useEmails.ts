@@ -22,6 +22,7 @@ interface EmailsParams {
     sortOrder?: "asc" | "desc";
     forceRefresh?: boolean; // 强制刷新，不走缓存
     refreshNonce?: number; // 手动刷新触发器
+    hydrateDetails?: boolean;
     useV2?: boolean;
     overrideProvider?: ProviderOverride;
     strategyMode?: StrategyMode;
@@ -42,6 +43,7 @@ export function useEmails(params: EmailsParams) {
         params.folder || "all",
         params.search || "",
         params.searchType || "subject",
+        params.hydrateDetails ? 1 : 0,
         params.sortBy || "date",
         params.sortOrder || "desc",
         params.refreshNonce || 0,
@@ -72,6 +74,7 @@ export function useEmails(params: EmailsParams) {
                     page: params.page || 1,
                     page_size: params.page_size || 20,
                     folder,
+                    hydrate_details: params.hydrateDetails,
                     sort_by: params.sortBy || "date",
                     sort_order: params.sortOrder || "desc",
                     sender_search:

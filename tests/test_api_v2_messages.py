@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 import auth
 from main import app
-from models import AccountCredentials, EmailDetailsResponse, EmailItem, EmailListResponse
+from models import AccountCredentials, EmailDetailsResponse, EmailItem, EmailListResponse, StrategyMode
 
 
 class FakeMailGateway:
@@ -81,6 +81,7 @@ def test_v2_list_messages_supports_provider_override():
                     "page": 2,
                     "page_size": 50,
                     "override_provider": "graph",
+                    "hydrate_details": "true",
                     "skip_cache": "true",
                     "subject_search": "code",
                 },
@@ -94,13 +95,14 @@ def test_v2_list_messages_supports_provider_override():
     assert response.json()["email_id"] == "mailbox@example.com"
     assert gateway.list_calls == [
         {
-            "email": "mailbox@example.com",
-            "folder": "junk",
-            "page": 2,
-            "page_size": 50,
-            "strategy_mode": "auto",
-            "override_provider": "graph",
-            "skip_cache": True,
+                "email": "mailbox@example.com",
+                "folder": "junk",
+                "page": 2,
+                "page_size": 50,
+                "strategy_mode": StrategyMode.AUTO,
+                "override_provider": "graph",
+                "hydrate_details": True,
+                "skip_cache": True,
             "sender_search": None,
             "subject_search": "code",
             "sort_by": "date",

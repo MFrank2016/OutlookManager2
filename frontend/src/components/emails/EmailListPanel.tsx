@@ -100,14 +100,14 @@ export function EmailListPanel({
 
   return (
     <div className="space-y-4">
-      <div className="hidden md:block overflow-auto">
-        <Table>
+      <div className="hidden min-w-0 2xl:block">
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[240px]">发件人</TableHead>
+              <TableHead className="w-[220px]">发件人</TableHead>
               <TableHead>主题与预览</TableHead>
               <TableHead className="w-[180px]">日期</TableHead>
-              <TableHead className="w-[110px] text-right">操作</TableHead>
+              <TableHead className="w-[188px] text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -117,7 +117,10 @@ export function EmailListPanel({
                 <TableRow
                   key={email.message_id}
                   data-state={activeEmailId === email.message_id ? "selected" : undefined}
-                  className="cursor-pointer"
+                  className={cn(
+                    "cursor-pointer",
+                    email.verification_code && "bg-amber-50/60 hover:bg-amber-100/80 data-[state=selected]:bg-amber-100/95"
+                  )}
                   onClick={() => onOpenEmail(email.message_id, email)}
                 >
                   <TableCell className="font-medium">
@@ -135,8 +138,8 @@ export function EmailListPanel({
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
+                  <TableCell className="max-w-0">
+                    <div className="min-w-0 max-w-[560px] space-y-1">
                       <div className="flex items-center gap-2">
                         {email.verification_code ? (
                           <Badge variant="secondary" className="bg-amber-100 px-1.5 py-0 text-[10px] text-amber-800">
@@ -145,7 +148,7 @@ export function EmailListPanel({
                         ) : null}
                         <span className="truncate font-medium">{email.subject}</span>
                       </div>
-                      <p className="truncate text-xs text-[color:var(--text-soft)]">
+                      <p className="truncate text-xs leading-5 text-[color:var(--text-soft)]">
                         {email.body_preview || "无预览"}
                       </p>
                       <p className="truncate text-[11px] text-[color:var(--text-faint)]">
@@ -157,7 +160,7 @@ export function EmailListPanel({
                     {format(new Date(email.date), "yyyy-MM-dd HH:mm")}
                   </TableCell>
                   <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
-                    <div className="flex justify-end gap-1">
+                    <div className="flex justify-end gap-1.5 whitespace-nowrap">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -169,13 +172,14 @@ export function EmailListPanel({
                       </Button>
                       {email.verification_code ? (
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 text-amber-600 hover:text-amber-700"
+                          variant="outline"
+                          size="sm"
+                          className="h-9 shrink-0 border-amber-300 bg-amber-50/80 px-3 text-xs font-medium text-amber-700 hover:bg-amber-100 hover:text-amber-800"
                           onClick={() => onCopyCode(email.verification_code!)}
                           title={`复制验证码：${email.verification_code}`}
                         >
-                          <Copy className="h-4 w-4" />
+                          <Copy className="mr-1.5 h-3.5 w-3.5" />
+                          复制验证码
                         </Button>
                       ) : null}
                       <Button
@@ -196,7 +200,7 @@ export function EmailListPanel({
         </Table>
       </div>
 
-      <div className="grid gap-3 md:hidden">
+      <div className="grid gap-3 2xl:hidden">
         {emails.map((email) => {
           const sender = getSenderDisplay(email.from_email);
           return (
@@ -204,6 +208,7 @@ export function EmailListPanel({
               key={email.message_id}
               className={cn(
                 "cursor-pointer border-border/70 p-0",
+                email.verification_code && "border-amber-300/70 bg-amber-50/70 shadow-[0_12px_24px_rgba(251,191,36,0.10)]",
                 activeEmailId === email.message_id && "border-primary/35"
               )}
               onClick={() => onOpenEmail(email.message_id, email)}

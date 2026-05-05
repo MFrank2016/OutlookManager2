@@ -82,6 +82,7 @@ export interface V2MessageQuery {
   folder?: string;
   page?: number;
   page_size?: number;
+  hydrate_details?: boolean;
   sender_search?: string;
   subject_search?: string;
   sort_by?: string;
