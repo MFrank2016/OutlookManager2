@@ -52,20 +52,17 @@ test("emails page should keep the main toolbar collapsed by default and wire the
   assert.ok(pageSource.includes("onToggleExpanded={() => setIsToolbarExpanded((current) => !current)}"));
 });
 
-test("emails page should keep cards plus modal detail below 2xl and only show the inline detail column from 2xl upward", () => {
-  const source = readFileSync(emailsPagePath, "utf-8");
-
-  assert.ok(source.includes('window.matchMedia("(max-width: 1535px)").matches'));
-  assert.ok(source.includes('className="grid min-h-0 flex-1 gap-4 2xl:grid-cols-[minmax(360px,0.8fr)_minmax(620px,1.2fr)]"'));
-  assert.ok(source.includes('className="hidden min-h-0 2xl:block"'));
-});
-
-test("emails page should automatically close the mobile detail dialog when the viewport grows back to desktop width", () => {
+test("emails page should switch to a two-column workspace on desktop while keeping the dialog flow for narrower widths", () => {
   const source = readFileSync(emailsPagePath, "utf-8");
 
   assert.ok(source.includes('window.matchMedia("(min-width: 1536px)")'));
+  assert.ok(source.includes('className="grid min-h-0 flex-1 gap-4 2xl:grid-cols-[minmax(340px,0.72fr)_minmax(0,1.28fr)]"'));
+  assert.ok(source.includes('className="panel-surface flex min-h-0 min-w-0 flex-col overflow-hidden p-3 md:p-4"'));
+  assert.ok(source.includes('className="hidden min-h-0 min-w-0 2xl:block"'));
+  assert.ok(source.includes("setEmailDetailOpen(true);"));
   assert.ok(source.includes("setEmailDetailOpen(false);"));
-  assert.ok(source.includes('mediaQuery.addEventListener("change", handleDesktopChange)'));
+  assert.ok(source.includes('if (isDesktopDetailLayout) {'));
+  assert.ok(source.includes('<Dialog open={emailDetailOpen && !isDesktopDetailLayout} onOpenChange={setEmailDetailOpen}>'));
 });
 
 test("emails page should request hydrated v2 list details so verification buttons and previews are ready before opening source view", () => {
@@ -74,29 +71,35 @@ test("emails page should request hydrated v2 list details so verification button
   assert.ok(source.includes("hydrateDetails: true"));
 });
 
-test("email list panel should use a fixed table layout with constrained subject and preview widths so action buttons stay visible", () => {
+test("email list panel should keep the card layout as the stable presentation across viewport changes so maximize does not swap to a table", () => {
   const source = readFileSync(emailListPanelPath, "utf-8");
 
-  assert.ok(source.includes('<Table className="table-fixed">'));
-  assert.ok(source.includes('TableHead className="w-[220px]"'));
-  assert.ok(source.includes('TableHead className="w-[188px] text-right"'));
-  assert.ok(source.includes('className="min-w-0 max-w-[560px] space-y-1"'));
-  assert.ok(source.includes('className="truncate text-xs leading-5 text-[color:var(--text-soft)]"'));
+  assert.ok(source.includes('className="grid gap-3"'));
+  assert.ok(!source.includes('<Table className="table-fixed">'));
+  assert.ok(!source.includes("TableHead className"));
   assert.ok(source.includes("复制验证码"));
 });
 
-test("email list panel should highlight verification emails on both desktop rows and mobile cards", () => {
+test("email list panel should highlight verification emails in the shared card layout", () => {
   const source = readFileSync(emailListPanelPath, "utf-8");
 
-  assert.ok(source.includes('email.verification_code && "bg-amber-50/60 hover:bg-amber-100/80 data-[state=selected]:bg-amber-100/95"'));
   assert.ok(source.includes('email.verification_code && "border-amber-300/70 bg-amber-50/70 shadow-[0_12px_24px_rgba(251,191,36,0.10)]"'));
 });
 
-test("email list panel should fall back to the stacked card layout below 2xl so copy-code actions stay reachable without horizontal scrolling", () => {
+test("email list panel should keep the stacked card layout across desktop widths so copy-code actions stay reachable without horizontal scrolling", () => {
   const source = readFileSync(emailListPanelPath, "utf-8");
 
-  assert.ok(source.includes('className="hidden min-w-0 2xl:block"'));
-  assert.ok(source.includes('className="grid gap-3 2xl:hidden"'));
+  assert.ok(source.includes('className="grid gap-3"'));
+  assert.ok(!source.includes('min-[2200px]:block'));
+  assert.ok(!source.includes('min-[2200px]:hidden'));
+});
+
+test("email list cards should prioritize verification-code copy actions ahead of the preview block", () => {
+  const source = readFileSync(emailListPanelPath, "utf-8");
+
+  assert.ok(source.includes('className="w-full justify-center border-amber-300 bg-amber-50/90 text-amber-700 hover:bg-amber-100"'));
+  assert.ok(source.includes("复制验证码"));
+  assert.ok(source.includes('className="line-clamp-2 text-xs leading-relaxed text-[color:var(--text-soft)]"'));
 });
 
 test("dashboard shell and email workspace should opt into min-h-0 flex sizing so list and detail regions can actually scroll", () => {
@@ -112,9 +115,10 @@ test("dashboard shell and email workspace should opt into min-h-0 flex sizing so
   assert.ok(layoutSource.includes('<ScrollArea className="min-h-0 flex-1">'));
 
   assert.ok(pageSource.includes('className="page-enter flex min-h-0 flex-1 flex-col gap-3 md:gap-4"'));
-  assert.ok(pageSource.includes('className="grid min-h-0 flex-1 gap-4 2xl:grid-cols-[minmax(360px,0.8fr)_minmax(620px,1.2fr)]"'));
-  assert.ok(pageSource.includes('className="panel-surface flex min-h-0 flex-col overflow-hidden p-3 md:p-4"'));
+  assert.ok(pageSource.includes('className="grid min-h-0 flex-1 gap-4 2xl:grid-cols-[minmax(340px,0.72fr)_minmax(0,1.28fr)]"'));
+  assert.ok(pageSource.includes('className="panel-surface flex min-h-0 min-w-0 flex-col overflow-hidden p-3 md:p-4"'));
   assert.ok(pageSource.includes('DialogContent className="flex h-[min(92dvh,960px)] w-full max-w-[95vw] flex-col overflow-hidden p-0 lg:max-w-6xl"'));
+  assert.ok(pageSource.includes('className="hidden min-h-0 min-w-0 2xl:block"'));
   assert.ok(pageSource.includes('<div className="min-h-0 flex-1 overflow-hidden">{detailPanel}</div>'));
 
   assert.ok(listSource.includes('import { ScrollArea } from "@/components/ui/scroll-area";'));
@@ -123,4 +127,21 @@ test("dashboard shell and email workspace should opt into min-h-0 flex sizing so
 
   assert.ok(detailSource.includes('className="panel-surface flex h-full min-h-0 flex-col overflow-hidden"'));
   assert.ok(detailSource.includes('<ScrollArea className="min-h-0 flex-1 px-4 py-5 md:px-5">'));
+});
+
+test("email detail dialog should include an accessible title and description even when the chrome stays visually hidden", () => {
+  const source = readFileSync(emailsPagePath, "utf-8");
+
+  assert.ok(source.includes("DialogDescription"));
+  assert.ok(source.includes("DialogTitle"));
+  assert.ok(source.includes('<DialogTitle className="sr-only">邮件详情</DialogTitle>'));
+  assert.ok(source.includes('<DialogDescription className="sr-only">查看当前所选邮件的验证码、正文与原始来源。</DialogDescription>'));
+});
+
+test("email detail panel should wrap long metadata values and keep html content constrained within the available pane width", () => {
+  const source = readFileSync(emailDetailPanelPath, "utf-8");
+
+  assert.ok(source.includes('className="grid gap-3 text-sm"'));
+  assert.ok(source.includes('className="break-all text-foreground"'));
+  assert.ok(source.includes('className="prose prose-slate max-w-none break-words text-sm leading-relaxed [overflow-wrap:anywhere] [&_img]:max-w-full [&_table]:w-full dark:prose-invert"'));
 });

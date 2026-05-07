@@ -25,7 +25,7 @@ const EmailContent = memo(
       return (
         <div
           key={contentKey}
-          className="prose prose-slate max-w-none text-sm leading-relaxed dark:prose-invert"
+          className="prose prose-slate max-w-none break-words text-sm leading-relaxed [overflow-wrap:anywhere] [&_img]:max-w-full [&_table]:w-full dark:prose-invert"
           dangerouslySetInnerHTML={{ __html: content }}
         />
       );
@@ -234,18 +234,18 @@ export function EmailDetailPanel({
       </div>
 
       <div className="border-b border-border/70 bg-[color:var(--surface-1)]/45 px-4 py-4 md:px-5">
-        <div className="grid gap-3 text-sm md:grid-cols-2">
+        <div className="grid gap-3 text-sm">
           <div>
             <span className="font-medium text-[color:var(--text-soft)]">发件人：</span>
-            <span className="text-foreground">{email.from_email}</span>
+            <span className="break-all text-foreground">{email.from_email}</span>
           </div>
           <div>
             <span className="font-medium text-[color:var(--text-soft)]">收件人：</span>
-            <span className="text-foreground">{email.to_email || "无"}</span>
+            <span className="break-all text-foreground">{email.to_email || "无"}</span>
           </div>
           <div>
             <span className="font-medium text-[color:var(--text-soft)]">日期：</span>
-            <span className="text-foreground">{format(new Date(email.date), "yyyy-MM-dd HH:mm:ss")}</span>
+            <span className="break-all text-foreground">{format(new Date(email.date), "yyyy-MM-dd HH:mm:ss")}</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium text-[color:var(--text-soft)]">邮件 ID：</span>

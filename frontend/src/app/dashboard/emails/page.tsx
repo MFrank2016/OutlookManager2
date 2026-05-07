@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataEmptyState } from "@/components/ui/data-empty-state";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/hooks/useAccounts";
@@ -68,6 +68,7 @@ function EmailsPageContent() {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [selectedEmailData, setSelectedEmailData] = useState<Email | null>(null);
   const [emailDetailOpen, setEmailDetailOpen] = useState(false);
+  const [isDesktopDetailLayout, setIsDesktopDetailLayout] = useState(false);
   const [deleteEmailId, setDeleteEmailId] = useState<string | null>(null);
   const [clearInboxOpen, setClearInboxOpen] = useState(false);
   const [isCreateShareDialogOpen, setIsCreateShareDialogOpen] = useState(false);
@@ -308,22 +309,23 @@ function EmailsPageContent() {
 
     const mediaQuery = window.matchMedia("(min-width: 1536px)");
 
-    const syncDesktopDetailMode = (matches: boolean) => {
+    const syncDesktopDetailLayout = (matches: boolean) => {
+      setIsDesktopDetailLayout(matches);
       if (matches) {
         setEmailDetailOpen(false);
       }
     };
 
-    syncDesktopDetailMode(mediaQuery.matches);
+    syncDesktopDetailLayout(mediaQuery.matches);
 
-    const handleDesktopChange = (event: MediaQueryListEvent) => {
-      syncDesktopDetailMode(event.matches);
+    const handleDesktopLayoutChange = (event: MediaQueryListEvent) => {
+      syncDesktopDetailLayout(event.matches);
     };
 
-    mediaQuery.addEventListener("change", handleDesktopChange);
+    mediaQuery.addEventListener("change", handleDesktopLayoutChange);
 
     return () => {
-      mediaQuery.removeEventListener("change", handleDesktopChange);
+      mediaQuery.removeEventListener("change", handleDesktopLayoutChange);
     };
   }, []);
 
@@ -452,10 +454,12 @@ function EmailsPageContent() {
   const openEmailDetail = (messageId: string, emailData?: Email) => {
     setSelectedEmailId(messageId);
     setSelectedEmailData(emailData || null);
-
-    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1535px)").matches) {
-      setEmailDetailOpen(true);
+    if (isDesktopDetailLayout) {
+      setEmailDetailOpen(false);
+      return;
     }
+
+    setEmailDetailOpen(true);
   };
 
   const detailPanel = selectedAccount && selectedEmailId ? (
@@ -630,8 +634,8 @@ function EmailsPageContent() {
         onOpenClearFolder={() => setClearInboxOpen(true)}
       />
 
-      <div className="grid min-h-0 flex-1 gap-4 2xl:grid-cols-[minmax(360px,0.8fr)_minmax(620px,1.2fr)]">
-        <div className="panel-surface flex min-h-0 flex-col overflow-hidden p-3 md:p-4">
+      <div className="grid min-h-0 flex-1 gap-4 2xl:grid-cols-[minmax(340px,0.72fr)_minmax(0,1.28fr)]">
+        <div className="panel-surface flex min-h-0 min-w-0 flex-col overflow-hidden p-3 md:p-4">
           {!selectedAccount ? (
             <DataEmptyState
               title="请先选择邮箱账户"
@@ -660,11 +664,13 @@ function EmailsPageContent() {
           )}
         </div>
 
-        <div className="hidden min-h-0 2xl:block">{detailPanel}</div>
+        <div className="hidden min-h-0 min-w-0 2xl:block">{detailPanel}</div>
       </div>
 
-      <Dialog open={emailDetailOpen} onOpenChange={setEmailDetailOpen}>
+      <Dialog open={emailDetailOpen && !isDesktopDetailLayout} onOpenChange={setEmailDetailOpen}>
         <DialogContent className="flex h-[min(92dvh,960px)] w-full max-w-[95vw] flex-col overflow-hidden p-0 lg:max-w-6xl">
+          <DialogTitle className="sr-only">邮件详情</DialogTitle>
+          <DialogDescription className="sr-only">查看当前所选邮件的验证码、正文与原始来源。</DialogDescription>
           <div className="min-h-0 flex-1 overflow-hidden">{detailPanel}</div>
         </DialogContent>
       </Dialog>

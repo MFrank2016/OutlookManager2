@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import { ChevronLeft, ChevronRight, Copy, Eye, Trash } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DataEmptyState } from "@/components/ui/data-empty-state";
@@ -12,14 +11,6 @@ import { DataLoadingState } from "@/components/ui/data-loading-state";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { Email } from "@/types";
 
@@ -103,107 +94,7 @@ export function EmailListPanel({
     <div className="flex h-full min-h-0 flex-col gap-4">
       <ScrollArea className="min-h-0 flex-1 pr-1">
         <div className="space-y-4 pb-1">
-          <div className="hidden min-w-0 2xl:block">
-            <Table className="table-fixed">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[220px]">发件人</TableHead>
-                  <TableHead>主题与预览</TableHead>
-                  <TableHead className="w-[180px]">日期</TableHead>
-                  <TableHead className="w-[188px] text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {emails.map((email) => {
-                  const sender = getSenderDisplay(email.from_email);
-                  return (
-                    <TableRow
-                      key={email.message_id}
-                      data-state={activeEmailId === email.message_id ? "selected" : undefined}
-                      className={cn(
-                        "cursor-pointer",
-                        email.verification_code && "bg-amber-50/60 hover:bg-amber-100/80 data-[state=selected]:bg-amber-100/95"
-                      )}
-                      onClick={() => onOpenEmail(email.message_id, email)}
-                    >
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                            <AvatarFallback className="bg-gradient-to-br from-[color:var(--brand)] to-[color:var(--accent)] text-xs text-[color:var(--primary-foreground)]">
-                              {email.sender_initial}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium">{sender.name}</div>
-                            <div className="truncate text-xs text-[color:var(--text-faint)]">
-                              {sender.email || email.from_email}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-0">
-                        <div className="min-w-0 max-w-[560px] space-y-1">
-                          <div className="flex items-center gap-2">
-                            {email.verification_code ? (
-                              <Badge variant="secondary" className="bg-amber-100 px-1.5 py-0 text-[10px] text-amber-800">
-                                验证码 {email.verification_code}
-                              </Badge>
-                            ) : null}
-                            <span className="truncate font-medium">{email.subject}</span>
-                          </div>
-                          <p className="truncate text-xs leading-5 text-[color:var(--text-soft)]">
-                            {email.body_preview || "无预览"}
-                          </p>
-                          <p className="truncate text-[11px] text-[color:var(--text-faint)]">
-                            ID: {email.message_id}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm text-[color:var(--text-soft)]">
-                        {format(new Date(email.date), "yyyy-MM-dd HH:mm")}
-                      </TableCell>
-                      <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
-                        <div className="flex justify-end gap-1.5 whitespace-nowrap">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9"
-                            onClick={() => onOpenEmail(email.message_id, email)}
-                            title="查看"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {email.verification_code ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-9 shrink-0 border-amber-300 bg-amber-50/80 px-3 text-xs font-medium text-amber-700 hover:bg-amber-100 hover:text-amber-800"
-                              onClick={() => onCopyCode(email.verification_code!)}
-                              title={`复制验证码：${email.verification_code}`}
-                            >
-                              <Copy className="mr-1.5 h-3.5 w-3.5" />
-                              复制验证码
-                            </Button>
-                          ) : null}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9 text-red-600 hover:text-red-700"
-                            onClick={() => onDeleteRequest(email.message_id)}
-                            title="删除"
-                          >
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div className="grid gap-3 2xl:hidden">
+          <div className="grid gap-3">
             {emails.map((email) => {
               const sender = getSenderDisplay(email.from_email);
               return (
@@ -242,25 +133,52 @@ export function EmailListPanel({
                         <div className="truncate text-[11px] text-[color:var(--text-faint)]">ID: {email.message_id}</div>
                       </div>
 
-                      <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/75 px-3 py-2.5">
-                        <p className="line-clamp-3 text-xs leading-relaxed text-[color:var(--text-soft)]">
-                          {email.body_preview || "暂无预览内容"}
-                        </p>
-                      </div>
-
                       {email.verification_code ? (
                         <Button
                           variant="outline"
-                          className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"
+                          className="w-full justify-center border-amber-300 bg-amber-50/90 text-amber-700 hover:bg-amber-100"
                           onClick={(event) => {
                             event.stopPropagation();
                             onCopyCode(email.verification_code!);
                           }}
                         >
                           <Copy className="mr-1.5 h-3.5 w-3.5" />
-                          {email.verification_code}
+                          复制验证码 {email.verification_code}
                         </Button>
                       ) : null}
+
+                      <div className="rounded-xl border border-border/70 bg-[color:var(--surface-1)]/75 px-3 py-2.5">
+                        <p className="line-clamp-2 text-xs leading-relaxed text-[color:var(--text-soft)]">
+                          {email.body_preview || "暂无预览内容"}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenEmail(email.message_id, email);
+                          }}
+                        >
+                          <Eye className="mr-1.5 h-3.5 w-3.5" />
+                          查看详情
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-3 text-red-600 hover:text-red-700"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDeleteRequest(email.message_id);
+                          }}
+                        >
+                          <Trash className="mr-1.5 h-3.5 w-3.5" />
+                          删除
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
