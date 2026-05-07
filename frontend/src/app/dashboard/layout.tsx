@@ -35,6 +35,22 @@ export default function DashboardLayout({
     setMobileMenuOpen(false);
   };
 
+  const contentShell = hideDesktopTopbar ? (
+    <div className="flex min-h-0 flex-1 flex-col p-3 md:p-6">
+      <main className="panel-surface soft-grid-bg flex h-full min-h-0 flex-1 flex-col overflow-hidden p-3 md:p-4">
+        {children}
+      </main>
+    </div>
+  ) : (
+    <ScrollArea className="min-h-0 flex-1">
+      <div className="flex h-full min-h-full flex-col p-3 md:p-6">
+        <main className="panel-surface soft-grid-bg flex min-h-0 flex-1 flex-col overflow-hidden p-3 md:p-4">
+          {children}
+        </main>
+      </div>
+    </ScrollArea>
+  );
+
   return (
     <div className="theme-console page-enter flex h-dvh overflow-hidden bg-[color:var(--surface-0)] text-foreground">
       <button
@@ -63,7 +79,7 @@ export default function DashboardLayout({
         />
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 min-h-0 flex-1 flex-col">
         <header
           className={cn(
             "border-b border-border/70 bg-[color:var(--surface-0)]/88 backdrop-blur-xl",
@@ -98,13 +114,7 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        <ScrollArea className="flex-1">
-          <div className="min-h-full p-3 md:p-6">
-            <main className="panel-surface soft-grid-bg min-h-full overflow-hidden p-3 md:p-4">
-              {children}
-            </main>
-          </div>
-        </ScrollArea>
+        {contentShell}
       </div>
     </div>
   );

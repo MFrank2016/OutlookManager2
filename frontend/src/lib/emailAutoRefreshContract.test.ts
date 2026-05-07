@@ -23,15 +23,14 @@ test("emails page should keep auto refresh toggle state and wire it into the too
 });
 
 
-test("emails toolbar should anchor the auto refresh badge in the far-left toolbar slot with a stronger highlight style", () => {
+test("emails toolbar should keep refresh status visible in the collapsed summary without rendering a second expanded auto-refresh bar", () => {
   const source = readFileSync(toolbarPath, "utf-8");
 
-  assert.ok(source.includes("const autoRefreshControl = ("));
-  assert.ok(source.includes("border-emerald-300/80"));
-  assert.ok(source.includes("shadow-[0_10px_24px_rgba(16,185,129,0.16)]"));
-  assert.ok(source.includes("leading={autoRefreshControl}"));
-  assert.ok(source.includes("self-start"));
-  assert.ok(source.includes("trailing={"));
+  assert.ok(source.includes("自动刷新进行中"));
+  assert.ok(source.includes("收起时只保留邮箱、刷新倒计时与手动刷新入口。"));
+  assert.ok(source.includes('isAutoRefreshEnabled ? "关闭自动刷新" : "开启自动刷新"'));
+  assert.ok(source.includes('onClick={onToggleAutoRefresh}'));
+  assert.ok(!source.includes("const autoRefreshControl = ("));
 });
 
 

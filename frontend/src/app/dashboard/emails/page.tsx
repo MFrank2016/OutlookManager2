@@ -88,6 +88,7 @@ function EmailsPageContent() {
   const [pendingRefreshSource, setPendingRefreshSource] = useState<"idle" | "manual" | "auto">("idle");
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(true);
+  const [isToolbarExpanded, setIsToolbarExpanded] = useState(false);
   const [useV2ReadPath, setUseV2ReadPath] = useState(true);
   const [isReadPathPanelCollapsed, setIsReadPathPanelCollapsed] = useState(true);
   const [overrideProvider, setOverrideProvider] = useState<ProviderOverride>("auto");
@@ -300,6 +301,32 @@ function EmailsPageContent() {
     setSelectedEmailData(filteredEmails[0]);
   }, [filteredEmails, selectedEmailId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(min-width: 1536px)");
+
+    const syncDesktopDetailMode = (matches: boolean) => {
+      if (matches) {
+        setEmailDetailOpen(false);
+      }
+    };
+
+    syncDesktopDetailMode(mediaQuery.matches);
+
+    const handleDesktopChange = (event: MediaQueryListEvent) => {
+      syncDesktopDetailMode(event.matches);
+    };
+
+    mediaQuery.addEventListener("change", handleDesktopChange);
+
+    return () => {
+      mediaQuery.removeEventListener("change", handleDesktopChange);
+    };
+  }, []);
+
   const handleSearch = () => {
     setFolder(localFolder);
     setQuerySortBy(sortBy);
@@ -426,7 +453,7 @@ function EmailsPageContent() {
     setSelectedEmailId(messageId);
     setSelectedEmailData(emailData || null);
 
-    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches) {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 1535px)").matches) {
       setEmailDetailOpen(true);
     }
   };
@@ -454,7 +481,7 @@ function EmailsPageContent() {
   );
 
   return (
-    <div className="page-enter space-y-3 md:space-y-4">
+    <div className="page-enter flex min-h-0 flex-1 flex-col gap-3 md:gap-4">
       <PageHeader
         title="邮件工作区"
         description="围绕账户、筛选、验证码与正文详情的一站式邮件处理面板。"
@@ -572,6 +599,7 @@ function EmailsPageContent() {
         accounts={accounts}
         selectedAccount={selectedAccount}
         selectedAccountInfo={selectedAccountInfo}
+        isExpanded={isToolbarExpanded}
         localSearch={localSearch}
         localSearchType={localSearchType}
         localFolder={localFolder}
@@ -589,6 +617,7 @@ function EmailsPageContent() {
         onSortByChange={setSortBy}
         onToggleSortOrder={() => setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"))}
         onToggleAutoRefresh={() => setIsAutoRefreshEnabled((current) => !current)}
+        onToggleExpanded={() => setIsToolbarExpanded((current) => !current)}
         onSearch={handleSearch}
         onManualRefresh={handleManualRefresh}
         onOpenCreateShare={() => {
@@ -601,8 +630,8 @@ function EmailsPageContent() {
         onOpenClearFolder={() => setClearInboxOpen(true)}
       />
 
-      <div className="grid min-h-[72dvh] gap-4 xl:grid-cols-[minmax(320px,0.82fr)_minmax(460px,1.18fr)]">
-        <div className="panel-surface p-3 md:p-4">
+      <div className="grid min-h-0 flex-1 gap-4 2xl:grid-cols-[minmax(360px,0.8fr)_minmax(620px,1.2fr)]">
+        <div className="panel-surface flex min-h-0 flex-col overflow-hidden p-3 md:p-4">
           {!selectedAccount ? (
             <DataEmptyState
               title="请先选择邮箱账户"
@@ -631,12 +660,12 @@ function EmailsPageContent() {
           )}
         </div>
 
-        <div className="hidden xl:block">{detailPanel}</div>
+        <div className="hidden min-h-0 2xl:block">{detailPanel}</div>
       </div>
 
       <Dialog open={emailDetailOpen} onOpenChange={setEmailDetailOpen}>
-        <DialogContent className="max-h-[90vh] w-full max-w-[95vw] overflow-hidden lg:max-w-6xl">
-          {detailPanel}
+        <DialogContent className="flex h-[min(92dvh,960px)] w-full max-w-[95vw] flex-col overflow-hidden p-0 lg:max-w-6xl">
+          <div className="min-h-0 flex-1 overflow-hidden">{detailPanel}</div>
         </DialogContent>
       </Dialog>
 

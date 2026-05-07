@@ -205,8 +205,8 @@ export function EmailDetailPanel({
   const emailContentKey = `${messageId}-${viewMode}`;
 
   return (
-    <div className="panel-surface flex h-full min-h-[560px] flex-col overflow-hidden">
-      <div className="border-b border-border/70 px-4 py-4 md:px-5">
+    <div className="panel-surface flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="border-b border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(248,250,252,0.92))] px-4 py-4 md:px-5">
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1 space-y-1">
             <h2 className="break-words pr-4 text-lg font-semibold text-foreground">{email.subject}</h2>
@@ -233,7 +233,7 @@ export function EmailDetailPanel({
         </div>
       </div>
 
-      <div className="border-b border-border/70 px-4 py-4 md:px-5">
+      <div className="border-b border-border/70 bg-[color:var(--surface-1)]/45 px-4 py-4 md:px-5">
         <div className="grid gap-3 text-sm md:grid-cols-2">
           <div>
             <span className="font-medium text-[color:var(--text-soft)]">发件人：</span>
@@ -271,7 +271,7 @@ export function EmailDetailPanel({
         </div>
       </div>
 
-      <div className="border-b border-border/70 px-4 py-3 md:px-5">
+      <div className="border-b border-border/70 bg-[color:var(--surface-1)]/35 px-4 py-3 md:px-5">
         <div className="flex flex-wrap gap-2">
           <Button variant={viewMode === "html" ? "default" : "outline"} size="sm" onClick={() => setViewMode("html")}>HTML 视图</Button>
           <Button variant={viewMode === "text" ? "default" : "outline"} size="sm" onClick={() => setViewMode("text")}>纯文本</Button>
@@ -301,7 +301,7 @@ export function EmailDetailPanel({
         </div>
       ) : null}
 
-      <ScrollArea className="flex-1 px-4 py-5 md:px-5">
+      <ScrollArea className="min-h-0 flex-1 px-4 py-5 md:px-5">
         <EmailContent content={stableEmailBody} viewMode={viewMode} contentKey={emailContentKey} />
       </ScrollArea>
     </div>
