@@ -71,13 +71,22 @@ test("emails page should request hydrated v2 list details so verification button
   assert.ok(source.includes("hydrateDetails: true"));
 });
 
+test("emails page should fall back to the first available account when the URL points at a stale mailbox", () => {
+  const source = readFileSync(emailsPagePath, "utf-8");
+
+  assert.ok(source.includes("const hasResolvedSelectedAccount = useMemo("));
+  assert.ok(source.includes('account: hasResolvedSelectedAccount ? (selectedAccount ?? "") : "",'));
+  assert.ok(source.includes("if (!selectedAccount || !accounts.some((account) => account.email_id === selectedAccount)) {"));
+  assert.ok(source.includes("setSelectedAccount(accounts[0].email_id);"));
+});
+
 test("email list panel should keep the card layout as the stable presentation across viewport changes so maximize does not swap to a table", () => {
   const source = readFileSync(emailListPanelPath, "utf-8");
 
   assert.ok(source.includes('className="grid gap-3"'));
   assert.ok(!source.includes('<Table className="table-fixed">'));
   assert.ok(!source.includes("TableHead className"));
-  assert.ok(source.includes("复制验证码"));
+  assert.ok(source.includes("{email.verification_code}"));
 });
 
 test("email list panel should highlight verification emails in the shared card layout", () => {
@@ -94,12 +103,23 @@ test("email list panel should keep the stacked card layout across desktop widths
   assert.ok(!source.includes('min-[2200px]:hidden'));
 });
 
-test("email list cards should prioritize verification-code copy actions ahead of the preview block", () => {
+test("email list cards should use a denser layout and remove the body preview block", () => {
   const source = readFileSync(emailListPanelPath, "utf-8");
 
-  assert.ok(source.includes('className="w-full justify-center border-amber-300 bg-amber-50/90 text-amber-700 hover:bg-amber-100"'));
-  assert.ok(source.includes("复制验证码"));
-  assert.ok(source.includes('className="line-clamp-2 text-xs leading-relaxed text-[color:var(--text-soft)]"'));
+  assert.ok(source.includes('CardContent className="p-3"'));
+  assert.ok(source.includes('className="grid gap-2.5"'));
+  assert.ok(source.includes('className="flex min-w-0 items-center gap-2.5"'));
+  assert.ok(source.includes('className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground"'));
+  assert.ok(source.includes('className="shrink-0 rounded-full bg-[color:var(--surface-1)] px-2 py-1 text-[11px] text-[color:var(--text-faint)]"'));
+  assert.ok(source.includes('className="h-7 shrink-0 border-amber-300 bg-amber-50/90 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"'));
+  assert.ok(source.includes('<Copy className="mr-1 h-3.5 w-3.5" />'));
+  assert.ok(source.includes('{email.verification_code}'));
+  assert.ok(source.includes('size="icon"'));
+  assert.ok(source.includes('aria-label="删除邮件"'));
+  assert.ok(!source.includes("查看详情"));
+  assert.ok(!source.includes("复制验证码"));
+  assert.ok(!source.includes("body_preview"));
+  assert.ok(!source.includes("暂无预览内容"));
 });
 
 test("dashboard shell and email workspace should opt into min-h-0 flex sizing so list and detail regions can actually scroll", () => {
@@ -138,10 +158,23 @@ test("email detail dialog should include an accessible title and description eve
   assert.ok(source.includes('<DialogDescription className="sr-only">查看当前所选邮件的验证码、正文与原始来源。</DialogDescription>'));
 });
 
-test("email detail panel should wrap long metadata values and keep html content constrained within the available pane width", () => {
+test("email detail panel should keep metadata collapsed by default and reserve more room for the message body", () => {
   const source = readFileSync(emailDetailPanelPath, "utf-8");
 
-  assert.ok(source.includes('className="grid gap-3 text-sm"'));
+  assert.ok(source.includes("const [showMetadata, setShowMetadata] = useState(false);"));
+  assert.ok(source.includes('showMetadata ? "收起邮件信息" : "展开邮件信息"'));
+  assert.ok(source.includes("{showMetadata ? ("));
+  assert.ok(source.includes('className="border-b border-border/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.78),rgba(248,250,252,0.92))] px-4 py-3 md:px-5"'));
+  assert.ok(source.includes('className="flex flex-wrap items-center gap-1.5"'));
+  assert.ok(source.includes('className="h-8 rounded-full px-2.5 text-xs font-medium text-red-600 hover:bg-red-50 hover:text-red-700"'));
+  assert.ok(source.includes('className="h-8 rounded-full border-amber-300 bg-amber-50/90 px-2.5 text-xs font-semibold text-amber-700 hover:bg-amber-100"'));
+  assert.ok(source.includes('className="h-8 w-8 rounded-full text-[color:var(--text-soft)] hover:text-foreground"'));
+  assert.ok(source.includes('className="h-7 rounded-full px-2.5 text-xs"'));
+  assert.ok(source.includes('className="h-7 rounded-full px-2.5 text-xs text-[color:var(--text-soft)] hover:text-foreground"'));
   assert.ok(source.includes('className="break-all text-foreground"'));
   assert.ok(source.includes('className="prose prose-slate max-w-none break-words text-sm leading-relaxed [overflow-wrap:anywhere] [&_img]:max-w-full [&_table]:w-full dark:prose-invert"'));
+  assert.ok(!source.includes("在这里查看正文、验证码、原始来源与快速动作。"));
+  assert.ok(!source.includes("检测到验证码"));
+  assert.ok(!source.includes("border-green-200"));
+  assert.ok(!source.includes("bg-green-50"));
 });

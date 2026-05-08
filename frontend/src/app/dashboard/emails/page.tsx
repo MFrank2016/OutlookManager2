@@ -111,9 +111,13 @@ function EmailsPageContent() {
     () => accounts.find((account) => account.email_id === selectedAccount) ?? null,
     [accounts, selectedAccount]
   );
+  const hasResolvedSelectedAccount = useMemo(
+    () => Boolean(selectedAccount) && accounts.some((account) => account.email_id === selectedAccount),
+    [accounts, selectedAccount]
+  );
 
   const { data: emailsData, isLoading: isEmailsLoading, refetch: refetchEmails } = useEmails({
-    account: selectedAccount || "",
+    account: hasResolvedSelectedAccount ? (selectedAccount ?? "") : "",
     folder,
     sortBy: querySortBy,
     sortOrder: querySortOrder,
@@ -127,11 +131,11 @@ function EmailsPageContent() {
     skipCache,
   });
   const { data: deliveryStrategy } = useDeliveryStrategy({
-    email: selectedAccount,
+    email: hasResolvedSelectedAccount ? (selectedAccount ?? null) : null,
     overrideProvider,
     strategyMode: strategyModeOverride,
     skipCache,
-    enabled: useV2ReadPath && !!selectedAccount,
+    enabled: useV2ReadPath && hasResolvedSelectedAccount,
   });
   const refetchEmailsRef = useRef(refetchEmails);
 
@@ -155,7 +159,7 @@ function EmailsPageContent() {
   useVerificationCodeAutoCopy({
     emails: emailsData?.emails || [],
     resetKey: selectedAccount || "dashboard",
-    enabled: !!selectedAccount,
+    enabled: hasResolvedSelectedAccount,
     toastTitle: "主站邮件页发现新验证码",
   });
 
@@ -170,7 +174,7 @@ function EmailsPageContent() {
   }, [pendingRefreshSource]);
 
   const { countdown: refreshCountdown } = useAutoRefresh({
-    enabled: isAutoRefreshEnabled && !!selectedAccount,
+    enabled: isAutoRefreshEnabled && hasResolvedSelectedAccount,
     intervalSeconds: 30,
     onRefresh: handleAutoRefresh,
     isLoading: isEmailsLoading,
@@ -263,7 +267,11 @@ function EmailsPageContent() {
   }, [router, searchParams, selectedAccount]);
 
   useEffect(() => {
-    if (!selectedAccount && accounts.length > 0) {
+    if (accounts.length === 0) {
+      return;
+    }
+
+    if (!selectedAccount || !accounts.some((account) => account.email_id === selectedAccount)) {
       setSelectedAccount(accounts[0].email_id);
     }
   }, [accounts, selectedAccount]);

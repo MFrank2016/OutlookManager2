@@ -23,13 +23,22 @@ test("emails page should keep auto refresh toggle state and wire it into the too
 });
 
 
-test("emails toolbar should keep refresh status visible in the collapsed summary without rendering a second expanded auto-refresh bar", () => {
+test("emails toolbar should keep refresh status visible in the collapsed summary and allow copying the current account directly", () => {
   const source = readFileSync(toolbarPath, "utf-8");
 
   assert.ok(source.includes("自动刷新进行中"));
-  assert.ok(source.includes("收起时只保留邮箱、刷新倒计时与手动刷新入口。"));
+  assert.ok(source.includes('type="button"'));
+  assert.ok(source.includes('onClick={onCopyAccount}'));
+  assert.ok(source.includes('title={hasAccount ? "点击复制当前邮箱" : "请先选择邮箱账户"}'));
+  assert.ok(source.includes('className="flex flex-wrap items-center justify-between gap-3"'));
+  assert.ok(source.includes('"inline-flex h-10 min-w-0 max-w-full items-center gap-2 rounded-full'));
+  assert.ok(source.includes("当前邮箱"));
+  assert.ok(source.includes("点击复制"));
+  assert.ok(source.includes("当前邮箱"));
   assert.ok(source.includes('isAutoRefreshEnabled ? "关闭自动刷新" : "开启自动刷新"'));
   assert.ok(source.includes('onClick={onToggleAutoRefresh}'));
+  assert.ok(!source.includes("收起时只保留邮箱、刷新倒计时与手动刷新入口。"));
+  assert.ok(!source.includes("mt-2"));
   assert.ok(!source.includes("const autoRefreshControl = ("));
 });
 

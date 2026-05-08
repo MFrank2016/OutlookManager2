@@ -73,19 +73,30 @@ export function EmailToolbar({
 
   return (
     <div className="panel-surface overflow-hidden p-0">
-      <div className="px-4 py-4 md:px-5">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="min-w-0">
-            <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
+      <div className="px-4 py-3 md:px-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={onCopyAccount}
+            disabled={!hasAccount}
+            title={hasAccount ? "点击复制当前邮箱" : "请先选择邮箱账户"}
+            className={cn(
+              "inline-flex h-10 min-w-0 max-w-full items-center gap-2 rounded-full border border-border/70 bg-[color:var(--surface-1)]/75 px-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.5)] transition",
+              hasAccount
+                ? "cursor-copy hover:border-primary/40 hover:bg-[color:var(--surface-1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                : "cursor-not-allowed opacity-70"
+            )}
+          >
+            <span className="shrink-0 text-[11px] font-medium uppercase tracking-[0.18em] text-[color:var(--text-faint)]">
               当前邮箱
-            </div>
-            <div className="mt-2 rounded-2xl border border-border/70 bg-[color:var(--surface-1)]/75 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]">
-              <div className="truncate text-sm font-semibold text-foreground">{summaryAccountLabel}</div>
-              <div className="mt-1 text-xs text-[color:var(--text-soft)]">
-                收起时只保留邮箱、刷新倒计时与手动刷新入口。
-              </div>
-            </div>
-          </div>
+            </span>
+            <span className="h-4 w-px shrink-0 bg-border/70" />
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{summaryAccountLabel}</span>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-[11px] font-medium text-[color:var(--text-soft)]">
+              <Copy className="h-3.5 w-3.5" />
+              点击复制
+            </span>
+          </button>
 
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
             <div className="inline-flex h-10 items-center gap-2 rounded-full border border-border/70 bg-[color:var(--surface-1)]/85 px-3 text-xs text-[color:var(--text-soft)] shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
